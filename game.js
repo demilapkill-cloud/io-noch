@@ -23,16 +23,19 @@ function css3(c, a = 1) { return `rgba(${(c[0] * 255) | 0},${(c[1] * 255) | 0},$
 // Ночь идёт с 23:00 до 06:00 (420 игровых минут) за TOTAL реальных секунд.
 const TOTAL = 330;
 // стопы палитры: [t, skyTop, skyBot, aurora, tint, mote, auroraInt, stars]
+// дуга замкнута: рассвет на 0.93 плавно стекает обратно в сумерки к 1.0,
+// чтобы ночь перетекала в ночь без чёрного обрыва
 const STOPS = [
   [0.00, '#05070d', '#0b1322', '#14405a', '#e8a54a', '#ffd9a0', 0.18, 0.9],
   [0.24, '#070b18', '#17244a', '#3f7ea6', '#9fb4c7', '#cfe4ff', 0.42, 1.0],
   [0.50, '#10082e', '#2c1157', '#d84fd8', '#7df9ff', '#ff7ad9', 0.72, 1.1],
   [0.76, '#16003a', '#4d0f6e', '#ff2ea0', '#ffe14d', '#ff4fd8', 1.00, 1.2],
-  [0.90, '#24004d', '#7a1560', '#ff5f3c', '#ff9de2', '#fff06e', 1.10, 0.8],
-  [1.00, '#40507e', '#f2b56b', '#ffb86b', '#ffd9a0', '#fff3d9', 0.22, 0.0],
+  [0.86, '#24004d', '#7a1560', '#ff5f3c', '#ff9de2', '#fff06e', 1.10, 0.8],
+  [0.93, '#40507e', '#f2b56b', '#ffb86b', '#ffd9a0', '#fff3d9', 0.22, 0.0],
+  [1.00, '#05070d', '#0b1322', '#14405a', '#e8a54a', '#ffd9a0', 0.18, 0.9],
 ].map(s => [s[0], hex(s[1]), hex(s[2]), hex(s[3]), hex(s[4]), hex(s[5]), s[6], s[7]]);
-// энергия (музыка + визуальный накал) по времени ночи
-const ESTOPS = [[0, .13], [.24, .34], [.5, .6], [.76, .9], [.86, 1.0], [.93, .3], [1, .07]];
+// энергия (музыка + визуальный накал) по времени ночи — тоже замкнута
+const ESTOPS = [[0, .13], [.24, .34], [.5, .6], [.76, .9], [.86, 1.0], [.93, .3], [1, .13]];
 
 function sampleStops(stops, t) {
   let i = 0;
@@ -448,8 +451,16 @@ function audioDawn() {
   const t = A.ctx.currentTime;
   A.lp.frequency.cancelScheduledValues(t);
   A.lp.frequency.setValueAtTime(A.lp.frequency.value, t);
-  A.lp.frequency.exponentialRampToValueAtTime(2600, t + 6);
-  A.lp.frequency.exponentialRampToValueAtTime(9000, t + 20);
+  A.lp.frequency.exponentialRampToValueAtTime(2600, t + 3);
+  A.lp.frequency.exponentialRampToValueAtTime(9000, t + 8);
+}
+function audioNight() { // рассвет стёк — ночь возвращается, фильтр открывается
+  if (!A.started || !A.dawnMode) return;
+  A.dawnMode = false;
+  const t = A.ctx.currentTime;
+  A.lp.frequency.cancelScheduledValues(t);
+  A.lp.frequency.setValueAtTime(Math.max(200, A.lp.frequency.value), t);
+  A.lp.frequency.exponentialRampToValueAtTime(19000, t + 6);
 }
 
 // ============================================================
@@ -796,7 +807,50 @@ const UPGRADES = [
   { id: 'blanket', name: 'одеяло толстое',    desc: 'всё ранит четвертью слабее', apply: r => r.dmgMul *= 0.75 },
   { id: 'stormh',  name: 'сердце бури',       desc: 'в ночи бурные урон тебе вдвое меньше', once: true, apply: r => r.stormHeart = true },
   { id: 'wind2',   name: 'второе дыхание',    desc: 'единожды за бессонницу смертный удар тебя не гасит', rare: true, once: true, apply: r => r.secondWind = true },
+  { id: 'starf',   name: 'звёздный час',      desc: 'павшие звёзды сыплются с неба приметно чаще', apply: r => r.starRateMul *= 0.62 },
+  { id: 'keen',    name: 'искры бойкие',      desc: 'погасшая искра возгорается на треть скорее', apply: r => r.sparkCdMul *= 0.7 },
+  { id: 'dew',     name: 'роса рассветная',   desc: 'всякий рассвет омывает тебя дюжиной бодрости', apply: r => r.dawnDew += 12 },
+  { id: 'chreda',  name: 'чреда долгая',      desc: 'чреда мыслей держится вдвое дольше', apply: r => r.comboMul *= 1.8 },
+  { id: 'zharcz',  name: 'жар чреды',         desc: 'при чреде от пяти всякая мысль дарит лишнее очко опыта', once: true, apply: r => r.comboXp = true },
+  { id: 'rod',     name: 'громоотвод',        desc: 'молния тебя не ранит — напротив, бодрит', rare: true, once: true, apply: r => r.boltRod = true },
+  { id: 'veil',    name: 'вуаль мерцания',    desc: 'после мерцания ночь не смеет тронуть тебя две с половиной секунды', once: true, apply: r => r.relocVeil = true },
+  { id: 'zhatva',  name: 'жатва бури',        desc: 'в ночи бурные всякая мысль дарит лишнее очко опыта', once: true, apply: r => r.stormXp = true },
+  { id: 'skoro',   name: 'скороход небесный', desc: 'предел скорости твоей отодвигается ввысь', apply: r => r.maxSpd += 140 },
 ];
+
+// иконки даров — тонкий штрих в духе созвездий
+const ICONS = {
+  spark:   '<path d="M12 3l1.8 7.2L21 12l-7.2 1.8L12 21l-1.8-7.2L3 12l7.2-1.8z"/>',
+  round:   '<circle cx="12" cy="12" r="7.5"/><circle cx="19.5" cy="12" r="1.5"/>',
+  spin:    '<path d="M5.5 12a6.5 6.5 0 1 1 2 4.6"/><path d="M5 13.5l.6 3.3 3.2-.9"/>',
+  tea:     '<path d="M6 10h9v3.5a4.5 4.5 0 0 1-9 0z"/><path d="M15 11h2.4a2 2 0 0 1 0 4H15"/><path d="M9 7c0-1.2 1-1.4 1-2.6M12 7c0-1.2 1-1.4 1-2.6"/>',
+  calm:    '<path d="M3 12c2-4.5 4-4.5 6 0s4 4.5 6 0 4-4.5 6 0"/>',
+  dawn:    '<path d="M3 17h18"/><path d="M7 17a5 5 0 0 1 10 0"/><path d="M12 6v3M5.5 9.5l1.8 1.8M18.5 9.5l-1.8 1.8"/>',
+  thread:  '<path d="M4 18C8 7 14 19 20 7"/><circle cx="20" cy="6.5" r="1.6"/>',
+  chain:   '<rect x="3.5" y="9" width="9" height="6" rx="3"/><rect x="11.5" y="9" width="9" height="6" rx="3"/>',
+  light:   '<circle cx="15" cy="12" r="4.5"/><path d="M3 9h6M3 12h5M3 15h6"/>',
+  breath:  '<path d="M12 5a7 7 0 0 1 7 7M12 8.5a3.5 3.5 0 0 1 3.5 3.5"/><circle cx="12" cy="12" r="1"/><path d="M12 15.5A3.5 3.5 0 0 1 8.5 12M12 19a7 7 0 0 1-7-7"/>',
+  echo:    '<circle cx="12" cy="12" r="2"/><circle cx="12" cy="12" r="5.5"/><circle cx="12" cy="12" r="9"/>',
+  coolfl:  '<path d="M12 3c3 4 6 6 6 10a6 6 0 0 1-12 0c0-4 3-6 6-10z"/><path d="M12 10v6M9.5 13h5"/>',
+  flow:    '<path d="M12 12a3 3 0 1 0 3-3 5 5 0 1 0 5 5 8 8 0 1 1-8-8"/>',
+  riftg:   '<path d="M12 3l-2.5 6 3.5 2-3 5 3.5 2L11 21"/><path d="M7 12h2M15 11h2"/>',
+  magnet:  '<path d="M7 4v7a5 5 0 0 0 10 0V4"/><path d="M7 4h3.5v4H7M13.5 4H17v4h-3.5"/>',
+  grav:    '<circle cx="12" cy="12" r="2.2"/><ellipse cx="12" cy="12" rx="9" ry="4" transform="rotate(-24 12 12)"/>',
+  horizon: '<path d="M3 15h18"/><circle cx="7" cy="8" r="1"/><circle cx="13" cy="5.5" r="1"/><circle cx="18" cy="9" r="1"/>',
+  feast:   '<path d="M4 12a8 8 0 0 1 16 0c-2.6 0-2.6 2-5.3 2s-2.7-2-5.4-2-2.7 2-5.3 2z"/><circle cx="12" cy="8" r="1.2"/>',
+  blanket: '<path d="M4 9c3-2.5 5-2.5 8 0s5 2.5 8 0"/><path d="M4 14c3-2.5 5-2.5 8 0s5 2.5 8 0"/><path d="M4 9v5M20 9v5"/>',
+  stormh:  '<path d="M12 20s-7-4.5-7-9.5A4 4 0 0 1 12 8a4 4 0 0 1 7 2.5c0 5-7 9.5-7 9.5z"/><path d="M12.5 9.5L10.8 13h2.4l-1.7 3.2"/>',
+  wind2:   '<path d="M3 9c4 0 5-3 8-3s4 3 8 3M3 15c4 0 5 3 8 3s4-3 8-3"/><path d="M12 9.5l.9 2 2 .5-2 .5-.9 2-.9-2-2-.5 2-.5z"/>',
+  starf:   '<path d="M4 4l9 9"/><path d="M15 12l1.2 3 3 1.2-3 1.2-1.2 3-1.2-3-3-1.2 3-1.2z"/>',
+  keen:    '<path d="M13 3l-2 6.5 4 1.5-6 10 1.5-8-4-1.5z"/>',
+  dew:     '<path d="M12 3.5c3.2 4.6 6 7.4 6 11a6 6 0 0 1-12 0c0-3.6 2.8-6.4 6-11z"/><path d="M9.5 14a3 3 0 0 0 2 2.6"/>',
+  chreda:  '<circle cx="5" cy="18" r="1.6"/><circle cx="11" cy="13" r="1.6"/><circle cx="17" cy="8" r="1.6"/><path d="M6.2 16.9l3.5-2.8M12.2 11.9l3.5-2.8"/>',
+  zharcz:  '<circle cx="6" cy="18" r="1.4"/><circle cx="11" cy="16" r="1.4"/><path d="M17 3c2.4 3.2 4 5.2 4 8a4.5 4.5 0 1 1-9 0c0-2.8 2.6-4.8 5-8z"/>',
+  rod:     '<path d="M12 3L9.5 9.5h3L10 16"/><path d="M4 20h16M8 17.5L4 20M16 17.5l4 2.5"/>',
+  veil:    '<path d="M4 5c2 3 4 4.5 8 4.5S18 8 20 5"/><path d="M6 8.5c-.6 2.8-.4 6 .4 9M12 9.5c-.2 3 0 6.5.4 9M18 8.5c.6 2.8.4 6-.4 9"/>',
+  zhatva:  '<path d="M13 3l-2 6 3.5 1.5L9 20l1.5-7L7 11.5z"/><circle cx="17.5" cy="16.5" r="2.5"/>',
+  skoro:   '<path d="M5 6l6 6-6 6M12 6l6 6-6 6"/>',
+};
 
 function newRun() {
   return {
@@ -807,7 +861,9 @@ function newRun() {
     secondWind: false, echo: false, chain: false, stormHeart: false,
     feast: 0, gravity: 0, moteRateMul: 1,
     hotMul: 1, flow: false, riftGift: false,
-    kills: 0, thoughts: 0, comboBest: 0, dist: 0, taken: [],
+    sparkCdMul: 1, comboMul: 1, comboXp: false, boltRod: false,
+    relocVeil: false, stormXp: false, maxSpd: 900, starRateMul: 1, dawnDew: 0,
+    kills: 0, thoughts: 0, comboBest: 0, dist: 0, taken: [], offerHist: [],
   };
 }
 let RUN = newRun();
@@ -816,7 +872,7 @@ const S = {
   mode: 'title', t: 0, time: 0, playT: 0, paused: false,
   combo: 0, comboT: 0,
   shake: 0, glitch: 0,
-  hurtT: 0, stormFired: false,
+  hurtT: 0, stormFired: false, dawnFired: false,
   pal: palette(0), energy: 0.13,
 };
 function isStormNight() { return RUN.night % 3 === 0; }
@@ -865,8 +921,10 @@ const io = {
 };
 const pointer = { x: 0, y: 0, active: false };
 const keys = {};
-let motes = [], ships = [], enemies = [], bolts = [], parts = [], texts = [], shots = [], clouds = [], stars = [];
+let motes = [], ships = [], enemies = [], bolts = [], parts = [], texts = [], shots = [], clouds = [], stars = [], webs = [];
 let moteTimer = 0, shipTimer = 4, shotTimer = 3, eTimer = 3, boltTimer = 8, starTimer = 18;
+// волны: ночь временами накатывает всей толпой, потом отпускает
+const WAVE = { n: 0, timer: 40, active: false, left: 0, spawnT: 0, theme: null };
 
 function syncSpirits() {
   while (io.spirits.length < RUN.spirits) io.spirits.push({ ang: rand(TAU), cd: 0 });
@@ -885,7 +943,9 @@ function resetWorld(attract) {
   cam.x = 0; cam.y = 0;
   syncSpirits();
   pointer.x = W * 0.5; pointer.y = H * 0.45;
-  S.t = 0; S.playT = 0; S.combo = 0; S.hurtT = 0; S.shake = 0; S.glitch = 0; S.stormFired = false;
+  S.t = 0; S.playT = 0; S.combo = 0; S.hurtT = 0; S.shake = 0; S.glitch = 0; S.stormFired = false; S.dawnFired = false;
+  webs = [];
+  WAVE.n = 0; WAVE.timer = 40; WAVE.active = false; WAVE.left = 0;
   moteTimer = 0.5; shipTimer = attract ? 2 : 5; eTimer = attract ? 1e9 : 3; boltTimer = 9;
   if (attract) for (let i = 0; i < 7; i++) spawnMote(true);
 }
@@ -924,6 +984,16 @@ function spawnEnemy(type) {
   } else if (type === 'dasher') enemies.push({ ...base, r: 11, sp: 70 + D * 8, dmg: 22, st: 'seek', stT: 0, dx: 0, dy: 0 });
   else if (type === 'siren') enemies.push({ ...base, r: 16, sp: 8, dmg: 8, ringR: 150, pulse: rand(TAU) });
   else if (type === 'eater') enemies.push({ ...base, r: 12, sp: 60 + D * 7, dmg: 10, eaten: 0 });
+  else if (type === 'eye') enemies.push({ ...base, r: 13, sp: 30 + D * 4, dmg: 16, st: 'drift', stT: rand(2, 4), aim: 0 });
+  else if (type === 'moth') {
+    const n = 3 + (Math.random() * 2 | 0);
+    for (let i = 0; i < n; i++) enemies.push({
+      ...base, x: p.x + rand(-50, 50), y: p.y + rand(-50, 50),
+      r: 7, sp: 115 + D * 10, dmg: 0, seed: rand(TAU), type: 'moth',
+      latched: false, la: 0, stun: 0, burn: 0,
+    });
+  }
+  else if (type === 'weaver') enemies.push({ ...base, r: 12, sp: 34, dmg: 12, webT: rand(2, 4) });
   else if (type === 'antio') enemies.push({
     ...base, r: 9, sp: 55 + D * 6, dmg: 20, hp: 3, flashT: 0,
     blinkT: rand(4, 6), orbR: 48,
@@ -937,6 +1007,9 @@ function pickEnemyType() {
   if (D >= 1.5) table.push(['dasher', 2]);
   if (D >= 2 && enemies.filter(e => e.type === 'siren').length < 2) table.push(['siren', 1]);
   if (D >= 2.5) table.push(['eater', 1.5]);
+  if (D >= 0.9) table.push(['moth', 1.6]);
+  if (D >= 1.2 && enemies.filter(e => e.type === 'eye').length < 2) table.push(['eye', 1.2]);
+  if (D >= 1.8 && enemies.filter(e => e.type === 'weaver').length < 2) table.push(['weaver', 1]);
   // тёмный двойник — редкий, один за раз
   if (D >= 3 && !enemies.some(e => e.type === 'antio')) table.push(['antio', 0.35]);
   let sum = 0; for (const t of table) sum += t[1];
@@ -1110,12 +1183,13 @@ function echoBlast(x, y) {
 function tryRelocate() {
   if (io.reloc.cd > 0 || io.reloc.phase !== 'idle') return;
   io.reloc.rx = io.x; io.reloc.ry = io.y;
+  shakeOffMoths();
   burst(io.x, io.y, IO_COL, 16, 220);
   const pw = pointerWorld();
   io.x = pw.x; io.y = pw.y; io.vx = 0; io.vy = 0;
   io.trail = [];
   io.reloc.phase = 'out'; io.reloc.timer = 2.5; io.reloc.cd = RUN.relocCd;
-  S.hurtT = Math.max(S.hurtT, 0.6);
+  S.hurtT = Math.max(S.hurtT, relocGuard());
   burst(io.x, io.y, IO_COL, 16, 220);
   if (RUN.echo) echoBlast(io.x, io.y);
   sfxReloc(false);
@@ -1170,10 +1244,21 @@ function update(dt) {
     if (S.t >= 1) { // ночь перетекает в следующую без остановки
       S.t -= 1;
       RUN.night++;
-      S.stormFired = false;
+      S.stormFired = false; S.dawnFired = false;
+      audioNight();
       spawnText(io.x, io.y - 100, (isStormNight() ? 'буря · ночь ' : 'ночь ') + RUN.night, true);
     }
     if (!S.stormFired && S.t >= 0.714) { S.stormFired = true; sfxRiser(); S.glitch = Math.max(S.glitch, 0.5); }
+    if (!S.dawnFired && S.t >= 0.88) { // рассвет: свет разливается и стекает в сумерки
+      S.dawnFired = true;
+      audioDawn();
+      if (RUN.dawnDew > 0) {
+        RUN.wake = Math.min(RUN.wakeMax, RUN.wake + RUN.dawnDew);
+        spawnText(io.x, io.y - 60, 'роса рассветная', true);
+        burst(io.x, io.y, [1, 0.9, 0.7], 24, 300);
+      }
+      spawnText(io.x, io.y - 110, 'рассвет — а день промелькнёт мимо', true);
+    }
   }
   S.pal = palette(S.t);
   const D = difficulty();
@@ -1200,11 +1285,12 @@ function update(dt) {
     if (io.reloc.phase === 'out') {
       io.reloc.timer -= dt;
       if (io.reloc.timer <= 0) {
+        shakeOffMoths();
         burst(io.x, io.y, IO_COL, 14, 200);
         io.x = io.reloc.rx; io.y = io.reloc.ry;
         io.vx = 0; io.vy = 0; io.trail = [];
         io.reloc.phase = 'idle';
-        S.hurtT = Math.max(S.hurtT, 0.6);
+        S.hurtT = Math.max(S.hurtT, relocGuard());
         burst(io.x, io.y, IO_COL, 14, 200);
         if (RUN.echo) echoBlast(io.x, io.y);
         sfxReloc(true);
@@ -1217,6 +1303,9 @@ function update(dt) {
     let slowMul = 1;
     for (const e of enemies) { // сирены вяжут движение
       if (e.type === 'siren' && Math.hypot(io.x - e.x, io.y - e.y) < e.ringR) slowMul = 0.62;
+    }
+    for (const wb of webs) { // паутина вяжет крепче
+      if (Math.hypot(io.x - wb.x, io.y - wb.y) < wb.r) { slowMul = Math.min(slowMul, 0.5); RUN.wake -= 2 * dt; }
     }
     if (io.tether) {
       const sh = io.tether;
@@ -1242,7 +1331,7 @@ function update(dt) {
 
     // перегрев: слишком быстрый свет рвёт ночь
     let spd = Math.hypot(io.vx, io.vy);
-    if (spd > 900) { io.vx *= 900 / spd; io.vy *= 900 / spd; spd = 900; }
+    if (spd > RUN.maxSpd) { io.vx *= RUN.maxSpd / spd; io.vy *= RUN.maxSpd / spd; spd = RUN.maxSpd; }
     const HOT = 430 * RUN.hotMul;
     if (spd > HOT) io.heat = Math.min(1, io.heat + (spd / HOT - 1) * 2 * dt);
     else io.heat = Math.max(0, io.heat - dt * 1.2);
@@ -1307,7 +1396,7 @@ function update(dt) {
   if (playing) {
     starTimer -= dt;
     if (starTimer <= 0 && stars.length < 2) {
-      starTimer = rand(22, 40);
+      starTimer = rand(22, 40) * RUN.starRateMul;
       const p = spawnRing(220, viewR() * 0.8);
       stars.push({ x: p.x, y: p.y, t: 0, life: 14, seed: rand(TAU) });
       burst(p.x, p.y, [1, 1, 1], 20, 300);
@@ -1336,9 +1425,43 @@ function update(dt) {
     shots.push({ x: rand(W * 0.2, W), y: rand(H * 0.05, H * 0.35), vx: -rand(500, 900), vy: rand(120, 260), t: 0, life: rand(0.5, 0.9) });
   }
   if (playing) {
+    // --- волны: ночь накатывает толпой и отступает с дарами ---
+    if (!WAVE.active) {
+      WAVE.timer -= dt;
+      if (WAVE.timer <= 0 && S.playT > 25) {
+        WAVE.active = true; WAVE.n++;
+        WAVE.left = Math.min(16, 4 + WAVE.n * 2 + Math.floor(D));
+        WAVE.spawnT = 0.4;
+        WAVE.theme = pickEnemyType();
+        spawnText(io.x, io.y - 120, 'волна ' + WAVE.n + ' — ночь прибывает', true);
+        sfxRiser();
+        S.glitch = Math.max(S.glitch, 0.4);
+      }
+    } else if (WAVE.left > 0) {
+      WAVE.spawnT -= dt;
+      if (WAVE.spawnT <= 0) {
+        WAVE.spawnT = rand(0.25, 0.6);
+        spawnEnemy(Math.random() < 0.65 ? WAVE.theme : pickEnemyType());
+        WAVE.left--;
+      }
+    } else if (enemies.length <= 3) {
+      WAVE.active = false;
+      WAVE.timer = rand(34, 50);
+      spawnText(io.x, io.y - 120, 'волна отхлынула — дыши', true);
+      // отлив оставляет мысли кольцом окрест
+      for (let k2 = 0; k2 < 6; k2++) {
+        const a2 = k2 / 6 * TAU + rand(0.5);
+        spawnMoteAt(io.x + Math.cos(a2) * rand(130, 260), io.y + Math.sin(a2) * rand(110, 220), 18);
+      }
+      if (Math.random() < 0.5) {
+        const p2 = spawnRing(220, 520);
+        stars.push({ x: p2.x, y: p2.y, t: 0, life: 14, seed: rand(TAU) });
+      }
+      sfxChoice();
+    }
     eTimer -= dt;
     const cap = Math.min(4 + D * 2, 18);
-    if (eTimer <= 0 && enemies.length < cap) {
+    if (eTimer <= 0 && enemies.length < cap && !WAVE.active) {
       // разломы: рядом с ними ночь рожает чаще и прямо из трещины
       const rifts = visZones.filter(z => z.type === 'rift');
       if (rifts.length && Math.random() < 0.6) {
@@ -1405,6 +1528,7 @@ function update(dt) {
     if (playing) updateEnemy(e, dt);
     e.x += e.vx * dt; e.y += e.vy * dt;
     if (!playing) continue;
+    if (e.dead) { killEnemy(i); continue; } // мотылёк сгорел в оверчардже
     // тёмный двойник: свои правила боя
     if (e.type === 'antio') {
       const orbR2 = RUN.orbitR * (io.oc ? 1.6 : 1);
@@ -1420,7 +1544,7 @@ function update(dt) {
           const ex = e.x + Math.cos(esp.ang) * e.orbR;
           const ey = e.y + Math.sin(esp.ang) * e.orbR * 0.82;
           if (Math.hypot(sx - ex, sy - ey) < 14) {
-            sp.cd = 2; esp.cd = 2; clashed = true;
+            sp.cd = 2 * RUN.sparkCdMul; esp.cd = 2; clashed = true;
             burst((sx + ex) / 2, (sy + ey) / 2, [0.8, 0.6, 1], 10, 200);
             break;
           }
@@ -1428,7 +1552,7 @@ function update(dt) {
         if (clashed) continue;
         // искра по ядру — двойник тускнеет
         if (Math.hypot(sx - e.x, sy - e.y) < 12 + e.r) {
-          sp.cd = 4;
+          sp.cd = 4 * RUN.sparkCdMul;
           e.hp--; e.flashT = 0.25;
           burst(e.x, e.y, [0.55, 0.25, 0.75], 14, 240);
           sfxKill(e.x);
@@ -1474,7 +1598,7 @@ function update(dt) {
       const sx = io.x + Math.cos(sp.ang) * orbR;
       const sy = io.y + Math.sin(sp.ang) * orbR * 0.82;
       if (Math.hypot(sx - e.x, sy - e.y) < 12 + e.r) {
-        sp.cd = e.type === 'siren' ? 6 : 4;
+        sp.cd = (e.type === 'siren' ? 6 : 4) * RUN.sparkCdMul;
         killEnemy(i); dead = true;
         break;
       }
@@ -1483,6 +1607,17 @@ function update(dt) {
     // контакт
     const d = Math.hypot(io.x - e.x, io.y - e.y);
     if (d < 16 + e.r) {
+      if (e.type === 'moth') { // мотылёк не ранит — прицепляется
+        if (!e.latched && e.stun <= 0) {
+          const latchedN = enemies.filter(x => x.type === 'moth' && x.latched).length;
+          if (latchedN < 3) {
+            e.latched = true; e.burn = 0;
+            e.la = Math.atan2(e.y - io.y, e.x - io.x);
+            burst(io.x, io.y, [0.75, 0.4, 0.85], 8, 160);
+          }
+        }
+        continue;
+      }
       const dmg = e.type === 'dasher' && e.st !== 'dash' ? 10 : e.dmg;
       damageIo(dmg, e.x, e.y);
       if (e.type !== 'siren') { killEnemy(i); RUN.kills--; } // смерть об Ио — не в счёт рассеянных
@@ -1493,6 +1628,28 @@ function update(dt) {
   }
   if (playing) checkDissolve();
 
+  // --- паутины ловца снов ---
+  for (let i = webs.length - 1; i >= 0; i--) {
+    const wb = webs[i];
+    wb.t += dt;
+    if (wb.t > wb.life || Math.hypot(wb.x - cam.x, wb.y - cam.y) > viewR() * 2.6) { webs.splice(i, 1); continue; }
+    if (!playing) continue;
+    // искра рвёт паутину
+    const orbR3 = RUN.orbitR * (io.oc ? 1.6 : 1);
+    for (const sp of io.spirits) {
+      if (sp.cd > 0) continue;
+      const sx = io.x + Math.cos(sp.ang) * orbR3;
+      const sy = io.y + Math.sin(sp.ang) * orbR3 * 0.82;
+      if (Math.hypot(sx - wb.x, sy - wb.y) < 26) {
+        sp.cd = 2 * RUN.sparkCdMul;
+        webs.splice(i, 1);
+        burst(wb.x, wb.y, [0.72, 0.78, 0.9], 14, 200);
+        sfxKill(wb.x);
+        break;
+      }
+    }
+  }
+
   // --- молнии ---
   for (let i = bolts.length - 1; i >= 0; i--) {
     const b = bolts[i];
@@ -1501,7 +1658,13 @@ function update(dt) {
       b.hitDone = true;
       sfxZap(b.x);
       S.shake = Math.max(S.shake, 0.4); S.glitch = Math.max(S.glitch, 0.35);
-      if (S.mode === 'play' && Math.abs(io.x - b.x) < 30) damageIo(20, b.x, io.y + 50);
+      if (S.mode === 'play' && Math.abs(io.x - b.x) < 30) {
+        if (RUN.boltRod) { // громоотвод: разряд бодрит
+          RUN.wake = Math.min(RUN.wakeMax, RUN.wake + 8);
+          spawnText(io.x, io.y - 60, 'громоотвод', false);
+          burst(io.x, io.y, [1, 0.9, 0.5], 20, 300);
+        } else damageIo(20, b.x, io.y + 50);
+      }
     }
     if (b.t > b.warn + b.strike) bolts.splice(i, 1);
   }
@@ -1593,6 +1756,63 @@ function updateEnemy(e, dt) {
       burst(e.x, e.y, [0.55, 0.25, 0.75], 16, 240);
       sfxReloc(true);
     }
+  } else if (e.type === 'eye') {
+    // око бессонницы: дрейфует поодаль, целится взглядом, бьёт лучом
+    e.stT -= dt;
+    if (e.st === 'drift') {
+      const want = d - 340;
+      e.vx += (dx / d * e.sp * Math.sign(want) + Math.cos(e.seed + S.time * 0.5) * 20 - e.vx) * dt * 1.4;
+      e.vy += (dy / d * e.sp * Math.sign(want) - e.vy) * dt * 1.4;
+      if (e.stT <= 0 && d < 720) { e.st = 'aim'; e.stT = 0.85; }
+    } else if (e.st === 'aim') {
+      e.vx *= 0.9; e.vy *= 0.9;
+      e.aim = Math.atan2(dy, dx); // ведёт взглядом до последнего
+      if (e.stT <= 0) {
+        e.st = 'fire'; e.stT = 0.28;
+        sfxZap(e.x);
+        S.shake = Math.max(S.shake, 0.25);
+        const ux = Math.cos(e.aim), uy = Math.sin(e.aim);
+        const px = io.x - e.x, py = io.y - e.y;
+        const t2 = px * ux + py * uy;
+        if (t2 > 0 && t2 < 760 && Math.abs(px * uy - py * ux) < 30) damageIo(e.dmg, e.x, e.y);
+      }
+    } else if (e.stT <= 0) { e.st = 'drift'; e.stT = rand(3.5, 5.5); }
+  } else if (e.type === 'moth') {
+    // мотылёк тьмы: летит на свет, прицепляется и пьёт бодрость;
+    // стряхнуть — скоростью или мерцанием, сжечь — оверчарджем
+    e.stun = Math.max(0, e.stun - dt);
+    if (e.latched) {
+      e.x = io.x + Math.cos(e.la + S.time * 1.5) * 17;
+      e.y = io.y + Math.sin(e.la + S.time * 1.5) * 14;
+      e.vx = 0; e.vy = 0;
+      RUN.wake -= 2.6 * dt;
+      if (io.oc) {
+        e.burn += dt;
+        if (e.burn > 0.7) e.dead = true;
+      } else if (Math.hypot(io.vx, io.vy) > 620) {
+        e.latched = false; e.stun = 1.6;
+        e.vx = rand(-180, 180); e.vy = rand(-180, 180);
+        burst(e.x, e.y, [0.75, 0.4, 0.85], 6, 140);
+      }
+    } else if (e.stun > 0) { e.vx *= 0.95; e.vy *= 0.95; }
+    else {
+      const fl = Math.sin(S.time * 7 + e.seed) * 90;
+      e.vx += ((dx / d * e.sp) + Math.cos(e.seed) * fl * 0.4 - e.vx) * dt * 2.2;
+      e.vy += ((dy / d * e.sp) + Math.sin(e.seed) * fl * 0.4 - e.vy) * dt * 2.2;
+    }
+  } else if (e.type === 'weaver') {
+    // ловец снов: бродит поодаль и ткёт паутины поперёк пути
+    e.vx += (Math.cos(e.seed + S.time * 0.3) * e.sp - e.vx) * dt;
+    e.vy += (Math.sin(e.seed + S.time * 0.3) * e.sp - e.vy) * dt;
+    const want = d - 260;
+    e.vx += dx / d * Math.sign(want) * 30 * dt;
+    e.vy += dy / d * Math.sign(want) * 30 * dt;
+    e.webT -= dt;
+    if (e.webT <= 0 && webs.length < 6) {
+      e.webT = rand(5, 8);
+      webs.push({ x: e.x, y: e.y, r: 95, t: 0, life: 16, seed: rand(TAU) });
+      burst(e.x, e.y, [0.65, 0.72, 0.85], 8, 120);
+    }
   } else if (e.type === 'dasher') {
     e.stT += dt;
     if (e.st === 'seek') {
@@ -1620,7 +1840,7 @@ function collectMote(m) {
   const nearRift = zoneAt(m.x, m.y, 'rift');
   const heal = (4 + RUN.healBonus) * (nearRift && RUN.riftGift ? 2 : 1);
   RUN.wake = Math.min(RUN.wakeMax, RUN.wake + heal);
-  S.combo++; S.comboT = 3;
+  S.combo++; S.comboT = 3 * RUN.comboMul;
   if (S.combo > RUN.comboBest) RUN.comboBest = S.combo;
   sfxCollect(S.combo - 1, m.x);
   burst(m.x, m.y, S.pal.mote, 12, 200);
@@ -1628,9 +1848,21 @@ function collectMote(m) {
   if (RUN.thoughts === 1 || Math.random() < 0.35) {
     spawnText(m.x, m.y - 40, pick(PHRASES[tier]), tier >= 3);
   }
-  RUN.xp += nearRift ? 2 : 1;
+  let gain = nearRift ? 2 : 1;
+  if (RUN.comboXp && S.combo >= 5) gain++;
+  if (RUN.stormXp && isStormNight()) gain++;
+  RUN.xp += gain;
   if (RUN.xp >= RUN.xpNext) levelUp();
   updateHud();
+}
+function relocGuard() { return RUN.relocVeil ? 2.5 : 0.6; }
+function shakeOffMoths() { // мерцание сбрасывает прицепившихся мотыльков
+  for (const e of enemies) {
+    if (e.type === 'moth' && e.latched) {
+      e.latched = false; e.stun = 2;
+      e.vx = rand(-160, 160); e.vy = rand(-160, 160);
+    }
+  }
 }
 
 // ---------- отрисовка ----------
@@ -1664,6 +1896,8 @@ function draw() {
 
   // зоны мира — луга, разломы, течения — лежат под всеми сущностями
   for (const z of visZones) drawZone(z, pal, tm);
+  // паутины ловца снов — тоже на плоскости мира
+  for (const wb of webs) drawWeb(wb, tm);
 
   // падающие звёзды — атмосфера, экранный слой
   for (const s2 of shots) {
@@ -1902,8 +2136,125 @@ function drawShip(sh, P, pal, tm) {
   sc.globalCompositeOperation = 'source-over';
 }
 
+function drawWeb(wb, tm) {
+  const P = proj(wb.x, wb.y);
+  const a = Math.min(1, wb.t / 0.7, Math.max(0, (wb.life - wb.t) / 1.2));
+  if (a <= 0) return;
+  const R = wb.r * P.k;
+  sc.strokeStyle = css3([0.72, 0.78, 0.9], (0.14 + 0.04 * Math.sin(tm * 2 + wb.seed)) * a);
+  sc.lineWidth = 1;
+  for (let ring = 1; ring <= 3; ring++) {
+    const rr = R * ring / 3;
+    sc.beginPath();
+    for (let i = 0; i <= 7; i++) {
+      const an = i / 7 * TAU + wb.seed;
+      const px = P.x + Math.cos(an) * rr, py = P.y + Math.sin(an) * rr * view.tilt;
+      i === 0 ? sc.moveTo(px, py) : sc.lineTo(px, py);
+    }
+    sc.stroke();
+  }
+  sc.beginPath();
+  for (let i = 0; i < 7; i++) {
+    const an = i / 7 * TAU + wb.seed;
+    sc.moveTo(P.x, P.y);
+    sc.lineTo(P.x + Math.cos(an) * R, P.y + Math.sin(an) * R * view.tilt);
+  }
+  sc.stroke();
+}
+
 function drawEnemy(e, P, tm) {
   const k = P.k;
+  if (e.type === 'moth') {
+    // мотылёк тьмы — рваные крылья бьются о свет
+    sc.save();
+    sc.translate(P.x, P.y);
+    sc.scale(k, k);
+    const fl = Math.sin(tm * (e.latched ? 7 : 22) + e.seed) * 0.9;
+    if (e.vx || e.vy) sc.rotate(Math.atan2(e.vy, e.vx) + Math.PI / 2);
+    sc.fillStyle = e.burn > 0 ? 'rgba(60,20,10,.95)' : 'rgba(10,6,18,.95)';
+    sc.strokeStyle = css3(e.burn > 0 ? [1, 0.55, 0.25] : [0.75, 0.4, 0.85], 0.6);
+    sc.lineWidth = 1;
+    for (const s of [-1, 1]) {
+      sc.save(); sc.scale(s, 1); sc.rotate(fl * 0.5);
+      sc.beginPath();
+      sc.moveTo(1, 0); sc.quadraticCurveTo(9, -7, 8, 1); sc.quadraticCurveTo(7, 6, 1, 3);
+      sc.closePath(); sc.fill(); sc.stroke();
+      sc.restore();
+    }
+    sc.fillStyle = css3([0.9, 0.5, 0.9], 0.85);
+    sc.beginPath(); sc.ellipse(0, 0, 1.3, 3.4, 0, 0, TAU); sc.fill();
+    sc.restore();
+    return;
+  }
+  if (e.type === 'eye') {
+    // око бессонницы: глядит, целится, бьёт лучом
+    const hot = e.st !== 'drift';
+    if (hot) {
+      const fire = e.st === 'fire';
+      const P2 = proj(e.x + Math.cos(e.aim) * 760, e.y + Math.sin(e.aim) * 760);
+      sc.strokeStyle = fire ? 'rgba(255,120,150,.85)' : css3([1, 0.5, 0.6], 0.3 + 0.25 * Math.sin(tm * 26));
+      sc.lineWidth = fire ? 4.5 : 1;
+      if (!fire) sc.setLineDash([3, 9]);
+      sc.beginPath(); sc.moveTo(P.x, P.y); sc.lineTo(P2.x, P2.y); sc.stroke();
+      sc.setLineDash([]);
+      if (fire) {
+        sc.strokeStyle = 'rgba(255,235,245,.9)'; sc.lineWidth = 1.4;
+        sc.beginPath(); sc.moveTo(P.x, P.y); sc.lineTo(P2.x, P2.y); sc.stroke();
+      }
+    }
+    sc.save();
+    sc.translate(P.x, P.y);
+    sc.scale(k, k);
+    const dxi = io.x - e.x, dyi = io.y - e.y, di = Math.hypot(dxi, dyi) || 1;
+    sc.fillStyle = 'rgba(6,4,12,.95)';
+    sc.strokeStyle = css3([0.85, 0.45, 0.6], 0.75);
+    sc.lineWidth = 1.3;
+    sc.beginPath();
+    sc.moveTo(-15, 0); sc.quadraticCurveTo(0, -11, 15, 0); sc.quadraticCurveTo(0, 11, -15, 0);
+    sc.closePath(); sc.fill(); sc.stroke();
+    // ресницы-лучи
+    sc.beginPath();
+    for (let i = -2; i <= 2; i++) {
+      sc.moveTo(i * 4.5, -7 - Math.abs(i) * -0.5);
+      sc.lineTo(i * 6, -11.5 + Math.abs(i) * 0.8);
+    }
+    sc.stroke();
+    // зрачок неотрывно глядит на свет
+    sc.fillStyle = hot ? 'rgba(255,110,140,.95)' : 'rgba(200,160,220,.85)';
+    sc.beginPath(); sc.arc(dxi / di * 5, dyi / di * 3, hot ? 3.4 : 2.6, 0, TAU); sc.fill();
+    sc.restore();
+    if (hot) {
+      sc.globalCompositeOperation = 'lighter';
+      tintGlow(P.x, P.y, 26 * k, [1, 0.45, 0.55], 0.35);
+      sc.globalCompositeOperation = 'source-over';
+    }
+    return;
+  }
+  if (e.type === 'weaver') {
+    // ловец снов — прядильщик с тонкими лапами-нитями
+    sc.save();
+    sc.translate(P.x, P.y);
+    sc.scale(k, k);
+    sc.strokeStyle = css3([0.65, 0.72, 0.85], 0.5);
+    sc.lineWidth = 1;
+    sc.beginPath();
+    for (let i = 0; i < 6; i++) {
+      const a = i / 6 * TAU + tm * 0.7 + e.seed;
+      sc.moveTo(Math.cos(a) * 4, Math.sin(a) * 4);
+      sc.quadraticCurveTo(Math.cos(a) * 12, Math.sin(a) * 12, Math.cos(a + 0.5) * 16, Math.sin(a + 0.5) * 16);
+    }
+    sc.stroke();
+    sc.fillStyle = 'rgba(8,6,14,.95)';
+    sc.beginPath(); sc.arc(0, 0, 6, 0, TAU); sc.fill();
+    sc.strokeStyle = css3([0.7, 0.78, 0.9], 0.7);
+    sc.stroke();
+    // глазки-бусины
+    sc.fillStyle = css3([0.85, 0.9, 1], 0.7);
+    sc.beginPath(); sc.arc(-2, -1.5, 0.9, 0, TAU); sc.fill();
+    sc.beginPath(); sc.arc(2, -1.5, 0.9, 0, TAU); sc.fill();
+    sc.restore();
+    return;
+  }
   if (e.type === 'antio') {
     // тёмный двойник — зеркало Ио, погашенное
     const flash = e.flashT > 0;
@@ -2163,12 +2514,15 @@ function drawGL() {
   gl.bindTexture(gl.TEXTURE_2D, sceneTex);
   gl.texSubImage2D(gl.TEXTURE_2D, 0, 0, 0, gl.RGBA, gl.UNSIGNED_BYTE, scene);
 
-  const dawn = sstep((t - 0.87) / 0.11);
+  // рассвет всходит к 0.93 и стекает к шву ночи — без скачка светила
+  const dawn = sstep((t - 0.87) / 0.06) * (1 - sstep((t - 0.945) / 0.055));
   let mx = 0.82 - t * 0.55, my = 0.66 + 0.14 * Math.sin(t * 2.6 + 0.5), mr = 0.042, mvis = 1;
   if (dawn > 0) {
     mx = lerp(mx, 0.5, dawn); my = lerp(my, 0.22, dawn);
     mr = lerp(mr, 0.075, dawn); mvis = lerp(1, 1.15, dawn);
   }
+  mvis *= 1 - sstep((t - 0.955) / 0.04); // светило тает у самого шва...
+  mvis *= sstep(t / 0.05);               // ...и месяц новой ночи всходит из темноты
   gl.uniform2f(U.uRes, glCanvas.width, glCanvas.height);
   gl.uniform1f(U.uTime, S.time);
   gl.uniform3f(U.uSkyA, ...pal.skyA);
@@ -2222,7 +2576,9 @@ function updateHud() {
   }
 }
 function updateClock() {
-  const mins = S.t * 420;
+  // ночь 23:00→06:00 занимает t∈[0,0.93]; дальше день промелькивает мимо —
+  // стрелки прокручивают 06:00→23:00 за хвост рассвета
+  const mins = S.t < 0.93 ? S.t / 0.93 * 420 : 420 + (S.t - 0.93) / 0.07 * 1020;
   const h = (23 + Math.floor(mins / 60)) % 24;
   const m = Math.floor(mins % 60);
   elClock.textContent = String(h).padStart(2, '0') + ':' + String(m).padStart(2, '0');
@@ -2290,19 +2646,35 @@ function levelUp() {
   document.getElementById('restHead').textContent = 'степень ' + RUN.level + ' · бодрости ' + Math.max(1, Math.ceil(RUN.wake)) + ' из ' + RUN.wakeMax;
   const box = document.getElementById('dreams');
   box.innerHTML = '';
-  const pool = UPGRADES.filter(u => !(u.once && RUN.taken.includes(u.id)));
-  const opts = [];
-  while (opts.length < 3 && pool.length) {
-    const u = pool.splice((Math.random() * pool.length) | 0, 1)[0];
-    if (u.rare && Math.random() < 0.5 && pool.length >= 3 - opts.length) continue;
-    opts.push(u);
+  // тройка всегда свежая: дар, мелькнувший в последних пяти бросках, не выпадает
+  // снова, пока память бросков не отпустит его
+  let opts = [];
+  for (let drop = 0; drop <= RUN.offerHist.length; drop++) {
+    const banned = new Set();
+    for (let i = drop; i < RUN.offerHist.length; i++)
+      for (const id of RUN.offerHist[i]) banned.add(id);
+    const pool = UPGRADES.filter(u => !(u.once && RUN.taken.includes(u.id)) && !banned.has(u.id));
+    if (pool.length < 3 && drop < RUN.offerHist.length) continue; // отпустить старейший бросок
+    opts = [];
+    while (opts.length < 3 && pool.length) {
+      const u = pool.splice((Math.random() * pool.length) | 0, 1)[0];
+      if (u.rare && Math.random() < 0.5 && pool.length >= 3 - opts.length) continue;
+      opts.push(u);
+    }
+    break;
   }
+  RUN.offerHist.push(opts.map(u => u.id));
+  if (RUN.offerHist.length > 5) RUN.offerHist.shift();
   let dIdx = 0;
   for (const u of opts) {
     const d = document.createElement('button');
     d.className = 'dream' + (u.rare ? ' rare' : '');
     d.dataset.key = String(++dIdx);
-    d.innerHTML = '<span class="d-name">' + u.name + '</span><span class="d-desc">' + u.desc + '</span>';
+    d.innerHTML =
+      '<span class="d-orb"><svg class="d-ring" viewBox="0 0 100 100">' +
+      '<circle class="r1" cx="50" cy="50" r="46"/><circle class="r2" cx="50" cy="50" r="39"/></svg>' +
+      '<span class="d-ic"><svg viewBox="0 0 24 24">' + (ICONS[u.id] || ICONS.spark) + '</svg></span></span>' +
+      '<span class="d-name">' + u.name + '</span><span class="d-desc">' + u.desc + '</span>';
     d.addEventListener('click', () => {
       u.apply(RUN);
       RUN.taken.push(u.id);
@@ -2394,12 +2766,15 @@ requestAnimationFrame(frame);
       for (let i = 0; i < 10; i++) spawnMote(true);
       spawnShip(); spawnShip();
       ships.forEach(sh => { const p = spawnRing(200, viewR() * 0.7); sh.x = p.x; sh.y = p.y; });
-      for (const ty of ['nm', 'shade', 'dasher', 'siren', 'eater', 'antio']) {
+      if (q.get('web')) webs.push({ x: io.x + 200, y: io.y + 150, r: 95, t: 1, life: 16, seed: 1 });
+      for (const ty of (q.get('foes') ? q.get('foes').split(',') : ['nm', 'shade', 'dasher', 'siren', 'eater', 'antio'])) {
         spawnEnemy(ty);
         const e = enemies[enemies.length - 1];
         if (e) { const p = spawnRing(180, viewR() * 0.75); e.x = p.x; e.y = p.y; }
       }
       if (q.get('bolt')) { spawnBolt(); bolts[0].t = parseFloat(q.get('bolt')) || 0; }
+      if (q.get('lvl')) levelUp();
+      if (q.get('wave')) { WAVE.timer = 0.5; S.playT = Math.max(S.playT, 26); }
     }, 800);
   }
 }

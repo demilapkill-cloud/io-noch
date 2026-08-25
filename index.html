@@ -83,9 +83,9 @@
   #deathScreen .end-stat:nth-child(3){animation-delay:.24s}
   #deathScreen .end-stat:nth-child(4){animation-delay:.36s}
   #deathScreen .death-quote{animation:fadeUp 1s var(--ease) .5s both}
-  #restScreen .dream{animation:fadeUp .7s var(--ease) both}
-  #restScreen .dream:nth-child(2){animation-delay:.1s}
-  #restScreen .dream:nth-child(3){animation-delay:.2s}
+  #restScreen .dream{animation:fadeUp .7s var(--ease) backwards}
+  #restScreen .dream:nth-child(2){animation-delay:.12s}
+  #restScreen .dream:nth-child(3){animation-delay:.24s}
   @media (prefers-reduced-motion: reduce){*{animation-duration:.01ms !important}}
   .title-ver{position:fixed;bottom:18px;left:0;right:0;font-size:9px;letter-spacing:.2em;color:var(--ink-4);text-transform:uppercase;font-family:var(--font-mono)}
   .title-best{margin-top:14px;font-size:10px;letter-spacing:.2em;color:var(--ember);text-transform:uppercase;font-family:var(--font-mono)}
@@ -95,17 +95,47 @@
   .rest-head{font-size:11px;letter-spacing:.3em;color:var(--ink-3);text-transform:uppercase;font-family:var(--font-mono)}
   .rest-big{font-family:var(--font-display);font-style:italic;font-weight:300;font-size:clamp(34px,6vw,64px);margin-top:14px;color:var(--ink)}
   .rest-sub{margin-top:10px;font-size:10px;letter-spacing:.22em;color:var(--ink-4);text-transform:uppercase;font-family:var(--font-mono)}
-  .dreams{margin-top:44px;display:flex;gap:18px;justify-content:center;flex-wrap:wrap;max-width:900px}
-  .dream{pointer-events:auto;cursor:pointer;width:250px;padding:24px 22px;text-align:left;position:relative;
-    border:1px solid var(--line);background:rgba(12,16,21,.6);transition:all .22s var(--ease)}
-  .dream::after{content:attr(data-key);position:absolute;top:10px;right:12px;font-family:var(--font-mono);
-    font-size:9px;letter-spacing:.1em;color:var(--ink-4);border:1px solid var(--line);padding:2px 7px}
-  .dream:hover,.dream:focus-visible{border-color:var(--io);box-shadow:0 0 34px rgba(143,208,255,.18);transform:translateY(-4px)}
-  .dream:hover::after{color:var(--io);border-color:var(--io)}
-  .dream .d-name{font-family:var(--font-mono);font-size:10px;letter-spacing:.2em;text-transform:uppercase;color:var(--io)}
-  .dream .d-desc{margin-top:12px;font-family:var(--font-display);font-style:italic;font-weight:300;font-size:19px;line-height:1.35;color:var(--ink-2)}
+  .dreams{margin-top:36px;display:flex;gap:30px;justify-content:center;align-items:flex-start;flex-wrap:wrap;max-width:980px}
+  .dream{pointer-events:auto;cursor:pointer;width:236px;background:none;border:none;color:inherit;padding:14px 8px;
+    display:flex;flex-direction:column;align-items:center;text-align:center;position:relative;
+    transition:transform .3s var(--ease);outline:none}
+  .dream:nth-child(2){margin-top:-28px} /* средний сон приподнят — дуга созвездия */
+  .dream:hover,.dream:focus-visible{transform:translateY(-8px)}
+  .d-orb{position:relative;width:122px;height:122px;display:grid;place-items:center;
+    animation:orbFloat 5.5s ease-in-out infinite;transition:transform .3s var(--ease)}
+  .dream:nth-child(1) .d-orb{animation-delay:0s}
+  .dream:nth-child(2) .d-orb{animation-delay:-1.8s}
+  .dream:nth-child(3) .d-orb{animation-delay:-3.6s}
+  @keyframes orbFloat{50%{transform:translateY(-7px)}}
+  .dream:hover .d-orb,.dream:focus-visible .d-orb{transform:scale(1.07)}
+  .d-orb::before{content:'';position:absolute;inset:16px;border-radius:50%;
+    background:radial-gradient(circle, rgba(143,208,255,.17), rgba(143,208,255,.04) 55%, transparent 72%);
+    transition:inset .3s var(--ease),background .3s}
+  .dream:hover .d-orb::before,.dream:focus-visible .d-orb::before{inset:8px;
+    background:radial-gradient(circle, rgba(143,208,255,.26), rgba(143,208,255,.06) 55%, transparent 74%)}
+  .d-ring{position:absolute;inset:0;width:100%;height:100%;overflow:visible}
+  .d-ring circle{fill:none;stroke-linecap:round;transform-origin:50% 50%}
+  .d-ring .r1{stroke:rgba(143,208,255,.42);stroke-width:1;stroke-dasharray:11 15;animation:ringSpin 26s linear infinite}
+  .d-ring .r2{stroke:rgba(143,208,255,.16);stroke-width:1;stroke-dasharray:2 11;animation:ringSpin 40s linear infinite reverse}
+  @keyframes ringSpin{to{transform:rotate(360deg)}}
+  .dream:hover .d-ring .r1,.dream:focus-visible .d-ring .r1{stroke:rgba(143,208,255,.85);animation-duration:9s}
+  .d-ic{position:relative;width:46px;height:46px;color:var(--io);filter:drop-shadow(0 0 10px rgba(143,208,255,.55))}
+  .d-ic svg{width:100%;height:100%;fill:none;stroke:currentColor;stroke-width:1.4;stroke-linecap:round;stroke-linejoin:round}
+  .dream::after{content:attr(data-key);position:absolute;top:2px;right:34px;font-family:var(--font-mono);
+    font-size:9px;letter-spacing:.1em;color:var(--ink-4);border:1px solid var(--line);border-radius:50%;
+    width:20px;height:20px;display:grid;place-items:center;transition:all .25s}
+  .dream:hover::after,.dream:focus-visible::after{color:var(--io);border-color:var(--io);box-shadow:0 0 10px rgba(143,208,255,.35)}
+  .d-name{margin-top:18px;font-family:var(--font-mono);font-size:10px;letter-spacing:.22em;text-transform:uppercase;color:var(--io)}
+  .d-desc{margin-top:10px;font-family:var(--font-display);font-style:italic;font-weight:300;font-size:17.5px;line-height:1.4;color:var(--ink-2);max-width:224px}
+  /* редкий сон горит углями и полярной каймой */
+  .dream.rare .d-ic{color:var(--ember);filter:drop-shadow(0 0 12px rgba(232,165,74,.65))}
   .dream.rare .d-name{color:var(--ember)}
-  .dream.rare:hover{border-color:var(--ember);box-shadow:0 0 30px rgba(232,165,74,.2)}
+  .dream.rare .d-ring .r1{stroke:rgba(232,165,74,.55)}
+  .dream.rare .d-ring .r2{stroke:rgba(255,79,216,.22)}
+  .dream.rare .d-orb::before{background:radial-gradient(circle, rgba(232,165,74,.2), rgba(255,79,216,.06) 55%, transparent 72%)}
+  .dream.rare:hover .d-ring .r1,.dream.rare:focus-visible .d-ring .r1{stroke:rgba(232,165,74,.9)}
+  .dream.rare:hover .d-orb::before,.dream.rare:focus-visible .d-orb::before{inset:8px;
+    background:radial-gradient(circle, rgba(232,165,74,.3), rgba(255,79,216,.08) 55%, transparent 74%)}
 
   /* смерть */
   #deathScreen{background:rgba(7,9,12,.6);backdrop-filter:blur(3px)}
@@ -128,8 +158,13 @@
   @media (max-width:640px){
     #hud .tl{left:14px} #hud .tr{right:14px}
     .end-stats{gap:26px}
-    .dreams{gap:12px}
-    .dream{width:100%;max-width:340px;padding:18px}
+    .dreams{gap:6px;margin-top:20px}
+    .dream{width:31%;min-width:150px;padding:8px 4px}
+    .dream:nth-child(2){margin-top:-16px}
+    .d-orb{width:92px;height:92px}
+    .d-ic{width:36px;height:36px}
+    .d-desc{font-size:14.5px}
+    .dream::after{right:14px}
     .title-help{display:none}
   }
 </style>
