@@ -462,16 +462,13 @@ const VSH = `
 attribute vec2 p; varying vec2 vUv;
 void main(){ vUv = p*0.5+0.5; gl_Position = vec4(p,0.,1.); }`;
 
-const FSH = `
-precision highp float;
+// низкорезный проход: градиент + небула + авроры (мягкие — апсэмпл неотличим)
+const SKY_FSH = `
+precision mediump float;
 varying vec2 vUv;
 uniform vec2 uRes; uniform float uTime;
-uniform sampler2D uScene;
 uniform vec3 uSkyA, uSkyB, uAur, uTint;
-uniform float uAurI, uStars, uAberr, uGlitch, uShake, uEnergy, uDawn;
-uniform vec2 uMoonPos; uniform float uMoonR, uMoon;
-uniform vec2 uCam;
-
+uniform float uAurI; uniform vec2 uCam;
 float hash(vec2 p){ return fract(sin(dot(p, vec2(127.1,311.7)))*43758.5453); }
 float noise(vec2 p){
   vec2 i=floor(p), f=fract(p); f=f*f*(3.-2.*f);
@@ -482,6 +479,42 @@ float fbm(vec2 p){
   float v=0., a=.5;
   for(int i=0;i<4;i++){ v+=a*noise(p); p=p*2.03+vec2(7.3,3.1); a*=.5; }
   return v;
+}
+void main(){
+  float aspect = uRes.x/uRes.y;
+  vec2 uv = vUv;
+  vec2 par = uCam * 0.00006;
+  float grad = pow(clamp(uv.y,0.,1.), .85);
+  vec3 sky = mix(uSkyB, uSkyA, grad);
+  float neb = fbm(uv*vec2(aspect,1.)*2.6 + vec2(uTime*.008, 0.) + par*4.);
+  sky += uAur * neb * .1 * (.4+uAurI);
+  for(int i=0;i<3;i++){
+    float fi = float(i);
+    float yC = .58 + fi*.11 + .06*sin(uTime*.05+fi*2.1);
+    float w = fbm(vec2(uv.x*aspect*1.4 + uTime*.05*(1.+fi*.4) + par.x*10., fi*7.7));
+    float band = exp(-abs(uv.y-(yC+(w-.5)*.3))*(15.-5.*w));
+    vec3 acol = mix(uAur, uTint, w);
+    sky += acol * band * uAurI * (.22+.1*sin(uTime*.6+fi*1.9));
+  }
+  gl_FragColor = vec4(sky,1.);
+}`;
+
+const FSH = `
+precision highp float;
+varying vec2 vUv;
+uniform vec2 uRes; uniform float uTime;
+uniform sampler2D uScene;
+uniform vec3 uSkyA, uSkyB, uAur, uTint;
+uniform float uAurI, uStars, uAberr, uGlitch, uShake, uEnergy, uDawn;
+uniform vec2 uMoonPos; uniform float uMoonR, uMoon;
+uniform vec2 uCam;
+uniform sampler2D uSky;
+
+float hash(vec2 p){ return fract(sin(dot(p, vec2(127.1,311.7)))*43758.5453); }
+float noise(vec2 p){
+  vec2 i=floor(p), f=fract(p); f=f*f*(3.-2.*f);
+  return mix(mix(hash(i),hash(i+vec2(1.,0.)),f.x),
+             mix(hash(i+vec2(0.,1.)),hash(i+vec2(1.,1.)),f.x),f.y);
 }
 float starLayer(vec2 uv, float n, float t){
   vec2 g=uv*n; vec2 id=floor(g); vec2 f=fract(g);
@@ -509,22 +542,9 @@ void main(){
     if(h < uGlitch) suv.x += (hash(vec2(row,1.7))-.5)*.12*uGlitch*8.;
   }
 
-  // --- небо ---
-  float grad = pow(clamp(uv.y,0.,1.), .85);
-  vec3 sky = mix(uSkyB, uSkyA, grad);
-  vec2 par = uCam * 0.00006; // параллакс от полёта
-  float neb = fbm(uv*vec2(aspect,1.)*2.6 + vec2(uTime*.008, 0.) + par*4.);
-  sky += uAur * neb * .1 * (.4+uAurI);
-
-  // авроры — три ленты
-  for(int i=0;i<3;i++){
-    float fi = float(i);
-    float yC = .58 + fi*.11 + .06*sin(uTime*.05+fi*2.1);
-    float w = fbm(vec2(uv.x*aspect*1.4 + uTime*.05*(1.+fi*.4) + par.x*10., fi*7.7));
-    float band = exp(-abs(uv.y-(yC+(w-.5)*.3))*(15.-5.*w));
-    vec3 acol = mix(uAur, uTint, w);
-    sky += acol * band * uAurI * (.22+.1*sin(uTime*.6+fi*1.9));
-  }
+  // --- небо: мягкая часть посчитана низкорезным проходом ---
+  vec3 sky = texture2D(uSky, uv).rgb;
+  vec2 par = uCam * 0.00006; // параллакс звёзд
 
   // луна / солнце
   vec2 md = (uv-uMoonPos)*vec2(aspect,1.);
@@ -595,35 +615,67 @@ function makeShader(type, src) {
   if (!gl.getShaderParameter(s, gl.COMPILE_STATUS)) throw new Error(gl.getShaderInfoLog(s));
   return s;
 }
-const prog = gl.createProgram();
-gl.attachShader(prog, makeShader(gl.VERTEX_SHADER, VSH));
-gl.attachShader(prog, makeShader(gl.FRAGMENT_SHADER, FSH));
-gl.linkProgram(prog);
-if (!gl.getProgramParameter(prog, gl.LINK_STATUS)) throw new Error(gl.getProgramInfoLog(prog));
-gl.useProgram(prog);
+function makeProgram(fsh) {
+  const pr = gl.createProgram();
+  gl.attachShader(pr, makeShader(gl.VERTEX_SHADER, VSH));
+  gl.attachShader(pr, makeShader(gl.FRAGMENT_SHADER, fsh));
+  gl.linkProgram(pr);
+  if (!gl.getProgramParameter(pr, gl.LINK_STATUS)) throw new Error(gl.getProgramInfoLog(pr));
+  return pr;
+}
+const prog = makeProgram(FSH);
+const skyProg = makeProgram(SKY_FSH);
 
 const quad = gl.createBuffer();
 gl.bindBuffer(gl.ARRAY_BUFFER, quad);
 gl.bufferData(gl.ARRAY_BUFFER, new Float32Array([-1, -1, 3, -1, -1, 3]), gl.STATIC_DRAW);
-const locP = gl.getAttribLocation(prog, 'p');
-gl.enableVertexAttribArray(locP);
-gl.vertexAttribPointer(locP, 2, gl.FLOAT, false, 0, 0);
+for (const pr of [prog, skyProg]) {
+  const lp = gl.getAttribLocation(pr, 'p');
+  gl.enableVertexAttribArray(lp);
+  gl.vertexAttribPointer(lp, 2, gl.FLOAT, false, 0, 0);
+}
 
-const U = {};
-for (const n of ['uRes', 'uTime', 'uScene', 'uSkyA', 'uSkyB', 'uAur', 'uTint', 'uAurI', 'uStars',
+const U = {}, SU = {};
+gl.useProgram(prog);
+for (const n of ['uRes', 'uTime', 'uScene', 'uSky', 'uSkyA', 'uSkyB', 'uAur', 'uTint', 'uAurI', 'uStars',
   'uAberr', 'uGlitch', 'uShake', 'uEnergy', 'uDawn', 'uMoonPos', 'uMoonR', 'uMoon', 'uCam'])
   U[n] = gl.getUniformLocation(prog, n);
+gl.useProgram(skyProg);
+for (const n of ['uRes', 'uTime', 'uSkyA', 'uSkyB', 'uAur', 'uTint', 'uAurI', 'uCam'])
+  SU[n] = gl.getUniformLocation(skyProg, n);
 
-const sceneTex = gl.createTexture();
-gl.bindTexture(gl.TEXTURE_2D, sceneTex);
-gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
-gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
-gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
-gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
-gl.pixelStorei(gl.UNPACK_FLIP_Y_WEBGL, true);
-// сцена рисуется в premultiplied alpha — композитим её так же
-gl.pixelStorei(gl.UNPACK_PREMULTIPLY_ALPHA_WEBGL, true);
+function makeTex(filter) {
+  const t = gl.createTexture();
+  gl.bindTexture(gl.TEXTURE_2D, t);
+  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, filter);
+  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, filter);
+  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
+  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
+  return t;
+}
+const sceneTex = makeTex(gl.LINEAR);
+const skyTex = makeTex(gl.LINEAR);
+const skyFbo = gl.createFramebuffer();
+let sceneTexW = 0, sceneTexH = 0, skyW = 0, skyH = 0;
+
+function allocGlTextures() {
+  // сцена: хранилище выделяется один раз на размер, кадры льются texSubImage2D
+  gl.pixelStorei(gl.UNPACK_FLIP_Y_WEBGL, false);
+  gl.bindTexture(gl.TEXTURE_2D, sceneTex);
+  gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, glCanvas.width, glCanvas.height, 0, gl.RGBA, gl.UNSIGNED_BYTE, null);
+  sceneTexW = glCanvas.width; sceneTexH = glCanvas.height;
+  // небо: треть разрешения хватает мягким градиентам
+  skyW = Math.max(64, Math.ceil(glCanvas.width * 0.35));
+  skyH = Math.max(64, Math.ceil(glCanvas.height * 0.35));
+  gl.bindTexture(gl.TEXTURE_2D, skyTex);
+  gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, skyW, skyH, 0, gl.RGBA, gl.UNSIGNED_BYTE, null);
+  gl.bindFramebuffer(gl.FRAMEBUFFER, skyFbo);
+  gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0, gl.TEXTURE_2D, skyTex, 0);
+  gl.bindFramebuffer(gl.FRAMEBUFFER, null);
+}
+gl.useProgram(prog);
 gl.uniform1i(U.uScene, 0);
+gl.uniform1i(U.uSky, 1);
 
 // ============================================================
 // ИГРА: бесконечная ночь. Мир без краёв, плоскость ночи сама
@@ -639,6 +691,7 @@ function resize() {
   glCanvas.width = (W * DPR) | 0; glCanvas.height = (H * DPR) | 0;
   scene.width = glCanvas.width; scene.height = glCanvas.height;
   gl.viewport(0, 0, glCanvas.width, glCanvas.height);
+  allocGlTextures();
 }
 window.addEventListener('resize', resize);
 resize();
@@ -803,6 +856,7 @@ function spawnRing(rMin, rMax) {
 }
 function viewR() { return Math.hypot(W, H) * 0.55; }
 
+let visZones = []; // зоны вокруг камеры, раз в кадр
 const io = {
   x: 0, y: 0, vx: 0, vy: 0, trail: [], heat: 0,
   spirits: [],
@@ -893,11 +947,25 @@ function pickEnemyType() {
 function spawnBolt() {
   bolts.push({ x: cam.x + rand(-W * 0.45, W * 0.45), t: 0, warn: 0.95, strike: 0.22, hitDone: false });
 }
+const TEXT_SS = 2; // спрайт фразы в 2× — чёткость при глубинном масштабе
 function spawnText(x, y, str, big) {
-  texts.push({ x, y, str, a: 0, t: 0, big: !!big, vy: rand(-14, -8) });
+  const fs = big ? 30 : 24;
+  const font = (big ? '400 ' : '300 ') + 'italic ' + fs * TEXT_SS + 'px Cormorant, Georgia, serif';
+  const pad = 30 * TEXT_SS;
+  const mc = document.createElement('canvas');
+  const mg = mc.getContext('2d');
+  mg.font = font;
+  const tw = Math.ceil(mg.measureText(str).width);
+  mc.width = tw + pad * 2; mc.height = fs * TEXT_SS + pad * 2;
+  mg.font = font; mg.textAlign = 'center'; mg.textBaseline = 'middle';
+  mg.shadowColor = css3(S.pal.tint, 0.8); mg.shadowBlur = 18 * TEXT_SS;
+  mg.fillStyle = big ? css3(S.pal.mote, 1) : 'rgba(235,232,225,.95)';
+  mg.fillText(str, mc.width / 2, mc.height / 2);
+  texts.push({ x, y, str, a: 0, t: 0, big: !!big, vy: rand(-14, -8), spr: mc });
   if (texts.length > 6) texts.shift();
 }
 function burst(x, y, col, n, sp) {
+  if (parts.length > 420) parts.splice(0, parts.length - 420);
   for (let i = 0; i < n; i++) {
     const a = rand(TAU), v = rand(30, sp || 260);
     parts.push({ x, y, vx: Math.cos(a) * v, vy: Math.sin(a) * v, life: rand(0.4, 1.1), t: 0, col, r: rand(1, 3) });
@@ -1114,6 +1182,7 @@ function update(dt) {
   if (A.started && A.windGain)
     A.windGain.gain.value = 0.008 + S.energy * 0.028 + io.heat * 0.07;
   updateView();
+  visZones = zonesNear(cam.x, cam.y, viewR() + 300);
 
   const ksp = 620 * dt;
   if (keys['ArrowLeft'] || keys['a'] || keys['ф']) pointer.x -= ksp;
@@ -1223,7 +1292,7 @@ function update(dt) {
   const moteRate = (playing ? lerp(1.3, 0.55, S.energy) : 2.4) * RUN.moteRateMul;
   if (moteTimer <= 0 && motes.length < 26) {
     // луга мыслей: рядом с лугом мысли рождаются в нём и щедрее
-    const meadows = zonesNear(cam.x, cam.y, viewR()).filter(z => z.type === 'meadow');
+    const meadows = visZones.filter(z => z.type === 'meadow');
     if (meadows.length && Math.random() < 0.6) {
       const z = pick(meadows);
       const a = rand(TAU), rr = Math.sqrt(Math.random()) * z.r * 0.85;
@@ -1271,7 +1340,7 @@ function update(dt) {
     const cap = Math.min(4 + D * 2, 18);
     if (eTimer <= 0 && enemies.length < cap) {
       // разломы: рядом с ними ночь рожает чаще и прямо из трещины
-      const rifts = zonesNear(cam.x, cam.y, viewR() + 300).filter(z => z.type === 'rift');
+      const rifts = visZones.filter(z => z.type === 'rift');
       if (rifts.length && Math.random() < 0.6) {
         const z = pick(rifts);
         const ty = pickEnemyType();
@@ -1594,7 +1663,7 @@ function draw() {
   }
 
   // зоны мира — луга, разломы, течения — лежат под всеми сущностями
-  for (const z of zonesNear(cam.x, cam.y, viewR() + 250)) drawZone(z, pal, tm);
+  for (const z of visZones) drawZone(z, pal, tm);
 
   // падающие звёзды — атмосфера, экранный слой
   for (const s2 of shots) {
@@ -1650,16 +1719,12 @@ function draw() {
     }
   }
 
-  // фразы
+  // фразы — готовые спрайты, тень уже впечена
   for (const tx of texts) {
     const P = proj(tx.x, tx.y);
+    const w = tx.spr.width / TEXT_SS * P.k, h = tx.spr.height / TEXT_SS * P.k;
     sc.globalAlpha = tx.a;
-    sc.font = (tx.big ? '400 ' : '300 ') + 'italic ' + Math.round((tx.big ? 30 : 24) * P.k) + 'px Cormorant, Georgia, serif';
-    sc.textAlign = 'center';
-    sc.shadowColor = css3(pal.tint, 0.8); sc.shadowBlur = 18;
-    sc.fillStyle = tx.big ? css3(pal.mote, 1) : 'rgba(235,232,225,.95)';
-    sc.fillText(tx.str, clamp(P.x, 130, W - 130), clamp(P.y, 50, H - 40));
-    sc.shadowBlur = 0;
+    sc.drawImage(tx.spr, clamp(P.x, 130, W - 130) - w / 2, clamp(P.y, 50, H - 40) - h / 2, w, h);
   }
   sc.globalAlpha = 1;
 
@@ -1669,13 +1734,31 @@ function draw() {
   }
 }
 
+// свечения: кэш спрайтов по квантованному цвету вместо градиента на каждый вызов
+const glowCache = new Map();
+function glowSprite(col) {
+  const qr = Math.round(col[0] * 23), qg = Math.round(col[1] * 23), qb = Math.round(col[2] * 23);
+  const key = qr * 576 + qg * 24 + qb;
+  let sp = glowCache.get(key);
+  if (!sp) {
+    if (glowCache.size > 80) glowCache.clear();
+    sp = document.createElement('canvas'); sp.width = sp.height = 64;
+    const g = sp.getContext('2d');
+    const r = (qr / 23 * 255) | 0, g2 = (qg / 23 * 255) | 0, b = (qb / 23 * 255) | 0;
+    const rg = g.createRadialGradient(32, 32, 0, 32, 32, 32);
+    rg.addColorStop(0, `rgba(${r},${g2},${b},1)`);
+    rg.addColorStop(0.4, `rgba(${r},${g2},${b},0.35)`);
+    rg.addColorStop(1, `rgba(${r},${g2},${b},0)`);
+    g.fillStyle = rg; g.fillRect(0, 0, 64, 64);
+    glowCache.set(key, sp);
+  }
+  return sp;
+}
 function tintGlow(x, y, R, col, a) {
-  const rg = sc.createRadialGradient(x, y, 0, x, y, R);
-  rg.addColorStop(0, css3(col, a));
-  rg.addColorStop(0.4, css3(col, a * 0.35));
-  rg.addColorStop(1, css3(col, 0));
-  sc.fillStyle = rg;
-  sc.beginPath(); sc.arc(x, y, R, 0, TAU); sc.fill();
+  const prev = sc.globalAlpha;
+  sc.globalAlpha = prev * Math.min(1, a);
+  sc.drawImage(glowSprite(col), x - R, y - R, R * 2, R * 2);
+  sc.globalAlpha = prev;
 }
 
 function drawZone(z, pal, tm) {
@@ -2053,9 +2136,32 @@ function drawIo(P, pal, tm) {
 // ---------- WebGL кадр ----------
 function drawGL() {
   const pal = S.pal, t = S.t;
+
+  // проход 1: мягкое небо в низком разрешении
+  gl.bindFramebuffer(gl.FRAMEBUFFER, skyFbo);
+  gl.viewport(0, 0, skyW, skyH);
+  gl.useProgram(skyProg);
+  gl.uniform2f(SU.uRes, glCanvas.width, glCanvas.height);
+  gl.uniform1f(SU.uTime, S.time);
+  gl.uniform3f(SU.uSkyA, ...pal.skyA);
+  gl.uniform3f(SU.uSkyB, ...pal.skyB);
+  gl.uniform3f(SU.uAur, ...pal.aur);
+  gl.uniform3f(SU.uTint, ...pal.tint);
+  gl.uniform1f(SU.uAurI, pal.aurI);
+  gl.uniform2f(SU.uCam, cam.x, cam.y);
+  gl.drawArrays(gl.TRIANGLES, 0, 3);
+  gl.bindFramebuffer(gl.FRAMEBUFFER, null);
+  gl.viewport(0, 0, glCanvas.width, glCanvas.height);
+  gl.useProgram(prog);
+
+  // сцена: без реаллокации хранилища
+  gl.pixelStorei(gl.UNPACK_FLIP_Y_WEBGL, true);
+  gl.pixelStorei(gl.UNPACK_PREMULTIPLY_ALPHA_WEBGL, true);
+  gl.activeTexture(gl.TEXTURE1);
+  gl.bindTexture(gl.TEXTURE_2D, skyTex);
   gl.activeTexture(gl.TEXTURE0);
   gl.bindTexture(gl.TEXTURE_2D, sceneTex);
-  gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, scene);
+  gl.texSubImage2D(gl.TEXTURE_2D, 0, 0, 0, gl.RGBA, gl.UNSIGNED_BYTE, scene);
 
   const dawn = sstep((t - 0.87) / 0.11);
   let mx = 0.82 - t * 0.55, my = 0.66 + 0.14 * Math.sin(t * 2.6 + 0.5), mr = 0.042, mvis = 1;
