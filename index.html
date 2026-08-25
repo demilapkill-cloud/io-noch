@@ -38,10 +38,13 @@
   #hud .score{font-size:13px;color:var(--ink-2);letter-spacing:.22em;font-family:var(--font-mono)}
   #hud .combo{margin-top:6px;font-size:10px;letter-spacing:.2em;text-transform:uppercase;color:var(--ink-4);transition:color .3s,opacity .3s;opacity:0;font-family:var(--font-mono)}
   #hud .combo.hot{opacity:1;color:var(--ember)}
-  /* бодрость */
+  /* бодрость + опыт */
   #meter{position:fixed;left:0;right:0;bottom:0;height:3px;background:rgba(235,232,225,.06)}
-  #meterFill{height:100%;width:100%;background:var(--io);box-shadow:0 0 12px var(--io);transition:width .3s var(--ease),background .8s}
-  #meterLabel{position:fixed;bottom:12px;left:22px;font-size:9px;letter-spacing:.22em;text-transform:uppercase;color:var(--ink-4);font-family:var(--font-mono)}
+  #meterFill{height:100%;width:100%;background:var(--io);box-shadow:0 0 12px var(--io);transition:background .8s}
+  #xpbar{position:fixed;left:0;right:0;bottom:5px;height:1px;background:rgba(235,232,225,.04)}
+  #xpFill{height:100%;width:0%;background:var(--ember);box-shadow:0 0 8px var(--ember);opacity:.85}
+  #meterLabel{position:fixed;bottom:14px;left:22px;font-size:9px;letter-spacing:.22em;text-transform:uppercase;color:var(--ink-4);font-family:var(--font-mono)}
+  #hud .lvl{margin-top:6px;font-size:10px;letter-spacing:.2em;text-transform:uppercase;color:var(--ink-4);font-family:var(--font-mono)}
 
   /* оверчардж-кнопка (тач) */
   #ocBtn{position:fixed;right:20px;bottom:26px;width:64px;height:64px;border-radius:50%;
@@ -118,8 +121,10 @@
   <div class="tr">
     <div class="score" id="score">мыслей · 0</div>
     <div class="combo" id="combo">серия ×2</div>
+    <div class="lvl" id="lvl">уровень 1</div>
   </div>
   <div id="meterLabel">бодрость</div>
+  <div id="xpbar"><div id="xpFill"></div></div>
   <div id="meter"><div id="meterFill"></div></div>
   <div id="ocBtn">заряд</div>
 </div>
@@ -129,7 +134,8 @@
   <div class="title-sub">рогалик про шарик света, который не спит</div>
   <div class="title-help">
     мышь — лететь · клик у корабля — нить · пробел — релокейт<br>
-    shift — оверчардж (жжёт бодрость) · мысли лечат · кошмары нет
+    shift — оверчардж · бодрость тает всегда — мысли её держат<br>
+    ночь бесконечна и сама решает, под каким углом висеть
   </div>
   <div class="title-best hidden" id="bestLine"></div>
   <div class="title-hint">нажми, чтобы зажечься</div>
@@ -137,19 +143,20 @@
 </div>
 
 <div id="restScreen" class="veil hidden">
-  <div class="rest-head" id="restHead">ночь 1 пережита</div>
-  <div class="rest-big">что тебе приснится?</div>
-  <div class="rest-sub">сон длится мгновение — выбери один</div>
+  <div class="rest-head" id="restHead">уровень 2</div>
+  <div class="rest-big">дар бессонницы</div>
+  <div class="rest-sub">ночь подождёт — выбери один</div>
   <div class="dreams" id="dreams"></div>
 </div>
 
 <div id="deathScreen" class="veil hidden">
-  <div class="death-big">сон забрал тебя</div>
-  <div class="death-sub" id="deathNight">на третьей ночи</div>
+  <div class="death-big">ты растворился в ночи</div>
+  <div class="death-sub" id="deathNight">бессонница длилась 3 ночи</div>
   <div class="end-stats">
     <div class="end-stat"><b id="stNights">0</b><span>ночей пережито</span></div>
     <div class="end-stat"><b id="stMoths">0</b><span>мыслей поймано</span></div>
     <div class="end-stat"><b id="stKills">0</b><span>кошмаров рассеяно</span></div>
+    <div class="end-stat"><b id="stDist">0</b><span>неба пройдено</span></div>
   </div>
   <div class="death-quote" id="deathQuote">даже свет иногда моргает.</div>
   <button class="end-btn" id="againBtn">зажечься снова</button>

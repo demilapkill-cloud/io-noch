@@ -430,6 +430,7 @@ uniform sampler2D uScene;
 uniform vec3 uSkyA, uSkyB, uAur, uTint;
 uniform float uAurI, uStars, uAberr, uGlitch, uShake, uEnergy, uDawn;
 uniform vec2 uMoonPos; uniform float uMoonR, uMoon;
+uniform vec2 uCam;
 
 float hash(vec2 p){ return fract(sin(dot(p, vec2(127.1,311.7)))*43758.5453); }
 float noise(vec2 p){
@@ -471,14 +472,15 @@ void main(){
   // --- небо ---
   float grad = pow(clamp(uv.y,0.,1.), .85);
   vec3 sky = mix(uSkyB, uSkyA, grad);
-  float neb = fbm(uv*vec2(aspect,1.)*2.6 + vec2(uTime*.008, 0.));
+  vec2 par = uCam * 0.00006; // параллакс от полёта
+  float neb = fbm(uv*vec2(aspect,1.)*2.6 + vec2(uTime*.008, 0.) + par*4.);
   sky += uAur * neb * .1 * (.4+uAurI);
 
   // авроры — три ленты
   for(int i=0;i<3;i++){
     float fi = float(i);
     float yC = .58 + fi*.11 + .06*sin(uTime*.05+fi*2.1);
-    float w = fbm(vec2(uv.x*aspect*1.4 + uTime*.05*(1.+fi*.4), fi*7.7));
+    float w = fbm(vec2(uv.x*aspect*1.4 + uTime*.05*(1.+fi*.4) + par.x*10., fi*7.7));
     float band = exp(-abs(uv.y-(yC+(w-.5)*.3))*(15.-5.*w));
     vec3 acol = mix(uAur, uTint, w);
     sky += acol * band * uAurI * (.22+.1*sin(uTime*.6+fi*1.9));
@@ -498,7 +500,7 @@ void main(){
 
   // звёзды
   vec2 sUV = uv*vec2(aspect,1.);
-  float st = starLayer(sUV,28.,uTime) + starLayer(sUV+7.7,64.,uTime*1.3)*.6;
+  float st = starLayer(sUV + par*6.,28.,uTime) + starLayer(sUV+7.7 + par*3.,64.,uTime*1.3)*.6;
   sky += vec3(.9,.93,1.)*st*uStars*(uv.y*.75+.25)*(1.-disc)*(1.-uDawn);
 
   // --- сцена с аберрацией (premultiplied composite) ---
@@ -557,7 +559,7 @@ gl.vertexAttribPointer(locP, 2, gl.FLOAT, false, 0, 0);
 
 const U = {};
 for (const n of ['uRes', 'uTime', 'uScene', 'uSkyA', 'uSkyB', 'uAur', 'uTint', 'uAurI', 'uStars',
-  'uAberr', 'uGlitch', 'uShake', 'uEnergy', 'uDawn', 'uMoonPos', 'uMoonR', 'uMoon'])
+  'uAberr', 'uGlitch', 'uShake', 'uEnergy', 'uDawn', 'uMoonPos', 'uMoonR', 'uMoon', 'uCam'])
   U[n] = gl.getUniformLocation(prog, n);
 
 const sceneTex = gl.createTexture();
@@ -572,7 +574,8 @@ gl.pixelStorei(gl.UNPACK_PREMULTIPLY_ALPHA_WEBGL, true);
 gl.uniform1i(U.uScene, 0);
 
 // ============================================================
-// ИГРА: рогалик. Ио — шарик света — против бесконечной ночи.
+// ИГРА: бесконечная ночь. Мир без краёв, плоскость ночи сама
+// вращается и кренится (изометрия живёт своей жизнью).
 // ============================================================
 const scene = document.createElement('canvas');
 const sc = scene.getContext('2d');
@@ -603,8 +606,8 @@ cloudSpr.width = 300; cloudSpr.height = 140;
 }
 
 const IO_COL = [0.56, 0.815, 1];
+const NIGHT_LEN = 90;
 
-// фразы Ио вплетаются в общий поток бессонницы
 PHRASES[1].push('я — маленький шар света', 'нить дрожит, но держит');
 PHRASES[2].push('искры помнят дорогу домой', 'я свечусь, значит я есть');
 const DEATH_QUOTES = [
@@ -612,107 +615,171 @@ const DEATH_QUOTES = [
   'кошмары тоже кого-то боятся.',
   'погасни. отдохни. зажгись снова.',
   'ночь длинная, а искры — упрямые.',
+  'растворился — не значит исчез.',
 ];
 
-// ---------- сны (апгрейды между ночами) ----------
+// ---------- дары бессонницы (прокачка по очкам) ----------
 const UPGRADES = [
-  { id: 'spark', name: 'ещё одна искра', desc: 'к хороводу присоединяется новый спирит', apply: r => r.spirits++ },
-  { id: 'round', name: 'шире хоровод', desc: 'орбита спиритов на треть просторнее', apply: r => r.orbitR *= 1.33 },
-  { id: 'tea', name: 'крепкий чай', desc: '+25 к пределу бодрости и глоток прямо сейчас', apply: r => { r.wakeMax += 25; r.wake = Math.min(r.wakeMax, r.wake + 15); } },
-  { id: 'thread', name: 'длинная нить', desc: 'привязаться к кораблю можно издалека', apply: r => r.tetherR *= 1.45 },
-  { id: 'light', name: 'лёгкость', desc: 'свет летит на пятую часть быстрее', apply: r => r.speed *= 1.2 },
-  { id: 'breath', name: 'глубокий вдох', desc: 'релокейт возвращается на 2 секунды раньше', apply: r => r.relocCd = Math.max(3, r.relocCd - 2) },
-  { id: 'magnet', name: 'магнит для мыслей', desc: 'мысли сами тянутся к тёплому', apply: r => r.pickupR *= 1.5 },
-  { id: 'blanket', name: 'толстое одеяло', desc: 'всё ранит на треть слабее', apply: r => r.dmgMul *= 0.7 },
-  { id: 'wind2', name: 'второе дыхание', desc: 'один раз за бессонницу смертельный удар не гасит тебя', rare: true, apply: r => r.secondWind = true },
+  { id: 'spark',   name: 'ещё одна искра',    desc: 'к хороводу присоединяется новый спирит', apply: r => r.spirits++ },
+  { id: 'round',   name: 'шире хоровод',      desc: 'орбита спиритов на треть просторнее', apply: r => r.orbitR *= 1.3 },
+  { id: 'spin',    name: 'быстрый хоровод',   desc: 'искры кружатся заметно быстрее', apply: r => r.spinMul *= 1.4 },
+  { id: 'tea',     name: 'крепкий чай',       desc: '+25 к пределу бодрости и глоток прямо сейчас', apply: r => { r.wakeMax += 25; r.wake = Math.min(r.wakeMax, r.wake + 20); } },
+  { id: 'calm',    name: 'ровное дыхание',    desc: 'бодрость тает на пятую часть медленнее', apply: r => r.drainMul *= 0.8 },
+  { id: 'dawn',    name: 'тёплый свет',       desc: 'каждая мысль лечит на 2 сильнее', apply: r => r.healBonus += 2 },
+  { id: 'thread',  name: 'длинная нить',      desc: 'привязаться к кораблю можно издалека', apply: r => r.tetherR *= 1.45 },
+  { id: 'chain',   name: 'верная нить',       desc: 'пока держишься за корабль — бодрость не тает', once: true, apply: r => r.chain = true },
+  { id: 'light',   name: 'лёгкость',          desc: 'свет летит на пятую часть быстрее', apply: r => r.speed *= 1.2 },
+  { id: 'breath',  name: 'глубокий вдох',     desc: 'релокейт возвращается на 2 секунды раньше', apply: r => r.relocCd = Math.max(3, r.relocCd - 2) },
+  { id: 'echo',    name: 'эхо света',         desc: 'релокейт вспыхивает и рассеивает кошмары вокруг', once: true, apply: r => r.echo = true },
+  { id: 'magnet',  name: 'магнит для мыслей', desc: 'мысли сами тянутся к тёплому', apply: r => r.pickupR *= 1.4 },
+  { id: 'grav',    name: 'тихое притяжение',  desc: 'дальние мысли медленно плывут к тебе', apply: r => r.gravity++ },
+  { id: 'horizon', name: 'щедрый горизонт',   desc: 'мысли рождаются заметно чаще', apply: r => r.moteRateMul *= 0.75 },
+  { id: 'feast',   name: 'пир из кошмаров',   desc: 'рассеянный кошмар может оставить мысль', apply: r => r.feast = Math.min(0.9, r.feast + 0.45) },
+  { id: 'blanket', name: 'толстое одеяло',    desc: 'всё ранит на четверть слабее', apply: r => r.dmgMul *= 0.75 },
+  { id: 'stormh',  name: 'сердце шторма',     desc: 'в штормовые ночи урон по тебе вдвое меньше', once: true, apply: r => r.stormHeart = true },
+  { id: 'wind2',   name: 'второе дыхание',    desc: 'один раз за бессонницу смертельный удар не гасит тебя', rare: true, once: true, apply: r => r.secondWind = true },
 ];
 
 function newRun() {
   return {
     night: 1, wake: 100, wakeMax: 100,
-    spirits: 3, orbitR: 52, pickupR: 48, speed: 1, dmgMul: 1,
-    relocCd: 8, tetherR: 220, secondWind: false,
-    kills: 0, thoughts: 0, comboBest: 0, taken: [],
+    level: 1, xp: 0, xpNext: 8,
+    spirits: 3, orbitR: 52, spinMul: 1, pickupR: 48, speed: 1, dmgMul: 1,
+    drainMul: 1, healBonus: 0, relocCd: 8, tetherR: 240,
+    secondWind: false, echo: false, chain: false, stormHeart: false,
+    feast: 0, gravity: 0, moteRateMul: 1,
+    kills: 0, thoughts: 0, comboBest: 0, dist: 0, taken: [],
   };
 }
 let RUN = newRun();
 
-const NIGHT_LEN = 90;
 const S = {
-  mode: 'title', t: 0, time: 0, paused: false,
+  mode: 'title', t: 0, time: 0, playT: 0, paused: false,
   combo: 0, comboT: 0,
   shake: 0, glitch: 0,
   hurtT: 0, stormFired: false,
   pal: palette(0), energy: 0.13,
 };
 function isStormNight() { return RUN.night % 3 === 0; }
+function difficulty() { return Math.min(9, S.playT / 70 + (RUN.night - 1) * 0.35); }
+
+// ---------- камера и живая изометрия ----------
+const cam = { x: 0, y: 0 };
+const view = { rot: 0, tilt: 0.85, cos: 1, sin: 0 };
+
+function updateView() {
+  // плоскость ночи вращается и кренится сама — игрок на это не влияет
+  view.rot = 0.26 * Math.sin(S.time * 0.047 + RUN.night * 0.7)
+           + 0.14 * Math.sin(S.time * 0.013 + 2.4)
+           + S.energy * S.energy * 0.06 * Math.sin(S.time * 1.1);
+  view.tilt = 0.82 + 0.13 * Math.sin(S.time * 0.037 + 1.2);
+  view.cos = Math.cos(view.rot); view.sin = Math.sin(view.rot);
+}
+function proj(x, y) {
+  const dx = x - cam.x, dy = y - cam.y;
+  const rx = dx * view.cos - dy * view.sin;
+  const ry = dx * view.sin + dy * view.cos;
+  return {
+    x: W / 2 + rx,
+    y: H / 2 + ry * view.tilt,
+    k: clamp(1 + ry * 0.00028, 0.78, 1.28), // ближе к нижнему краю — крупнее
+  };
+}
+function pointerWorld() {
+  const rx = pointer.x - W / 2;
+  const ry = (pointer.y - H / 2) / view.tilt;
+  return {
+    x: cam.x + rx * view.cos + ry * view.sin,
+    y: cam.y - rx * view.sin + ry * view.cos,
+  };
+}
+function spawnRing(rMin, rMax) {
+  const a = rand(TAU), d = rand(rMin, rMax);
+  return { x: cam.x + Math.cos(a) * d, y: cam.y + Math.sin(a) * d };
+}
+function viewR() { return Math.hypot(W, H) * 0.55; }
 
 const io = {
   x: 0, y: 0, vx: 0, vy: 0, trail: [],
-  spirits: [],           // {ang, cd}
+  spirits: [],
   reloc: { phase: 'idle', timer: 0, cd: 0, rx: 0, ry: 0 },
-  oc: false,             // оверчардж
-  tether: null,          // корабль
+  oc: false, tether: null,
 };
 const pointer = { x: 0, y: 0, active: false };
 const keys = {};
-let motes = [], ships = [], nightmares = [], bolts = [], parts = [], texts = [], shots = [], clouds = [];
-let moteTimer = 0, shipTimer = 4, shotTimer = 3, nmTimer = 2, boltTimer = 6;
+let motes = [], ships = [], enemies = [], bolts = [], parts = [], texts = [], shots = [], clouds = [];
+let moteTimer = 0, shipTimer = 4, shotTimer = 3, eTimer = 3, boltTimer = 8;
 
 function syncSpirits() {
   while (io.spirits.length < RUN.spirits) io.spirits.push({ ang: rand(TAU), cd: 0 });
 }
 
-function resetNight(attract) {
-  motes = []; ships = []; nightmares = []; bolts = []; parts = []; texts = []; shots = [];
+function resetWorld(attract) {
+  motes = []; ships = []; enemies = []; bolts = []; parts = []; texts = []; shots = [];
   clouds = [];
-  for (let i = 0; i < 5; i++) clouds.push({
-    x: rand(W), y: rand(H * 0.15, H * 0.8), s: rand(0.8, 2.2), v: rand(4, 12), a: rand(0.25, 0.6),
+  for (let i = 0; i < 6; i++) clouds.push({
+    x: rand(W + 600), y: rand(H * 0.1, H * 0.9), s: rand(0.8, 2.2), v: rand(4, 12), a: rand(0.25, 0.6),
   });
-  io.x = W * 0.5; io.y = H * 0.6; io.vx = 0; io.vy = 0; io.trail = [];
+  io.x = 0; io.y = 0; io.vx = 0; io.vy = 0; io.trail = [];
   io.reloc = { phase: 'idle', timer: 0, cd: 0, rx: 0, ry: 0 };
   io.tether = null; io.oc = false;
+  cam.x = 0; cam.y = 0;
   syncSpirits();
-  pointer.x = W * 0.5; pointer.y = H * 0.55;
-  S.t = 0; S.combo = 0; S.hurtT = 0; S.shake = 0; S.glitch = 0; S.stormFired = false;
-  moteTimer = 0.5; shipTimer = attract ? 2 : 5; nmTimer = attract ? 1e9 : 3.5; boltTimer = 8;
-  if (attract) for (let i = 0; i < 6; i++) spawnMote(true);
+  pointer.x = W * 0.5; pointer.y = H * 0.45;
+  S.t = 0; S.playT = 0; S.combo = 0; S.hurtT = 0; S.shake = 0; S.glitch = 0; S.stormFired = false;
+  moteTimer = 0.5; shipTimer = attract ? 2 : 5; eTimer = attract ? 1e9 : 3; boltTimer = 9;
+  if (attract) for (let i = 0; i < 7; i++) spawnMote(true);
 }
 
 // ---------- спавны ----------
-function spawnMote(anywhere) {
+function spawnMote(closeOk) {
+  const p = closeOk ? spawnRing(80, viewR() * 0.8) : spawnRing(140, viewR() * 1.05);
   motes.push({
-    x: rand(W * 0.08, W * 0.92),
-    y: anywhere ? rand(H * 0.12, H * 0.85) : rand(H * 0.1, H * 0.8),
+    x: p.x, y: p.y,
     vx: rand(-12, 12), vy: rand(-8, 8),
-    r: rand(5, 8), seed: rand(TAU), life: 26, born: 0,
+    r: rand(5, 8), seed: rand(TAU), life: 30, born: 0,
   });
+}
+function spawnMoteAt(x, y) {
+  motes.push({ x, y, vx: rand(-20, 20), vy: rand(-20, 20), r: rand(5, 7), seed: rand(TAU), life: 14, born: 0 });
 }
 function spawnShip() {
   const near = Math.random() < 0.6;
   const dir = Math.random() < 0.5 ? 1 : -1;
   const scl = near ? rand(0.85, 1.15) : rand(0.4, 0.6);
   const speed = (near ? rand(38, 66) : rand(16, 30)) * (0.7 + S.energy * 0.8);
-  ships.push({
-    x: dir > 0 ? -180 * scl : W + 180 * scl,
-    y: rand(H * 0.12, H * 0.55),
-    vx: speed * dir, scl, near, dir, bob: rand(TAU),
-  });
+  const p = spawnRing(viewR() + 150, viewR() + 320);
+  ships.push({ x: p.x, y: p.y, vx: speed * dir, scl, near, dir, bob: rand(TAU) });
 }
-function spawnNightmare() {
-  const side = (Math.random() * 4) | 0;
-  const m = 60;
-  const p = [
-    [rand(W), -m], [rand(W), H + m], [-m, rand(H)], [W + m, rand(H)],
-  ][side];
-  nightmares.push({
-    x: p[0], y: p[1], vx: 0, vy: 0,
-    r: rand(14, 22), seed: rand(TAU),
-    sp: (40 + Math.min(RUN.night, 10) * 9) * (isStormNight() ? 1.3 : 1),
-  });
+function spawnEnemy(type) {
+  const D = difficulty();
+  const p = spawnRing(viewR() + 60, viewR() + 260);
+  const base = { x: p.x, y: p.y, vx: 0, vy: 0, seed: rand(TAU), type };
+  if (type === 'nm') enemies.push({ ...base, r: rand(14, 22), sp: 45 + D * 10, dmg: 15 });
+  else if (type === 'shade') {
+    const n = 4 + (Math.random() * 3 | 0);
+    for (let i = 0; i < n; i++) enemies.push({
+      ...base, x: p.x + rand(-60, 60), y: p.y + rand(-60, 60),
+      r: rand(6, 9), sp: 95 + D * 11, dmg: 6, seed: rand(TAU), type: 'shade',
+    });
+  } else if (type === 'dasher') enemies.push({ ...base, r: 11, sp: 70 + D * 8, dmg: 22, st: 'seek', stT: 0, dx: 0, dy: 0 });
+  else if (type === 'siren') enemies.push({ ...base, r: 16, sp: 8, dmg: 8, ringR: 150, pulse: rand(TAU) });
+  else if (type === 'eater') enemies.push({ ...base, r: 12, sp: 60 + D * 7, dmg: 10, eaten: 0 });
+}
+function pickEnemyType() {
+  const D = difficulty();
+  const table = [['nm', 3]];
+  if (D >= 0.7) table.push(['shade', 2]);
+  if (D >= 1.5) table.push(['dasher', 2]);
+  if (D >= 2 && enemies.filter(e => e.type === 'siren').length < 2) table.push(['siren', 1]);
+  if (D >= 2.5) table.push(['eater', 1.5]);
+  let sum = 0; for (const t of table) sum += t[1];
+  let roll = Math.random() * sum;
+  for (const t of table) { roll -= t[1]; if (roll <= 0) return t[0]; }
+  return 'nm';
 }
 function spawnBolt() {
-  bolts.push({ x: rand(W * 0.08, W * 0.92), t: 0, warn: 0.95, strike: 0.22, hitDone: false });
+  bolts.push({ x: cam.x + rand(-W * 0.45, W * 0.45), t: 0, warn: 0.95, strike: 0.22, hitDone: false });
 }
 function spawnText(x, y, str, big) {
   texts.push({ x, y, str, a: 0, t: 0, big: !!big, vy: rand(-14, -8) });
@@ -784,7 +851,7 @@ function sfxReloc(back) {
 function sfxChoice() {
   if (!A.started) return;
   const ctx = A.ctx, t = ctx.currentTime;
-  for (const [i, m] of [[0, 69], [1, 73], [2, 76]].map((x, i2) => [i2, x[1]])) {
+  [69, 73, 76].forEach((m, i) => {
     const o = ctx.createOscillator(), g = ctx.createGain();
     o.type = 'triangle'; o.frequency.value = m2f(m + 12);
     const tt = t + i * 0.07;
@@ -794,7 +861,7 @@ function sfxChoice() {
     o.connect(g); g.connect(A.master);
     const send = ctx.createGain(); send.gain.value = 1.2; g.connect(send); send.connect(A.verbSend);
     o.start(tt); o.stop(tt + 0.75);
-  }
+  });
 }
 
 // ---------- ввод ----------
@@ -845,21 +912,48 @@ function toggleTether() {
   if (best) { io.tether = best; sfxWind(); spawnText(best.x, best.y - 70 * best.scl, 'нить натянулась'); }
 }
 
+function echoBlast(x, y) {
+  burst(x, y, IO_COL, 30, 340);
+  for (let i = enemies.length - 1; i >= 0; i--) {
+    const e = enemies[i];
+    if (Math.hypot(e.x - x, e.y - y) < 130 + e.r) {
+      killEnemy(i);
+    }
+  }
+}
+
 function tryRelocate() {
   if (io.reloc.cd > 0 || io.reloc.phase !== 'idle') return;
   io.reloc.rx = io.x; io.reloc.ry = io.y;
   burst(io.x, io.y, IO_COL, 16, 220);
-  io.x = pointer.x; io.y = pointer.y; io.vx = 0; io.vy = 0;
+  const pw = pointerWorld();
+  io.x = pw.x; io.y = pw.y; io.vx = 0; io.vy = 0;
   io.trail = [];
   io.reloc.phase = 'out'; io.reloc.timer = 2.5; io.reloc.cd = RUN.relocCd;
   S.hurtT = Math.max(S.hurtT, 0.6);
   burst(io.x, io.y, IO_COL, 16, 220);
+  if (RUN.echo) echoBlast(io.x, io.y);
   sfxReloc(false);
+}
+
+function killEnemy(i) {
+  const e = enemies[i];
+  enemies.splice(i, 1);
+  RUN.kills++;
+  burst(e.x, e.y, [0.72, 0.4, 0.9], 18, 260);
+  sfxKill();
+  if (e.type === 'eater' && e.eaten > 0) {
+    for (let k = 0; k < Math.min(e.eaten, 5); k++) spawnMoteAt(e.x + rand(-30, 30), e.y + rand(-30, 30));
+  } else if (Math.random() < RUN.feast) {
+    spawnMoteAt(e.x, e.y);
+  }
 }
 
 function damageIo(dmg, srcX, srcY) {
   if (S.hurtT > 0) return;
-  RUN.wake -= dmg * RUN.dmgMul;
+  let mul = RUN.dmgMul;
+  if (RUN.stormHeart && isStormNight()) mul *= 0.5;
+  RUN.wake -= dmg * mul;
   S.hurtT = 1.1; S.shake = Math.max(S.shake, 0.7); S.glitch = Math.max(S.glitch, 0.6);
   S.combo = 0;
   sfxHurt();
@@ -868,42 +962,53 @@ function damageIo(dmg, srcX, srcY) {
     const dx = io.x - srcX, dy = io.y - srcY, d = Math.hypot(dx, dy) || 1;
     io.vx += dx / d * 340; io.vy += dy / d * 340;
   }
-  if (RUN.wake <= 0) {
-    if (RUN.secondWind) {
-      RUN.secondWind = false;
-      RUN.wake = 40;
-      spawnText(io.x, io.y - 60, 'второе дыхание', true);
-      burst(io.x, io.y, [1, 0.86, 0.5], 40, 420);
-      sfxChoice();
-    } else {
-      die();
-    }
-  }
+  checkDissolve();
   updateHud();
+}
+function checkDissolve() {
+  if (RUN.wake > 0) return;
+  if (RUN.secondWind) {
+    RUN.secondWind = false;
+    RUN.wake = 40;
+    spawnText(io.x, io.y - 60, 'второе дыхание', true);
+    burst(io.x, io.y, [1, 0.86, 0.5], 40, 420);
+    sfxChoice();
+  } else die();
 }
 
 // ---------- апдейт ----------
 function update(dt) {
   const playing = S.mode === 'play';
   if (playing) {
-    S.t = Math.min(1, S.t + dt / NIGHT_LEN);
+    S.playT += dt;
+    S.t += dt / NIGHT_LEN;
+    if (S.t >= 1) { // ночь перетекает в следующую без остановки
+      S.t -= 1;
+      RUN.night++;
+      S.stormFired = false;
+      spawnText(io.x, io.y - 100, (isStormNight() ? 'шторм · ночь ' : 'ночь ') + RUN.night, true);
+    }
     if (!S.stormFired && S.t >= 0.714) { S.stormFired = true; sfxRiser(); S.glitch = Math.max(S.glitch, 0.5); }
-    if (S.t >= 1) { nightSurvived(); return; }
   }
   S.pal = palette(S.t);
-  S.energy = clamp(energyAt(S.t) + Math.min(0.15, RUN.night * 0.015) + (isStormNight() && playing ? 0.1 : 0), 0, 1);
+  const D = difficulty();
+  S.energy = clamp(energyAt(S.t) + Math.min(0.18, D * 0.02) + (isStormNight() && playing ? 0.1 : 0), 0, 1);
   A.energy = playing ? S.energy : 0.12;
+  updateView();
 
   const ksp = 620 * dt;
   if (keys['ArrowLeft'] || keys['a'] || keys['ф']) pointer.x -= ksp;
   if (keys['ArrowRight'] || keys['d'] || keys['в']) pointer.x += ksp;
   if (keys['ArrowUp'] || keys['w'] || keys['ц']) pointer.y -= ksp;
   if (keys['ArrowDown'] || keys['s'] || keys['ы']) pointer.y += ksp;
-  pointer.x = clamp(pointer.x, 20, W - 20); pointer.y = clamp(pointer.y, 20, H - 30);
+  pointer.x = clamp(pointer.x, 10, W - 10); pointer.y = clamp(pointer.y, 10, H - 20);
 
   // --- Ио ---
   if (playing) {
-    // релокейт: возврат
+    // бодрость тает всегда
+    const drainOff = RUN.chain && io.tether;
+    if (!drainOff) RUN.wake -= (1.0 + 0.30 * Math.min(D, 8)) * RUN.drainMul * dt;
+
     if (io.reloc.phase === 'out') {
       io.reloc.timer -= dt;
       if (io.reloc.timer <= 0) {
@@ -913,13 +1018,18 @@ function update(dt) {
         io.reloc.phase = 'idle';
         S.hurtT = Math.max(S.hurtT, 0.6);
         burst(io.x, io.y, IO_COL, 14, 200);
+        if (RUN.echo) echoBlast(io.x, io.y);
         sfxReloc(true);
       }
     }
     io.reloc.cd = Math.max(0, io.reloc.cd - dt);
 
-    // тезер тянет за кораблём, иначе — к курсору
-    let tx = pointer.x, ty = pointer.y, k = 7.5 * RUN.speed;
+    const pw = pointerWorld();
+    let tx = pw.x, ty = pw.y, k = 7.5 * RUN.speed;
+    let slowMul = 1;
+    for (const e of enemies) { // сирены вяжут движение
+      if (e.type === 'siren' && Math.hypot(io.x - e.x, io.y - e.y) < e.ringR) slowMul = 0.62;
+    }
     if (io.tether) {
       const sh = io.tether;
       if (!ships.includes(sh)) io.tether = null;
@@ -928,50 +1038,54 @@ function update(dt) {
         if (Math.hypot(io.x - tx, io.y - ty) > RUN.tetherR * 2.4) io.tether = null;
       }
     }
-    io.vx += ((tx - io.x) * k - io.vx * 3.4) * dt;
-    io.vy += ((ty - io.y) * k - io.vy * 3.4) * dt;
+    io.vx += ((tx - io.x) * k * slowMul - io.vx * 3.4) * dt;
+    io.vy += ((ty - io.y) * k * slowMul - io.vy * 3.4) * dt;
     io.x += io.vx * dt; io.y += io.vy * dt;
-    io.x = clamp(io.x, 30, W - 30); io.y = clamp(io.y, 40, H - 50);
+    RUN.dist += Math.hypot(io.vx, io.vy) * dt;
     io.trail.unshift({ x: io.x, y: io.y });
     if (io.trail.length > 22) io.trail.pop();
 
-    // оверчардж жжёт бодрость
     if (io.oc) {
       RUN.wake -= 3.5 * dt;
       if (RUN.wake <= 0) { RUN.wake = 1; io.oc = false; ocBtn.classList.remove('held'); }
     }
+    checkDissolve();
+    if (S.mode !== 'play') return; // растворился прямо сейчас
 
-    // спириты крутятся
-    const spinMul = io.oc ? 2.2 : 1;
+    const spinMul = (io.oc ? 2.2 : 1) * RUN.spinMul;
     for (const sp of io.spirits) {
       sp.ang += dt * 1.7 * spinMul;
       sp.cd = Math.max(0, sp.cd - dt);
     }
   }
 
+  // камера догоняет свет
+  cam.x += (io.x + io.vx * 0.4 - cam.x) * Math.min(1, dt * 2.5);
+  cam.y += (io.y + io.vy * 0.4 - cam.y) * Math.min(1, dt * 2.5);
+
   // --- таймеры мира ---
   moteTimer -= dt;
-  const moteRate = playing ? lerp(1.7, 0.6, S.energy) : 2.6;
-  if (moteTimer <= 0 && motes.length < (playing ? 8 + S.energy * 22 : 8)) { spawnMote(!playing); moteTimer = moteRate; }
+  const moteRate = (playing ? lerp(1.3, 0.55, S.energy) : 2.4) * RUN.moteRateMul;
+  if (moteTimer <= 0 && motes.length < 26) { spawnMote(!playing); moteTimer = moteRate; }
   shipTimer -= dt;
-  if (shipTimer <= 0 && ships.length < 3) { spawnShip(); shipTimer = lerp(17, 8, S.energy) * rand(0.8, 1.3); }
+  if (shipTimer <= 0 && ships.length < 3) { spawnShip(); shipTimer = lerp(15, 8, S.energy) * rand(0.8, 1.3); }
   shotTimer -= dt;
   if (shotTimer <= 0) {
     shotTimer = lerp(9, 2.2, S.energy) * rand(0.6, 1.5);
     shots.push({ x: rand(W * 0.2, W), y: rand(H * 0.05, H * 0.35), vx: -rand(500, 900), vy: rand(120, 260), t: 0, life: rand(0.5, 0.9) });
   }
   if (playing) {
-    nmTimer -= dt;
-    const nmCap = Math.min(2 + RUN.night, 9) + (isStormNight() ? 2 : 0);
-    if (nmTimer <= 0 && nightmares.length < nmCap) {
-      spawnNightmare();
-      nmTimer = lerp(4.5, 1.6, Math.min(1, RUN.night / 8));
+    eTimer -= dt;
+    const cap = Math.min(4 + D * 2, 18);
+    if (eTimer <= 0 && enemies.length < cap) {
+      spawnEnemy(pickEnemyType());
+      eTimer = lerp(2.8, 1.1, D / 9) * rand(0.8, 1.25);
     }
     if (RUN.night >= 2 || isStormNight()) {
       boltTimer -= dt;
       if (boltTimer <= 0) {
         spawnBolt();
-        boltTimer = lerp(9, 3.2, Math.min(1, RUN.night / 8)) * (S.t > 0.714 ? 0.55 : 1) * rand(0.8, 1.3);
+        boltTimer = lerp(9, 3.0, D / 9) * (S.t > 0.714 ? 0.55 : 1) * rand(0.8, 1.3);
       }
     }
   }
@@ -981,14 +1095,14 @@ function update(dt) {
     const m = motes[i];
     m.born += dt;
     m.x += m.vx * dt; m.y += m.vy * dt;
-    if (m.x < 20 || m.x > W - 20) m.vx *= -1;
-    if (m.y < 20 || m.y > H - 30) m.vy *= -1;
-    if (playing && io.tether) {
-      const dx = io.x - m.x, dy = io.y - m.y, d = Math.hypot(dx, dy);
-      if (d < 300 && d > 1) { m.x += dx / d * 200 * dt; m.y += dy / d * 200 * dt; }
+    const dx = io.x - m.x, dy = io.y - m.y, d = Math.hypot(dx, dy);
+    if (playing && io.tether && d < 320 && d > 1) { m.x += dx / d * 200 * dt; m.y += dy / d * 200 * dt; }
+    else if (playing && RUN.gravity > 0 && d < 170 * (1 + RUN.gravity * 0.4) && d > 1) {
+      const f = 55 * RUN.gravity;
+      m.x += dx / d * f * dt; m.y += dy / d * f * dt;
     }
-    if (m.born > m.life) { motes.splice(i, 1); continue; }
-    if (playing && Math.hypot(io.x - m.x, io.y - m.y) < RUN.pickupR) {
+    if (m.born > m.life || Math.hypot(m.x - cam.x, m.y - cam.y) > viewR() * 2.5) { motes.splice(i, 1); continue; }
+    if (playing && d < RUN.pickupR) {
       motes.splice(i, 1);
       collectMote(m);
     }
@@ -998,10 +1112,7 @@ function update(dt) {
   for (let i = ships.length - 1; i >= 0; i--) {
     const sh = ships[i];
     sh.x += sh.vx * dt; sh.bob += dt * 0.9;
-    if ((sh.dir > 0 && sh.x > W + 200 * sh.scl) || (sh.dir < 0 && sh.x < -200 * sh.scl)) {
-      if (io.tether === sh) io.tether = null;
-      ships.splice(i, 1); continue;
-    }
+    if (Math.hypot(sh.x - cam.x, sh.y - cam.y) > viewR() * 2.4 && io.tether !== sh) { ships.splice(i, 1); continue; }
     if (Math.random() < 0.35) parts.push({
       x: sh.x - sh.dir * 90 * sh.scl + rand(-10, 10), y: sh.y + rand(-6, 18) * sh.scl,
       vx: rand(-10, 10), vy: rand(4, 22), life: rand(0.6, 1.4), t: 0, col: S.pal.tint, r: rand(0.6, 1.8),
@@ -1012,40 +1123,39 @@ function update(dt) {
     }
   }
 
-  // --- кошмары ---
-  for (let i = nightmares.length - 1; i >= 0; i--) {
-    const nm = nightmares[i];
-    if (playing) {
-      const dx = io.x - nm.x, dy = io.y - nm.y, d = Math.hypot(dx, dy) || 1;
-      const wob = Math.sin(S.time * 1.3 + nm.seed) * 40;
-      nm.vx += ((dx / d * nm.sp + Math.cos(nm.seed) * wob * 0.02) - nm.vx) * dt * 1.5;
-      nm.vy += ((dy / d * nm.sp + Math.sin(nm.seed) * wob * 0.02) - nm.vy) * dt * 1.5;
-    }
-    nm.x += nm.vx * dt; nm.y += nm.vy * dt;
+  // --- враги ---
+  for (let i = enemies.length - 1; i >= 0; i--) {
+    const e = enemies[i];
+    if (Math.hypot(e.x - cam.x, e.y - cam.y) > viewR() * 2.6) { enemies.splice(i, 1); continue; }
+    if (playing) updateEnemy(e, dt);
+    e.x += e.vx * dt; e.y += e.vy * dt;
+    if (!playing) continue;
+    // спириты рассеивают
     let dead = false;
-    // спириты рассеивают кошмары
-    if (playing) {
-      const orbR = RUN.orbitR * (io.oc ? 1.6 : 1);
-      for (const sp of io.spirits) {
-        if (sp.cd > 0) continue;
-        const sx = io.x + Math.cos(sp.ang) * orbR;
-        const sy = io.y + Math.sin(sp.ang) * orbR * 0.82;
-        if (Math.hypot(sx - nm.x, sy - nm.y) < 12 + nm.r) {
-          sp.cd = 4; dead = true;
-          RUN.kills++;
-          burst(nm.x, nm.y, [0.72, 0.4, 0.9], 20, 260);
-          sfxKill();
-          break;
-        }
-      }
-      if (!dead && Math.hypot(io.x - nm.x, io.y - nm.y) < 16 + nm.r) {
-        damageIo(15, nm.x, nm.y);
-        dead = true;
-        burst(nm.x, nm.y, [0.72, 0.4, 0.9], 16, 220);
+    const orbR = RUN.orbitR * (io.oc ? 1.6 : 1);
+    for (const sp of io.spirits) {
+      if (sp.cd > 0) continue;
+      const sx = io.x + Math.cos(sp.ang) * orbR;
+      const sy = io.y + Math.sin(sp.ang) * orbR * 0.82;
+      if (Math.hypot(sx - e.x, sy - e.y) < 12 + e.r) {
+        sp.cd = e.type === 'siren' ? 6 : 4;
+        killEnemy(i); dead = true;
+        break;
       }
     }
-    if (dead) nightmares.splice(i, 1);
+    if (dead) continue;
+    // контакт
+    const d = Math.hypot(io.x - e.x, io.y - e.y);
+    if (d < 16 + e.r) {
+      const dmg = e.type === 'dasher' && e.st !== 'dash' ? 10 : e.dmg;
+      damageIo(dmg, e.x, e.y);
+      if (e.type !== 'siren') { killEnemy(i); RUN.kills--; } // смерть об Ио — не в счёт рассеянных
+      continue;
+    }
+    // поле сирены сосёт бодрость
+    if (e.type === 'siren' && d < e.ringR) RUN.wake -= 5 * dt;
   }
+  if (playing) checkDissolve();
 
   // --- молнии ---
   for (let i = bolts.length - 1; i >= 0; i--) {
@@ -1079,7 +1189,6 @@ function update(dt) {
   }
   for (const c of clouds) {
     c.x += c.v * dt * (0.5 + S.energy);
-    if (c.x > W + 200) { c.x = -300; c.y = rand(H * 0.15, H * 0.8); }
   }
 
   S.hurtT = Math.max(0, S.hurtT - dt);
@@ -1100,17 +1209,68 @@ function update(dt) {
   }
 }
 
+function updateEnemy(e, dt) {
+  const dx = io.x - e.x, dy = io.y - e.y, d = Math.hypot(dx, dy) || 1;
+  if (e.type === 'nm' || e.type === 'shade') {
+    const wob = Math.sin(S.time * 1.3 + e.seed) * 40;
+    e.vx += ((dx / d * e.sp + Math.cos(e.seed) * wob * 0.02) - e.vx) * dt * 1.5;
+    e.vy += ((dy / d * e.sp + Math.sin(e.seed) * wob * 0.02) - e.vy) * dt * 1.5;
+  } else if (e.type === 'eater') {
+    let target = null, td = 600;
+    for (const m of motes) {
+      const md = Math.hypot(m.x - e.x, m.y - e.y);
+      if (md < td) { td = md; target = m; }
+    }
+    if (target) {
+      const tx2 = target.x - e.x, ty2 = target.y - e.y, l = Math.hypot(tx2, ty2) || 1;
+      e.vx += (tx2 / l * e.sp - e.vx) * dt * 1.6;
+      e.vy += (ty2 / l * e.sp - e.vy) * dt * 1.6;
+      if (l < e.r + 8) {
+        motes.splice(motes.indexOf(target), 1);
+        e.eaten++; e.r = Math.min(30, e.r + 1.6);
+      }
+    } else {
+      e.vx += (Math.cos(e.seed + S.time * 0.4) * 40 - e.vx) * dt;
+      e.vy += (Math.sin(e.seed + S.time * 0.4) * 40 - e.vy) * dt;
+    }
+  } else if (e.type === 'siren') {
+    e.vx = Math.cos(e.seed + S.time * 0.15) * e.sp;
+    e.vy = Math.sin(e.seed + S.time * 0.15) * e.sp;
+    e.pulse += dt * 2;
+  } else if (e.type === 'dasher') {
+    e.stT += dt;
+    if (e.st === 'seek') {
+      const want = d - 260;
+      e.vx += (dx / d * e.sp * Math.sign(want) - e.vx) * dt * 2;
+      e.vy += (dy / d * e.sp * Math.sign(want) - e.vy) * dt * 2;
+      if (Math.abs(want) < 60 && e.stT > 1) { e.st = 'tele'; e.stT = 0; e.dx = dx / d; e.dy = dy / d; }
+    } else if (e.st === 'tele') {
+      e.vx *= 0.9; e.vy *= 0.9;
+      e.dx = dx / d; e.dy = dy / d; // целится до последнего
+      if (e.stT > 0.7) { e.st = 'dash'; e.stT = 0; }
+    } else if (e.st === 'dash') {
+      e.vx = e.dx * 760; e.vy = e.dy * 760;
+      if (e.stT > 0.45) { e.st = 'rest'; e.stT = 0; }
+    } else { // rest
+      e.vx *= 0.92; e.vy *= 0.92;
+      if (e.stT > 1.2) { e.st = 'seek'; e.stT = 0; }
+    }
+  }
+}
+
 function collectMote(m) {
   RUN.thoughts++;
-  RUN.wake = Math.min(RUN.wakeMax, RUN.wake + 2);
+  RUN.wake = Math.min(RUN.wakeMax, RUN.wake + 4 + RUN.healBonus);
   S.combo++; S.comboT = 3;
   if (S.combo > RUN.comboBest) RUN.comboBest = S.combo;
   sfxCollect(S.combo - 1);
   burst(m.x, m.y, S.pal.mote, 12, 200);
   const tier = phraseTier(S.t);
-  if (RUN.thoughts === 1 || Math.random() < 0.4) {
-    spawnText(m.x, clamp(m.y - 40, 60, H - 80), pick(PHRASES[tier]), tier >= 3);
+  if (RUN.thoughts === 1 || Math.random() < 0.35) {
+    spawnText(m.x, m.y - 40, pick(PHRASES[tier]), tier >= 3);
   }
+  RUN.xp++;
+  if (RUN.xp >= RUN.xpNext) levelUp();
   updateHud();
 }
 
@@ -1120,12 +1280,17 @@ function draw() {
   sc.clearRect(0, 0, W, H);
   const pal = S.pal, tm = S.time;
 
+  // дымка-облака: экранный слой с параллаксом от камеры
+  const span = W + 600;
   for (const c of clouds) {
+    const cx = ((c.x - cam.x * 0.35) % span + span) % span - 300;
+    const cy = c.y + Math.sin(tm * 0.1 + c.s) * 12 - (cam.y * 0.08 % H) * 0.3;
     sc.globalAlpha = 0.35 * c.a;
-    sc.drawImage(cloudSpr, c.x - 150 * c.s, c.y - 70 * c.s, 300 * c.s, 140 * c.s);
+    sc.drawImage(cloudSpr, cx - 150 * c.s, cy - 70 * c.s, 300 * c.s, 140 * c.s);
   }
   sc.globalAlpha = 1;
 
+  // падающие звёзды — атмосфера, экранный слой
   for (const s2 of shots) {
     const a = Math.sin(Math.PI * clamp(s2.t / s2.life, 0, 1));
     const gr = sc.createLinearGradient(s2.x, s2.y, s2.x - s2.vx * 0.12, s2.y - s2.vy * 0.12);
@@ -1135,45 +1300,46 @@ function draw() {
     sc.beginPath(); sc.moveTo(s2.x, s2.y); sc.lineTo(s2.x - s2.vx * 0.12, s2.y - s2.vy * 0.12); sc.stroke();
   }
 
-  const sorted = [...ships].sort((a, b) => a.scl - b.scl);
-  for (const sh of sorted) drawShip(sh, pal, tm);
-
-  for (const nm of nightmares) drawNightmare(nm, tm);
-
-  for (const m of motes) {
-    const pulse = 0.8 + 0.25 * Math.sin(tm * 2.4 + m.seed);
-    const fade = Math.min(1, m.born * 2, (m.life - m.born));
-    sc.globalAlpha = 0.85 * fade;
-    sc.globalCompositeOperation = 'lighter';
-    tintGlow(m.x, m.y, m.r * 3.2 * pulse, pal.mote, 0.42 * fade);
-    sc.fillStyle = css3([1, 1, 1], 0.85 * fade);
-    sc.beginPath(); sc.arc(m.x, m.y, m.r * 0.32 * pulse + 0.8, 0, TAU); sc.fill();
-    sc.globalCompositeOperation = 'source-over';
-    sc.globalAlpha = 1;
+  // мир: собрать, отсортировать по глубине (проекции y), нарисовать
+  const items = [];
+  for (const sh of ships) items.push({ z: 'ship', o: sh });
+  for (const e of enemies) items.push({ z: 'enemy', o: e });
+  for (const m of motes) items.push({ z: 'mote', o: m });
+  if (S.mode === 'play') items.push({ z: 'io', o: io });
+  for (const it of items) {
+    const yy = it.z === 'ship' ? it.o.y + Math.sin(it.o.bob) * 6 * it.o.scl : it.o.y;
+    it.p = proj(it.o.x, yy);
+  }
+  items.sort((a, b) => a.p.y - b.p.y);
+  for (const it of items) {
+    if (it.z === 'ship') drawShip(it.o, it.p, pal, tm);
+    else if (it.z === 'enemy') drawEnemy(it.o, it.p, tm);
+    else if (it.z === 'mote') drawMote(it.o, it.p, pal, tm);
+    else drawIo(it.p, pal, tm);
   }
 
+  // молнии — столбы, воткнутые в плоскость мира
+  for (const b of bolts) drawBolt(b, pal, tm);
+
+  // частицы
   sc.globalCompositeOperation = 'lighter';
   for (const p of parts) {
     const a = 1 - p.t / p.life;
+    const P = proj(p.x, p.y);
     sc.fillStyle = css3(p.col, a * 0.8);
-    sc.beginPath(); sc.arc(p.x, p.y, p.r, 0, TAU); sc.fill();
+    sc.beginPath(); sc.arc(P.x, P.y, p.r * P.k, 0, TAU); sc.fill();
   }
   sc.globalCompositeOperation = 'source-over';
 
-  if (S.mode === 'play') {
-    drawTether(pal, tm);
-    drawIo(pal, tm);
-  }
-
-  for (const b of bolts) drawBolt(b, pal, tm);
-
+  // фразы
   for (const tx of texts) {
+    const P = proj(tx.x, tx.y);
     sc.globalAlpha = tx.a;
-    sc.font = (tx.big ? '400 ' : '300 ') + 'italic ' + (tx.big ? 30 : 24) + 'px Cormorant, Georgia, serif';
+    sc.font = (tx.big ? '400 ' : '300 ') + 'italic ' + Math.round((tx.big ? 30 : 24) * P.k) + 'px Cormorant, Georgia, serif';
     sc.textAlign = 'center';
     sc.shadowColor = css3(pal.tint, 0.8); sc.shadowBlur = 18;
     sc.fillStyle = tx.big ? css3(pal.mote, 1) : 'rgba(235,232,225,.95)';
-    sc.fillText(tx.str, clamp(tx.x, 150, W - 150), tx.y);
+    sc.fillText(tx.str, clamp(P.x, 130, W - 130), clamp(P.y, 50, H - 40));
     sc.shadowBlur = 0;
   }
   sc.globalAlpha = 1;
@@ -1193,11 +1359,22 @@ function tintGlow(x, y, R, col, a) {
   sc.beginPath(); sc.arc(x, y, R, 0, TAU); sc.fill();
 }
 
-function drawShip(sh, pal, tm) {
-  const y = sh.y + Math.sin(sh.bob) * 6 * sh.scl;
-  const s = sh.scl, d = sh.dir;
+function drawMote(m, P, pal, tm) {
+  const pulse = 0.8 + 0.25 * Math.sin(tm * 2.4 + m.seed);
+  const fade = Math.min(1, m.born * 2, (m.life - m.born));
+  sc.globalAlpha = Math.max(0, 0.85 * fade);
+  sc.globalCompositeOperation = 'lighter';
+  tintGlow(P.x, P.y, m.r * 3.2 * pulse * P.k, pal.mote, 0.42 * Math.max(0, fade));
+  sc.fillStyle = css3([1, 1, 1], 0.85 * Math.max(0, fade));
+  sc.beginPath(); sc.arc(P.x, P.y, (m.r * 0.32 * pulse + 0.8) * P.k, 0, TAU); sc.fill();
+  sc.globalCompositeOperation = 'source-over';
+  sc.globalAlpha = 1;
+}
+
+function drawShip(sh, P, pal, tm) {
+  const s = sh.scl * P.k, d = sh.dir;
   sc.save();
-  sc.translate(sh.x, y);
+  sc.translate(P.x, P.y);
   sc.scale(d * s, s);
   sc.rotate(Math.sin(sh.bob * 0.7) * 0.03);
   const alpha = sh.near ? 0.92 : 0.55;
@@ -1224,7 +1401,7 @@ function drawShip(sh, pal, tm) {
     sc.strokeStyle = rim; sc.stroke();
   }
   sc.restore();
-  const lx = sh.x + d * s * -92, ly = y - 16 * s;
+  const lx = P.x + d * s * -92, ly = P.y - 16 * s;
   sc.globalCompositeOperation = 'lighter';
   tintGlow(lx, ly, 11 * s, pal.tint, 0.3 * (0.8 + 0.2 * Math.sin(tm * 3 + sh.bob)));
   sc.fillStyle = 'rgba(255,240,210,.9)';
@@ -1232,150 +1409,188 @@ function drawShip(sh, pal, tm) {
   sc.globalCompositeOperation = 'source-over';
 }
 
-function drawNightmare(nm, tm) {
+function drawEnemy(e, P, tm) {
+  const k = P.k;
+  if (e.type === 'siren') {
+    // поле сирены — эллипс в плоскости мира
+    sc.strokeStyle = css3([0.72, 0.4, 0.9], 0.22 + 0.1 * Math.sin(e.pulse));
+    sc.lineWidth = 1;
+    for (let i = 0; i < 3; i++) {
+      const rr = e.ringR * (0.5 + ((e.pulse * 0.25 + i / 3) % 1) * 0.5);
+      sc.globalAlpha = 1 - ((e.pulse * 0.25 + i / 3) % 1);
+      sc.beginPath();
+      sc.ellipse(P.x, P.y, rr * k, rr * k * view.tilt, 0, 0, TAU);
+      sc.stroke();
+    }
+    sc.globalAlpha = 1;
+  }
+  if (e.type === 'dasher' && e.st === 'tele') {
+    // прицел перед рывком
+    const T = proj(io.x, io.y);
+    sc.strokeStyle = css3([1, 0.5, 0.6], 0.35 + 0.3 * Math.sin(tm * 24));
+    sc.lineWidth = 1;
+    sc.setLineDash([4, 8]);
+    sc.beginPath(); sc.moveTo(P.x, P.y); sc.lineTo(T.x, T.y); sc.stroke();
+    sc.setLineDash([]);
+  }
   sc.save();
-  sc.translate(nm.x, nm.y);
+  sc.translate(P.x, P.y);
+  sc.scale(k, k);
+  const spiky = e.type === 'dasher' ? 0.55 : 0.32;
+  const col = e.type === 'shade' ? [0.45, 0.3, 0.6]
+    : e.type === 'eater' ? [0.85, 0.45, 0.3]
+    : e.type === 'siren' ? [0.5, 0.35, 0.75]
+    : e.type === 'dasher' ? [0.95, 0.4, 0.5]
+    : [0.72, 0.4, 0.9];
   sc.beginPath();
-  const N = 9;
+  const N = e.type === 'dasher' ? 6 : 9;
   for (let i = 0; i <= N; i++) {
     const a = i / N * TAU;
-    const rr = nm.r * (1 + 0.32 * Math.sin(tm * 2.6 + nm.seed + i * 2.1));
+    const rr = e.r * (1 + spiky * Math.sin(tm * 2.6 + e.seed + i * 2.1));
     const px = Math.cos(a) * rr, py = Math.sin(a) * rr;
     i === 0 ? sc.moveTo(px, py) : sc.lineTo(px, py);
   }
   sc.closePath();
   sc.fillStyle = 'rgba(6,4,12,.94)';
   sc.fill();
-  sc.strokeStyle = css3([0.72, 0.4, 0.9], 0.55 + 0.2 * Math.sin(tm * 3 + nm.seed));
+  sc.strokeStyle = css3(col, 0.55 + 0.2 * Math.sin(tm * 3 + e.seed));
   sc.lineWidth = 1.3;
   sc.stroke();
+  if (e.type === 'eater' && e.eaten > 0) { // сожранные мысли светятся внутри
+    sc.fillStyle = css3([1, 0.85, 0.6], 0.5);
+    for (let i = 0; i < Math.min(e.eaten, 5); i++) {
+      const a = e.seed + i * 2.4 + tm * 0.8;
+      sc.beginPath();
+      sc.arc(Math.cos(a) * e.r * 0.4, Math.sin(a) * e.r * 0.4, 1.5, 0, TAU);
+      sc.fill();
+    }
+  }
   sc.restore();
-  if (Math.random() < 0.12) parts.push({
-    x: nm.x + rand(-nm.r, nm.r), y: nm.y + rand(-nm.r, nm.r),
+  if (Math.random() < 0.1) parts.push({
+    x: e.x + rand(-e.r, e.r), y: e.y + rand(-e.r, e.r),
     vx: rand(-8, 8), vy: rand(-16, -4), life: rand(0.3, 0.8), t: 0, col: [0.5, 0.28, 0.66], r: rand(0.6, 1.6),
   });
 }
 
 function drawBolt(b, pal, tm) {
-  if (b.t < b.warn) { // телеграф
+  const P1 = proj(b.x, cam.y - 1400);
+  const P2 = proj(b.x, cam.y + 1400);
+  if (b.t < b.warn) {
     const blink = Math.sin(tm * 22) > 0 ? 0.4 : 0.12;
     const urgency = b.t / b.warn;
     sc.strokeStyle = css3([1, 1, 1], blink * (0.4 + urgency * 0.6));
     sc.lineWidth = 1;
     sc.setLineDash([6, 10]);
-    sc.beginPath(); sc.moveTo(b.x, 0); sc.lineTo(b.x, H); sc.stroke();
+    sc.beginPath(); sc.moveTo(P1.x, P1.y); sc.lineTo(P2.x, P2.y); sc.stroke();
     sc.setLineDash([]);
-  } else { // разряд
-    const k = 1 - (b.t - b.warn) / b.strike;
+  } else {
+    const kk = 1 - (b.t - b.warn) / b.strike;
     sc.globalCompositeOperation = 'lighter';
-    const gr = sc.createLinearGradient(b.x - 30, 0, b.x + 30, 0);
-    gr.addColorStop(0, css3(pal.tint, 0));
-    gr.addColorStop(0.5, css3([1, 1, 1], 0.75 * k));
-    gr.addColorStop(1, css3(pal.tint, 0));
-    sc.fillStyle = gr;
-    sc.fillRect(b.x - 30, 0, 60, H);
+    sc.strokeStyle = css3(pal.tint, 0.4 * kk);
+    sc.lineWidth = 46;
+    sc.lineCap = 'round';
+    sc.beginPath(); sc.moveTo(P1.x, P1.y); sc.lineTo(P2.x, P2.y); sc.stroke();
     // ломаная сердцевина
-    sc.strokeStyle = css3([1, 1, 1], 0.95 * k);
+    sc.strokeStyle = css3([1, 1, 1], 0.95 * kk);
     sc.lineWidth = 2.2;
     sc.beginPath();
-    let yy = 0; sc.moveTo(b.x, 0);
-    while (yy < H) { yy += rand(30, 70); sc.lineTo(b.x + rand(-9, 9), Math.min(yy, H)); }
+    const segs = 14;
+    for (let i = 0; i <= segs; i++) {
+      const q = i / segs;
+      const x = P1.x + (P2.x - P1.x) * q + (i > 0 && i < segs ? rand(-9, 9) : 0);
+      const y = P1.y + (P2.y - P1.y) * q;
+      i === 0 ? sc.moveTo(x, y) : sc.lineTo(x, y);
+    }
     sc.stroke();
     sc.globalCompositeOperation = 'source-over';
   }
 }
 
-function drawTether(pal, tm) {
+function drawTetherLine(P, tm) {
   const sh = io.tether;
   if (!sh || !ships.includes(sh)) return;
-  const ax = io.x, ay = io.y;
-  const bx = sh.x - sh.dir * 60 * sh.scl, by = sh.y - 30 * sh.scl;
-  const mx = (ax + bx) / 2, my = (ay + by) / 2 + 24 + Math.sin(tm * 3) * 6;
+  const B = proj(sh.x - sh.dir * 60 * sh.scl, sh.y - 30 * sh.scl);
+  const mx = (P.x + B.x) / 2, my = (P.y + B.y) / 2 + 24 + Math.sin(tm * 3) * 6;
   sc.globalCompositeOperation = 'lighter';
   sc.strokeStyle = css3(IO_COL, 0.55 + 0.15 * Math.sin(tm * 6));
   sc.lineWidth = 1.6;
   sc.beginPath();
-  sc.moveTo(ax, ay);
-  sc.quadraticCurveTo(mx, my, bx, by);
+  sc.moveTo(P.x, P.y);
+  sc.quadraticCurveTo(mx, my, B.x, B.y);
   sc.stroke();
-  // искры вдоль нити
   for (let i = 0; i < 2; i++) {
     const q = ((tm * 0.7 + i * 0.5) % 1);
-    const qx = (1 - q) * (1 - q) * ax + 2 * (1 - q) * q * mx + q * q * bx;
-    const qy = (1 - q) * (1 - q) * ay + 2 * (1 - q) * q * my + q * q * by;
+    const qx = (1 - q) * (1 - q) * P.x + 2 * (1 - q) * q * mx + q * q * B.x;
+    const qy = (1 - q) * (1 - q) * P.y + 2 * (1 - q) * q * my + q * q * B.y;
     sc.fillStyle = css3(IO_COL, 0.8);
     sc.beginPath(); sc.arc(qx, qy, 1.6, 0, TAU); sc.fill();
   }
   sc.globalCompositeOperation = 'source-over';
 }
 
-function drawIo(pal, tm) {
+function drawIo(P, pal, tm) {
+  drawTetherLine(P, tm);
   const blink = S.hurtT > 0.5 && Math.sin(tm * 30) > 0;
-  // шлейф света
   if (io.trail.length > 3) {
     sc.globalCompositeOperation = 'lighter';
+    let prev = proj(io.trail[0].x, io.trail[0].y);
     for (let i = 1; i < io.trail.length; i++) {
+      const cur = proj(io.trail[i].x, io.trail[i].y);
       const a = 1 - i / io.trail.length;
       sc.strokeStyle = css3(IO_COL, a * 0.3);
       sc.lineWidth = a * 7 + 1;
       sc.lineCap = 'round';
-      sc.beginPath();
-      sc.moveTo(io.trail[i - 1].x, io.trail[i - 1].y);
-      sc.lineTo(io.trail[i].x, io.trail[i].y);
-      sc.stroke();
+      sc.beginPath(); sc.moveTo(prev.x, prev.y); sc.lineTo(cur.x, cur.y); sc.stroke();
+      prev = cur;
     }
     sc.globalCompositeOperation = 'source-over';
   }
   if (blink) return;
-  const ocMul = io.oc ? 1.35 : 1;
+  const k = P.k;
+  const ocMul = (io.oc ? 1.35 : 1) * k;
   sc.globalCompositeOperation = 'lighter';
-  // ядро
-  tintGlow(io.x, io.y, 36 * ocMul, IO_COL, 0.5);
+  tintGlow(P.x, P.y, 36 * ocMul, IO_COL, 0.5);
   sc.fillStyle = 'rgba(255,255,255,.97)';
-  sc.beginPath(); sc.arc(io.x, io.y, 6 * ocMul, 0, TAU); sc.fill();
-  // кольцо
+  sc.beginPath(); sc.arc(P.x, P.y, 6 * ocMul, 0, TAU); sc.fill();
   sc.strokeStyle = css3(IO_COL, 0.85);
   sc.lineWidth = 1.6;
-  sc.beginPath(); sc.arc(io.x, io.y, 11.5 * ocMul + Math.sin(tm * 5) * 1.2, 0, TAU); sc.stroke();
-  // усики-протуберанцы
+  sc.beginPath(); sc.arc(P.x, P.y, 11.5 * ocMul + Math.sin(tm * 5) * 1.2, 0, TAU); sc.stroke();
   for (let i = 0; i < 5; i++) {
     const a = tm * 1.1 + i * TAU / 5;
-    const rr = 16 + Math.sin(tm * 3.3 + i * 1.7) * 4;
+    const rr = (16 + Math.sin(tm * 3.3 + i * 1.7) * 4) * k;
     sc.fillStyle = css3(IO_COL, 0.5);
     sc.beginPath();
-    sc.arc(io.x + Math.cos(a) * rr, io.y + Math.sin(a) * rr * 0.9, 1.3, 0, TAU);
+    sc.arc(P.x + Math.cos(a) * rr, P.y + Math.sin(a) * rr * 0.9, 1.3, 0, TAU);
     sc.fill();
   }
-  // спириты
+  // спириты — позиции в мире, проекция сама их кладёт в наклон плоскости
   const orbR = RUN.orbitR * (io.oc ? 1.6 : 1);
   for (const sp of io.spirits) {
-    const sx = io.x + Math.cos(sp.ang) * orbR;
-    const sy = io.y + Math.sin(sp.ang) * orbR * 0.82;
+    const SP = proj(io.x + Math.cos(sp.ang) * orbR, io.y + Math.sin(sp.ang) * orbR * 0.82);
     if (sp.cd > 0) {
       sc.fillStyle = css3(IO_COL, 0.18);
-      sc.beginPath(); sc.arc(sx, sy, 1.6, 0, TAU); sc.fill();
+      sc.beginPath(); sc.arc(SP.x, SP.y, 1.6, 0, TAU); sc.fill();
     } else {
-      tintGlow(sx, sy, 10, IO_COL, 0.55);
+      tintGlow(SP.x, SP.y, 10 * SP.k, IO_COL, 0.55);
       sc.fillStyle = 'rgba(255,255,255,.95)';
-      sc.beginPath(); sc.arc(sx, sy, 2.4, 0, TAU); sc.fill();
+      sc.beginPath(); sc.arc(SP.x, SP.y, 2.4 * SP.k, 0, TAU); sc.fill();
     }
   }
   sc.globalCompositeOperation = 'source-over';
-  // кулдаун релокейта — дуга вокруг ядра
   if (io.reloc.cd > 0) {
     const frac = 1 - io.reloc.cd / RUN.relocCd;
     sc.strokeStyle = 'rgba(235,232,225,.4)';
     sc.lineWidth = 1;
     sc.beginPath();
-    sc.arc(io.x, io.y, 18, -Math.PI / 2, -Math.PI / 2 + frac * TAU);
+    sc.arc(P.x, P.y, 18 * k, -Math.PI / 2, -Math.PI / 2 + frac * TAU);
     sc.stroke();
   }
-  // маркер точки возврата
   if (io.reloc.phase === 'out') {
+    const R2 = proj(io.reloc.rx, io.reloc.ry);
     sc.strokeStyle = css3(IO_COL, 0.5 + 0.2 * Math.sin(tm * 8));
     sc.lineWidth = 1.2;
     sc.setLineDash([4, 6]);
-    sc.beginPath(); sc.arc(io.reloc.rx, io.reloc.ry, 12, 0, TAU); sc.stroke();
+    sc.beginPath(); sc.arc(R2.x, R2.y, 12 * R2.k, 0, TAU); sc.stroke();
     sc.setLineDash([]);
   }
 }
@@ -1409,6 +1624,7 @@ function drawGL() {
   gl.uniform2f(U.uMoonPos, mx, my);
   gl.uniform1f(U.uMoonR, mr);
   gl.uniform1f(U.uMoon, mvis);
+  gl.uniform2f(U.uCam, cam.x, cam.y);
   gl.drawArrays(gl.TRIANGLES, 0, 3);
 }
 
@@ -1417,11 +1633,14 @@ const elClock = document.getElementById('clock');
 const elNight = document.getElementById('nightname');
 const elScore = document.getElementById('score');
 const elCombo = document.getElementById('combo');
+const elLvl = document.getElementById('lvl');
 const elMeter = document.getElementById('meterFill');
+const elXp = document.getElementById('xpFill');
 let hudTimer = 0;
 
 function updateHud() {
   elScore.textContent = 'мыслей · ' + RUN.thoughts;
+  elLvl.textContent = 'уровень ' + RUN.level;
   if (S.combo >= 2) {
     elCombo.textContent = 'серия ×' + S.combo;
     elCombo.classList.add('hot');
@@ -1431,6 +1650,7 @@ function updateHud() {
   const col = frac > 0.5 ? '#8fd0ff' : frac > 0.25 ? '#e8a54a' : '#d8695a';
   elMeter.style.background = col;
   elMeter.style.boxShadow = '0 0 12px ' + col;
+  elXp.style.width = (clamp(RUN.xp / RUN.xpNext, 0, 1) * 100).toFixed(1) + '%';
 }
 function updateClock() {
   const mins = S.t * 420;
@@ -1481,7 +1701,7 @@ function startRun() {
   } catch (err) { console.warn('audio unavailable', err); }
   RUN = newRun();
   io.spirits = [];
-  resetNight(false);
+  resetWorld(false);
   S.mode = 'play';
   titleScreen.classList.add('hidden');
   deathScreen.classList.add('hidden');
@@ -1491,14 +1711,17 @@ function startRun() {
   updateHud(); updateClock();
 }
 
-function nightSurvived() {
-  S.mode = 'rest';
+function levelUp() {
+  RUN.xp -= RUN.xpNext;
+  RUN.level++;
+  RUN.xpNext = Math.round(8 + RUN.level * 5);
+  S.mode = 'level';
   io.oc = false; ocBtn.classList.remove('held');
   document.body.classList.remove('playing');
-  document.getElementById('restHead').textContent = 'ночь ' + RUN.night + ' пережита · бодрость ' + Math.ceil(RUN.wake) + '/' + RUN.wakeMax;
+  document.getElementById('restHead').textContent = 'уровень ' + RUN.level + ' · бодрость ' + Math.max(1, Math.ceil(RUN.wake)) + '/' + RUN.wakeMax;
   const box = document.getElementById('dreams');
   box.innerHTML = '';
-  const pool = UPGRADES.filter(u => !(u.rare && (RUN.secondWind || RUN.taken.includes('wind2'))));
+  const pool = UPGRADES.filter(u => !(u.once && RUN.taken.includes(u.id)));
   const opts = [];
   while (opts.length < 3 && pool.length) {
     const u = pool.splice((Math.random() * pool.length) | 0, 1)[0];
@@ -1514,12 +1737,10 @@ function nightSurvived() {
       RUN.taken.push(u.id);
       syncSpirits();
       sfxChoice();
-      RUN.night++;
-      resetNight(false);
       S.mode = 'play';
       restScreen.classList.add('hidden');
       document.body.classList.add('playing');
-      updateHud(); updateClock();
+      updateHud();
     }, { once: true });
     box.appendChild(d);
   }
@@ -1536,6 +1757,7 @@ function die() {
   document.getElementById('stNights').textContent = RUN.night;
   document.getElementById('stMoths').textContent = RUN.thoughts;
   document.getElementById('stKills').textContent = RUN.kills;
+  document.getElementById('stDist').textContent = (RUN.dist / 1000).toFixed(1) + 'к';
   document.getElementById('deathQuote').textContent = pick(DEATH_QUOTES);
   sfxCrash();
   S.shake = 1; S.glitch = 1;
@@ -1571,22 +1793,29 @@ if (document.fonts && document.fonts.load) {
   document.fonts.load('italic 400 30px Cormorant');
 }
 showBestLine();
-resetNight(true);
+resetWorld(true);
 requestAnimationFrame(frame);
 
-// отладка: ?auto=1&t=0.5&night=4
+// отладка: ?auto=1&t=0.5&night=4&d=3
 {
   const q = new URLSearchParams(location.search);
   if (q.get('auto')) {
     setTimeout(() => {
       startRun();
       const nn = parseInt(q.get('night'));
-      if (!isNaN(nn)) { RUN.night = nn; for (let i = 0; i < Math.min(nn, 5); i++) spawnNightmare(); }
+      if (!isNaN(nn)) RUN.night = nn;
       const tt = parseFloat(q.get('t'));
       if (!isNaN(tt)) S.t = clamp(tt, 0, 0.999);
+      const dd = parseFloat(q.get('d'));
+      if (!isNaN(dd)) S.playT = dd * 70;
       for (let i = 0; i < 10; i++) spawnMote(true);
       spawnShip(); spawnShip();
-      ships.forEach(sh => { sh.x = rand(W * 0.2, W * 0.8); });
+      ships.forEach(sh => { const p = spawnRing(200, viewR() * 0.7); sh.x = p.x; sh.y = p.y; });
+      for (const ty of ['nm', 'shade', 'dasher', 'siren', 'eater']) {
+        spawnEnemy(ty);
+        const e = enemies[enemies.length - 1];
+        if (e) { const p = spawnRing(180, viewR() * 0.75); e.x = p.x; e.y = p.y; }
+      }
       if (q.get('bolt')) { spawnBolt(); bolts[0].t = parseFloat(q.get('bolt')) || 0; }
     }, 800);
   }
