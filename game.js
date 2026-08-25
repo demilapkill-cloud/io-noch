@@ -19,6 +19,198 @@ function hex(h) { const n = parseInt(h.slice(1), 16); return [(n >> 16 & 255) / 
 function mix3(a, b, t) { return [lerp(a[0], b[0], t), lerp(a[1], b[1], t), lerp(a[2], b[2], t)]; }
 function css3(c, a = 1) { return `rgba(${(c[0] * 255) | 0},${(c[1] * 255) | 0},${(c[2] * 255) | 0},${a})`; }
 
+// ============================================================
+// ЯЗЫК И НАСТРОЙКИ
+// Русский — родной голос игры, английский идёт вторым; всё видимое
+// проходит через tr(), а настройки живут в localStorage.
+// ============================================================
+const DEFAULT_SET = {
+  lang: 'ru', vol: 85, music: 100, sfx: 100,
+  quality: 'auto', shake: 100, fx: 100, hud: 'full',
+};
+let SET = loadSettings();
+let LANG = SET.lang;
+
+function loadSettings() {
+  let s = {};
+  try { s = JSON.parse(localStorage.getItem('io-noch-set')) || {}; } catch (_) {}
+  const out = Object.assign({}, DEFAULT_SET, s);
+  if (out.lang !== 'ru' && out.lang !== 'en') out.lang = 'ru';
+  return out;
+}
+function saveSettings() {
+  try { localStorage.setItem('io-noch-set', JSON.stringify(SET)); } catch (_) {}
+}
+function tr(key, ...args) {
+  const d = TXT[LANG] || TXT.ru;
+  const v = key in d ? d[key] : TXT.ru[key];
+  if (v === undefined) return key;
+  return typeof v === 'function' ? v(...args) : v;
+}
+
+const TXT = {
+  ru: {
+    // — надписи мира —
+    bossComes: 'корабль-кошмар идёт по небу',
+    bossFled: 'рассвет прогнал корабль-кошмар',
+    tether: 'нить натянута надёжно',
+    secondWind: 'второе дыхание',
+    dew: 'роса рассветная',
+    dawnLine: 'рассвет — а день промелькнёт мимо',
+    star: 'павшая звезда',
+    waveIn: n => 'волна ' + n + ' — ночь прибывает',
+    waveOut: 'волна отхлынула — дыши',
+    twinDown: 'тёмный двойник угас',
+    rod: 'громоотвод',
+    nightText: (n, storm) => (storm ? 'буря · ночь ' : 'ночь ') + n,
+    // — HUD —
+    thoughts: n => 'мыслей · ' + n,
+    tierN: n => 'степень ' + n,
+    chain: n => 'чреда ×' + n,
+    blinkCd: s => 'мерцание · ' + s + 'с',
+    blinkReady: 'мерцание · готово',
+    wakeLabel: 'бодрость',
+    ocBtn: 'заряд',
+    bossName: 'корабль-кошмар',
+    distK: 'к',
+    // — экраны —
+    titleBig: 'бесконечная\u00a0ночь',
+    titleSub: 'роглайк о шарике света, коему не спится',
+    help1: 'мышью — лететь · клик подле корабля — нить · пробел — мерцание',
+    help2: 'shift — оверчардж · бодрость тает всечасно — одни мысли её держат',
+    help3: 'луга щедры · разломы гибельны · теченья сносят · скорость жжёт',
+    help4: 'всякая пятая ночь приводит корабль-кошмар — бей, покуда фонарь открыт',
+    titleHint: 'соблаговоли нажать — и зажгись',
+    titleVer: 'killu × fable · роглайк-ответвление «третьей ночи» · наушники надобны непременно',
+    bestLine: (n, t, p) => 'славнейшая бессонница · ' + n + ' ноч' + p + ' · ' + t + ' мыслей',
+    restHead: (lvl, w, mx) => 'степень ' + lvl + ' · бодрости ' + w + ' из ' + mx,
+    restBig: 'дар бессонницы',
+    restSub: 'ночь обождёт — избери себе один · клавиши 1 · 2 · 3',
+    deathBig: 'ты растворился в ночи',
+    deathNight: (n, p) => 'бессонница твоя длилась ' + n + ' ноч' + p,
+    stNights: 'ночей выстояно',
+    stThoughts: 'мыслей уловлено',
+    stKills: 'кошмаров рассеяно',
+    stDist: 'неба пройдено',
+    againBtn: 'возгореться сызнова',
+    pauseTxt: 'пауза',
+    pauseSub: 'esc — воротиться в ночь',
+    // — созвездие —
+    skyHead: 'созвездие пойманных фраз',
+    skyBtn: (c, t) => 'созвездие · ' + c + ' из ' + t + ' фраз',
+    skyBtnEmpty: 'созвездие пойманных фраз',
+    skyCount: (c, t) => c + ' из ' + t,
+    skyHint: 'наведи на звезду — она вспомнит свою фразу',
+    skyDark: 'эта звезда ещё не зажжена',
+    sparkLocked: n => 'зажжётся на ' + n + '-й фразе',
+    skyGain: (n, w) => 'созвездие пополнилось · ' + n + ' ' + w,
+    skyBack: 'воротиться в ночь',
+    // — настройки —
+    settings: 'настройки',
+    sLang: 'язык',
+    sSound: 'звук',
+    sVol: 'общая громкость',
+    sMusic: 'музыка',
+    sSfx: 'звуки',
+    sPicture: 'картина',
+    sQuality: 'качество',
+    qAuto: 'авто', qHigh: 'высокое', qLow: 'низкое',
+    sShake: 'тряска экрана',
+    sFx: 'помехи и зерно',
+    sHud: 'интерфейс',
+    hFull: 'полный', hLite: 'только полосы', hOff: 'скрыт',
+    sMemory: 'память',
+    sReset: 'погасить созвездие',
+    sResetHint: 'сотрёт все пойманные фразы и искры памяти — навсегда',
+    sResetSure: 'точно? нажми ещё раз',
+    sResetDone: 'созвездие погашено',
+    sClose: 'закрыть',
+    sHintPause: 'ночь ждёт, покуда открыты настройки',
+  },
+  en: {
+    bossComes: 'the nightmare ship sails the sky',
+    bossFled: 'dawn drove the nightmare ship away',
+    tether: 'the thread is drawn taut',
+    secondWind: 'second wind',
+    dew: 'dawn dew',
+    dawnLine: 'dawn — and the day will flit past',
+    star: 'a fallen star',
+    waveIn: n => 'wave ' + n + ' — the night rises',
+    waveOut: 'the wave has ebbed — breathe',
+    twinDown: 'the dark twin has gone out',
+    rod: 'lightning rod',
+    nightText: (n, storm) => (storm ? 'storm · night ' : 'night ') + n,
+    thoughts: n => 'thoughts · ' + n,
+    tierN: n => 'tier ' + n,
+    chain: n => 'chain ×' + n,
+    blinkCd: s => 'blink · ' + s + 's',
+    blinkReady: 'blink · ready',
+    wakeLabel: 'wakefulness',
+    ocBtn: 'charge',
+    bossName: 'the nightmare ship',
+    distK: 'k',
+    titleBig: 'endless\u00a0night',
+    titleSub: 'a roguelike about a wisp that cannot sleep',
+    help1: 'mouse — fly · click near a ship — thread · space — blink',
+    help2: 'shift — overcharge · wakefulness always drains — only thoughts hold it',
+    help3: 'meadows are generous · rifts are deadly · currents carry · speed burns',
+    help4: 'every fifth night brings the nightmare ship — strike while its lantern is open',
+    titleHint: 'press anywhere — and kindle',
+    titleVer: 'killu × fable · a roguelike offshoot of "the third night" · headphones are essential',
+    bestLine: (n, t) => 'finest sleeplessness · ' + n + (n === 1 ? ' night · ' : ' nights · ') + t + ' thoughts',
+    restHead: (lvl, w, mx) => 'tier ' + lvl + ' · wakefulness ' + w + ' of ' + mx,
+    restBig: 'gift of sleeplessness',
+    restSub: 'the night will wait — choose one · keys 1 · 2 · 3',
+    deathBig: 'you dissolved into the night',
+    deathNight: n => 'your sleeplessness lasted ' + n + (n === 1 ? ' night' : ' nights'),
+    stNights: 'nights withstood',
+    stThoughts: 'thoughts caught',
+    stKills: 'nightmares scattered',
+    stDist: 'sky travelled',
+    againBtn: 'kindle again',
+    pauseTxt: 'paused',
+    pauseSub: 'esc — return to the night',
+    skyHead: 'constellation of caught phrases',
+    skyBtn: (c, t) => 'constellation · ' + c + ' of ' + t + ' phrases',
+    skyBtnEmpty: 'constellation of caught phrases',
+    skyCount: (c, t) => c + ' of ' + t,
+    skyHint: 'hover a star — it will recall its phrase',
+    skyDark: 'this star is not lit yet',
+    sparkLocked: n => 'lights at phrase ' + n,
+    skyGain: (n, w) => 'the constellation grew · ' + n + ' ' + w,
+    skyBack: 'return to the night',
+    settings: 'settings',
+    sLang: 'language',
+    sSound: 'sound',
+    sVol: 'master volume',
+    sMusic: 'music',
+    sSfx: 'effects',
+    sPicture: 'picture',
+    sQuality: 'quality',
+    qAuto: 'auto', qHigh: 'high', qLow: 'low',
+    sShake: 'screen shake',
+    sFx: 'glitch and grain',
+    sHud: 'interface',
+    hFull: 'full', hLite: 'bars only', hOff: 'hidden',
+    sMemory: 'memory',
+    sReset: 'extinguish the constellation',
+    sResetHint: 'erases every caught phrase and memory spark — for good',
+    sResetSure: 'certain? press again',
+    sResetDone: 'the constellation is dark again',
+    sClose: 'close',
+    sHintPause: 'the night waits while settings are open',
+  },
+};
+
+// звёзды-слова во множественном числе — по-русски трояко, по-английски двояко
+function starWord(n) {
+  if (LANG === 'en') return n === 1 ? 'new star' : 'new stars';
+  const m = n % 10, h = n % 100;
+  if (m === 1 && h !== 11) return 'новая звезда';
+  if (m >= 2 && m <= 4 && (h < 12 || h > 14)) return 'новые звёзды';
+  return 'новых звёзд';
+}
+
 // ---------- timeline ----------
 // Ночь идёт с 23:00 до 06:00 (420 игровых минут) за TOTAL реальных секунд.
 const TOTAL = 330;
@@ -56,64 +248,119 @@ function energyAt(t) {
   const { a, b, k } = sampleStops(ESTOPS, t);
   return lerp(a[1], b[1], k);
 }
-// границы стадий по игровым часам: 00:30, 02:00, 04:00, 05:00
-const NIGHT_NAMES = [[0, 'ночь первая'], [.214, 'ночь вторая'], [.43, 'ночь третья'], [.714, 'не спи'], [.857, 'рассвет']];
-
 // ---------- слова, которые ловишь ----------
-const PHRASES = [
-  [ // тихая ночь
-    'молоко сбежало тому три дня',
-    'свет в коридоре оставлен понапрасну',
-    'завтра — оно уже сегодня',
-    'подушка холодна с обеих сторон',
-    'сон стоит на остановке, да не садится',
-    'в доме насупротив тоже не спят',
-    'чайник остыл, а я и не приметил',
-    'тишина слегка звенит',
+// Пять ярусов ночи, по ярусу на стадию. Фразы живут парами языков и
+// опознаются устойчивым ключом (t<ярус>_<номер>): созвездие помнит именно
+// ключи, оттого смена языка не гасит ни одной звезды.
+const PH = {
+  ru: [
+    [ // тихая ночь
+      'молоко сбежало тому три дня',
+      'свет в коридоре оставлен понапрасну',
+      'завтра — оно уже сегодня',
+      'подушка холодна с обеих сторон',
+      'сон стоит на остановке, да не садится',
+      'в доме насупротив тоже не спят',
+      'чайник остыл, а я и не приметил',
+      'тишина слегка звенит',
+    ],
+    [ // вторая ночь
+      'корабли ходят по небу',
+      'потолок дышит — сие нормально',
+      'четыре утра — место, а не время',
+      'звёзды суть дырки от кнопок',
+      'все города ныне плывут',
+      'глаза закрываются в обратную сторону',
+      'батарея на девяти процентах, и я с нею заодно',
+      'мысли ходят кругами, ровно вентилятор',
+      'я — малый шар света',
+      'нить дрожит, но держит',
+    ],
+    [ // третья ночь
+      'СЕРДЦЕ СТУЧИТ, КАК БАСЫ',
+      'громче. ещё громче, сударь',
+      'я выпил свет из холодильника',
+      'кожа помнит все песни до единой',
+      'время идёт рябью',
+      'я — антенна для чужих сигналов',
+      'ночь пахнет клубничной газировкою',
+      'НЕ СПИ НЕ СПИ НЕ СПИ',
+      'искры помнят дорогу домой',
+      'я свечусь — стало быть, я есть',
+    ],
+    [ // шторм
+      'ВСЁ СВЕТИТСЯ ИЗНУТРИ',
+      'Я НЕ УСТАЛ, Я БЕСКОНЕЧЕН',
+      'НЕБО ТРЕЩИТ ПО ШВАМ',
+      'ДЕРЖИСЬ ЗА СВЕТ',
+      'ЕЩЁ ЧУТЬ-ЧУТЬ, СУДАРЬ',
+      'МЫ ПОЧТИ НА МЕСТЕ',
+    ],
+    [ // рассвет
+      'тише. уж почти',
+      'корабли дошли до пристаней своих',
+      'свет прощает всякого',
+      'дозволено закрыть глаза',
+    ],
   ],
-  [ // вторая ночь
-    'корабли ходят по небу',
-    'потолок дышит — сие нормально',
-    'четыре утра — место, а не время',
-    'звёзды суть дырки от кнопок',
-    'все города ныне плывут',
-    'глаза закрываются в обратную сторону',
-    'батарея на девяти процентах, и я с нею заодно',
-    'мысли ходят кругами, ровно вентилятор',
+  en: [
+    [
+      'the milk boiled over three days past',
+      'the hallway light was left on for nothing',
+      'tomorrow is already today',
+      'the pillow is cold on both sides',
+      'sleep waits at the stop and will not board',
+      'in the house opposite they are not sleeping either',
+      'the kettle went cold and I never noticed',
+      'the silence rings a little',
+    ],
+    [
+      'ships sail across the sky',
+      'the ceiling breathes — this is normal',
+      'four in the morning is a place, not a time',
+      'the stars are but pinholes',
+      'every city is adrift tonight',
+      'my eyes are closing the other way',
+      'the battery is at nine percent, and so am I',
+      'thoughts go round like a fan',
+      'I am a small sphere of light',
+      'the thread trembles, yet holds',
+    ],
+    [
+      'MY HEART KNOCKS LIKE THE BASS',
+      'louder. louder still, good sir',
+      'I drank the light out of the fridge',
+      'my skin remembers every song',
+      'time is moving in ripples',
+      'I am an antenna for other men\'s signals',
+      'the night smells of strawberry soda',
+      'DO NOT SLEEP DO NOT SLEEP DO NOT SLEEP',
+      'the sparks remember the way home',
+      'I glow, therefore I am',
+    ],
+    [
+      'EVERYTHING GLOWS FROM WITHIN',
+      'I AM NOT TIRED, I AM ENDLESS',
+      'THE SKY IS SPLITTING AT THE SEAMS',
+      'HOLD ON TO THE LIGHT',
+      'A LITTLE LONGER, GOOD SIR',
+      'WE ARE ALMOST THERE',
+    ],
+    [
+      'hush. almost now',
+      'the ships have reached their piers',
+      'the light forgives everyone',
+      'you are permitted to close your eyes',
+    ],
   ],
-  [ // третья ночь
-    'СЕРДЦЕ СТУЧИТ, КАК БАСЫ',
-    'громче. ещё громче, сударь',
-    'я выпил свет из холодильника',
-    'кожа помнит все песни до единой',
-    'время идёт рябью',
-    'я — антенна для чужих сигналов',
-    'ночь пахнет клубничной газировкою',
-    'НЕ СПИ НЕ СПИ НЕ СПИ',
-  ],
-  [ // шторм
-    'ВСЁ СВЕТИТСЯ ИЗНУТРИ',
-    'Я НЕ УСТАЛ, Я БЕСКОНЕЧЕН',
-    'НЕБО ТРЕЩИТ ПО ШВАМ',
-    'ДЕРЖИСЬ ЗА СВЕТ',
-    'ЕЩЁ ЧУТЬ-ЧУТЬ, СУДАРЬ',
-    'МЫ ПОЧТИ НА МЕСТЕ',
-  ],
-  [ // рассвет
-    'тише. уж почти',
-    'корабли дошли до пристаней своих',
-    'свет прощает всякого',
-    'дозволено закрыть глаза',
-  ],
-];
-const WIND_PHRASE = 'попутный ветер';
-const CRASH_PHRASE = 'борт! мысли рассыпались';
-const END_QUOTES = [
-  'спи. корабли дойдут без тебя.',
-  'утро умеет ждать — теперь твоя очередь.',
-  'всё, что ты поймал, приснится тебе обратно.',
-  'ночь кончилась. это не поражение.',
-];
+};
+// фраза, что мыслями не ловится вовсе, — её добывают делом
+const DEEDS = {
+  ru: ['КОРАБЛЬ-КОШМАР ПОШЁЛ КО ДНУ'],
+  en: ['THE NIGHTMARE SHIP HAS GONE DOWN'],
+};
+function phrases() { return PH[LANG] || PH.ru; }
+function deeds() { return DEEDS[LANG] || DEEDS.ru; }
 function phraseTier(t) {
   if (t < .214) return 0; if (t < .43) return 1; if (t < .714) return 2; if (t < .857) return 3; return 4;
 }
@@ -158,9 +405,12 @@ function audioInit() {
   comp.attack.value = 0.004; comp.release.value = 0.24;
   A.master.connect(A.lp); A.lp.connect(comp); comp.connect(ctx.destination);
 
+  // две шины громкости: музыка и звуки — их ползунки живут в настройках
+  A.musicBus = ctx.createGain(); A.musicBus.connect(A.master);
+  A.sfxBus = ctx.createGain(); A.sfxBus.connect(A.master);
   // сайдчейн-шина: пады и бас «дышат» под кик
-  A.sc = ctx.createGain(); A.sc.connect(A.master);
-  A.drums = ctx.createGain(); A.drums.connect(A.master);
+  A.sc = ctx.createGain(); A.sc.connect(A.musicBus);
+  A.drums = ctx.createGain(); A.drums.connect(A.musicBus);
 
   // дешёвый generated-реверб
   const verb = ctx.createConvolver();
@@ -189,21 +439,22 @@ function audioInit() {
   const wSrc = ctx.createBufferSource(); wSrc.buffer = makeNoiseBuffer(ctx, 3); wSrc.loop = true;
   const wLp = ctx.createBiquadFilter(); wLp.type = 'lowpass'; wLp.frequency.value = 420; wLp.Q.value = 0.6;
   A.windGain = ctx.createGain(); A.windGain.gain.value = 0.012;
-  wSrc.connect(wLp); wLp.connect(A.windGain); A.windGain.connect(A.master);
+  wSrc.connect(wLp); wLp.connect(A.windGain); A.windGain.connect(A.musicBus);
   wSrc.start();
 
   A.next = ctx.currentTime + 0.1;
   A.step = 0; A.bar = 0; A.started = true;
+  applyAudioSet();
   setInterval(schedulerTick, 25);
 }
 
 function panOut(g, worldX, amt) {
   // привязка звука к месту на экране
   const ctx = A.ctx;
-  if (worldX === undefined || !ctx.createStereoPanner) { g.connect(A.master); return; }
+  if (worldX === undefined || !ctx.createStereoPanner) { g.connect(A.sfxBus); return; }
   const p = ctx.createStereoPanner();
   p.pan.value = clamp((worldX - cam.x) / (W * 0.6), -1, 1) * (amt || 0.7);
-  g.connect(p); p.connect(A.master);
+  g.connect(p); p.connect(A.sfxBus);
 }
 
 function schedulerTick() {
@@ -349,7 +600,7 @@ function lead(t, midi) {
   g.gain.exponentialRampToValueAtTime(0.085, t + 0.015);
   g.gain.exponentialRampToValueAtTime(0.001, t + 0.34);
   const hp = ctx.createBiquadFilter(); hp.type = 'highpass'; hp.frequency.value = 320;
-  hp.connect(g); g.connect(A.master);
+  hp.connect(g); g.connect(A.musicBus);
   const send = ctx.createGain(); send.gain.value = 0.8; g.connect(send); send.connect(A.verbSend);
   if (A.dlySend) { const ds = ctx.createGain(); ds.gain.value = 0.4; g.connect(ds); ds.connect(A.dlySend); }
   for (const det of [-11, 0, 12]) { // суперсоу с глайдом
@@ -392,7 +643,7 @@ function sfxWind() {
   g.gain.setValueAtTime(0.001, t);
   g.gain.exponentialRampToValueAtTime(0.16, t + 0.5);
   g.gain.exponentialRampToValueAtTime(0.001, t + 1.8);
-  src.connect(bp); bp.connect(g); g.connect(A.master);
+  src.connect(bp); bp.connect(g); g.connect(A.sfxBus);
   const send = ctx.createGain(); send.gain.value = 1; g.connect(send); send.connect(A.verbSend);
   src.start(t); src.stop(t + 1.9);
 }
@@ -406,13 +657,13 @@ function sfxCrash() {
   o.frequency.exponentialRampToValueAtTime(28, t + 0.5);
   g.gain.setValueAtTime(0.55, t);
   g.gain.exponentialRampToValueAtTime(0.001, t + 0.7);
-  o.connect(g); g.connect(A.master); o.start(t); o.stop(t + 0.75);
+  o.connect(g); g.connect(A.sfxBus); o.start(t); o.stop(t + 0.75);
   const src = ctx.createBufferSource(); src.buffer = A.noise;
   const lp2 = ctx.createBiquadFilter(); lp2.type = 'lowpass'; lp2.frequency.value = 900;
   const ng = ctx.createGain();
   ng.gain.setValueAtTime(0.3, t);
   ng.gain.exponentialRampToValueAtTime(0.001, t + 0.4);
-  src.connect(lp2); lp2.connect(ng); ng.connect(A.master);
+  src.connect(lp2); lp2.connect(ng); ng.connect(A.sfxBus);
   src.start(t); src.stop(t + 0.45);
 }
 
@@ -427,7 +678,7 @@ function sfxRiser() { // вход в шторм
   g.gain.setValueAtTime(0.001, t);
   g.gain.exponentialRampToValueAtTime(0.2, t + 2.4);
   g.gain.exponentialRampToValueAtTime(0.001, t + 3.0);
-  src.connect(bp); bp.connect(g); g.connect(A.master);
+  src.connect(bp); bp.connect(g); g.connect(A.sfxBus);
   src.start(t); src.stop(t + 3.1);
 }
 
@@ -440,7 +691,7 @@ function musicBox(t) {
   g.gain.setValueAtTime(0.0001, t);
   g.gain.exponentialRampToValueAtTime(0.12, t + 0.01);
   g.gain.exponentialRampToValueAtTime(0.0001, t + 1.8);
-  o.connect(g); g.connect(A.master);
+  o.connect(g); g.connect(A.musicBus);
   const send = ctx.createGain(); send.gain.value = 1.4; g.connect(send); send.connect(A.verbSend);
   o.start(t); o.stop(t + 1.9);
 }
@@ -516,7 +767,7 @@ varying vec2 vUv;
 uniform vec2 uRes; uniform float uTime;
 uniform sampler2D uScene;
 uniform vec3 uSkyA, uSkyB, uAur, uTint;
-uniform float uAurI, uStars, uAberr, uGlitch, uShake, uEnergy, uDawn;
+uniform float uAurI, uStars, uAberr, uGlitch, uShake, uEnergy, uDawn, uGrain;
 uniform vec2 uMoonPos; uniform float uMoonR, uMoon;
 uniform vec2 uCam;
 uniform sampler2D uSky;
@@ -598,7 +849,7 @@ void main(){
   col += (bl * .112 + bl2 * .073) * (.6+uEnergy);
 
   // зерно
-  col += (hash(uv*uRes+fract(uTime)*7.)-.5)*.06*(.5+uEnergy);
+  col += (hash(uv*uRes+fract(uTime)*7.)-.5)*.06*uGrain*(.5+uEnergy);
 
   // насыщенность растёт с энергией
   float l = dot(col, vec3(.299,.587,.114));
@@ -645,7 +896,7 @@ for (const pr of [prog, skyProg]) {
 const U = {}, SU = {};
 gl.useProgram(prog);
 for (const n of ['uRes', 'uTime', 'uScene', 'uSky', 'uSkyA', 'uSkyB', 'uAur', 'uTint', 'uAurI', 'uStars',
-  'uAberr', 'uGlitch', 'uShake', 'uEnergy', 'uDawn', 'uMoonPos', 'uMoonR', 'uMoon', 'uCam'])
+  'uAberr', 'uGlitch', 'uShake', 'uEnergy', 'uDawn', 'uGrain', 'uMoonPos', 'uMoonR', 'uMoon', 'uCam'])
   U[n] = gl.getUniformLocation(prog, n);
 gl.useProgram(skyProg);
 for (const n of ['uRes', 'uTime', 'uSkyA', 'uSkyB', 'uAur', 'uTint', 'uAurI', 'uCam'])
@@ -778,46 +1029,69 @@ function zoneAt(x, y, type) {
   return null;
 }
 
-PHRASES[1].push('я — малый шар света', 'нить дрожит, но держит');
-PHRASES[2].push('искры помнят дорогу домой', 'я свечусь — стало быть, я есть');
-const DEATH_QUOTES = [
-  'и свету случается моргнуть.',
-  'кошмары и сами кого-то страшатся.',
-  'погасни, отдохни — и возгорись сызнова.',
-  'ночь долга, да искры упрямы.',
-  'раствориться — ещё не исчезнуть.',
-];
+const DEATH_QUOTES = {
+  ru: [
+    'и свету случается моргнуть.',
+    'кошмары и сами кого-то страшатся.',
+    'погасни, отдохни — и возгорись сызнова.',
+    'ночь долга, да искры упрямы.',
+    'раствориться — ещё не исчезнуть.',
+  ],
+  en: [
+    'even the light blinks now and then.',
+    'nightmares are afraid of something too.',
+    'go out, rest — and kindle anew.',
+    'the night is long, but sparks are stubborn.',
+    'to dissolve is not yet to vanish.',
+  ],
+};
 
 // ---------- созвездие пойманных фраз (память между бессонницами) ----------
 // всякая пойманная впервые фраза остаётся звездою на небе игрока навсегда;
-// чем полнее созвездие, тем с бо́льшим наследством начинается новая ночь
-const SKY_NAMES = ['тихая ночь', 'вторая ночь', 'третья ночь', 'буря', 'рассвет', 'добыча'];
-// фразы, что мыслями не ловятся, — их добывают делом
-const DEED_PHRASES = ['КОРАБЛЬ-КОШМАР ПОШЁЛ КО ДНУ'];
-function skyGroups() { return PHRASES.concat([DEED_PHRASES]); }
+// чем полнее созвездие, тем с бо́льшим наследством начинается новая ночь.
+// Хранятся ключи (t2_5, d_0), а не сами строки, — созвездие переживает и
+// смену языка, и любую правку списков.
+const SKY_NAMES = {
+  ru: ['тихая ночь', 'вторая ночь', 'третья ночь', 'буря', 'рассвет', 'добыча'],
+  en: ['quiet night', 'second night', 'third night', 'the storm', 'dawn', 'deeds'],
+};
+function skyGroups() { return phrases().concat([deeds()]); }
+function skyNames() { return SKY_NAMES[LANG] || SKY_NAMES.ru; }
+function phraseKey(gi, pi) { return (gi < 5 ? 't' + gi : 'd') + '_' + pi; }
 let SKY = loadSkySet();
 function loadSkySet() {
-  try { return new Set(JSON.parse(localStorage.getItem('io-noch-sky')) || []); } catch (_) { return new Set(); }
+  let raw = [];
+  try { raw = JSON.parse(localStorage.getItem('io-noch-sky')) || []; } catch (_) { return new Set(); }
+  // старые записи хранили русские строки — перевести их в ключи
+  const byStr = new Map();
+  PH.ru.concat([DEEDS.ru]).forEach((tier, gi) => tier.forEach((p, pi) => byStr.set(p, phraseKey(gi, pi))));
+  const out = new Set();
+  for (const v of raw) out.add(byStr.has(v) ? byStr.get(v) : v);
+  return out;
 }
 function saveSky() {
   try { localStorage.setItem('io-noch-sky', JSON.stringify([...SKY])); } catch (_) {}
 }
-function catchPhrase(str) { // запись идёт лишь на новой звезде — раз в несколько ночей
-  if (SKY.has(str)) return;
-  SKY.add(str); saveSky();
+function catchKey(key) { // запись идёт лишь на новой звезде — раз в несколько ночей
+  if (SKY.has(key)) return false;
+  SKY.add(key); saveSky(); return true;
 }
 function skyTotal() { let n = 0; for (const tier of skyGroups()) n += tier.length; return n; }
-function skyCaught() { let n = 0; for (const tier of skyGroups()) for (const p of tier) if (SKY.has(p)) n++; return n; }
+function skyCaught() {
+  let n = 0;
+  skyGroups().forEach((tier, gi) => tier.forEach((p, pi) => { if (SKY.has(phraseKey(gi, pi))) n++; }));
+  return n;
+}
 
 // искры памяти — наследство созвездия, мягкое и накопительное
 const SPARKS = [
-  { n: 5,  name: 'искра памяти',   desc: 'предел бодрости выше на 10',            apply: r => { r.wakeMax += 10; r.wake += 10; } },
-  { n: 10, name: 'искра тепла',    desc: 'всякая мысль целит на 1 сильнее',       apply: r => r.healBonus += 1 },
-  { n: 16, name: 'искра хоровода', desc: 'лишний спирит с самого начала',         apply: r => r.spirits++ },
-  { n: 22, name: 'искра мерцания', desc: 'мерцание возвращается секундой ранее',  apply: r => r.relocCd = Math.max(3, r.relocCd - 1) },
-  { n: 28, name: 'искра простора', desc: 'мысли льнут к тебе охотнее',            apply: r => r.pickupR *= 1.15 },
-  { n: 34, name: 'искра полёта',   desc: 'свет летит на десятую долю быстрее',    apply: r => r.speed *= 1.1 },
-  { n: 0,  name: 'искра рассвета', desc: 'бессонница начинается со вторым дыханием', apply: r => r.secondWind = true },
+  { n: 5,  id: 'mem',  apply: r => { r.wakeMax += 10; r.wake += 10; } },
+  { n: 10, id: 'warm', apply: r => r.healBonus += 1 },
+  { n: 16, id: 'ring', apply: r => r.spirits++ },
+  { n: 22, id: 'blink', apply: r => r.relocCd = Math.max(3, r.relocCd - 1) },
+  { n: 28, id: 'reach', apply: r => r.pickupR *= 1.15 },
+  { n: 34, id: 'swift', apply: r => r.speed *= 1.1 },
+  { n: 0,  id: 'dawn', apply: r => r.secondWind = true },
 ];
 function sparkNeed(s) { return s.n === 0 ? skyTotal() : s.n; }
 function applySparks(r) {
@@ -858,6 +1132,64 @@ const UPGRADES = [
   { id: 'zhatva',  name: 'жатва бури',        desc: 'в ночи бурные всякая мысль дарит лишнее очко опыта', once: true, apply: r => r.stormXp = true },
   { id: 'skoro',   name: 'небесный скороход', desc: 'предел скорости твоей отодвигается ввысь', apply: r => r.maxSpd += 140 },
 ];
+
+// английские имена даров и искр — те же формулы, другой язык
+const UP_EN = {
+  spark:   ['kindred spark', 'another spirit joins your round'],
+  round:   ['widening round', 'the orbit of the spirits grows a third wider'],
+  spin:    ['frenzied round', 'the sparks whirl with greater speed'],
+  tea:     ['midnight brew', 'wakefulness gains 25, and a sip at once'],
+  calm:    ['quiet burning', 'wakefulness drains a fifth slower'],
+  dawn:    ['warm afterglow', 'every thought heals 2 more'],
+  thread:  ['thread past the horizon', 'a ship may be bound from farther off'],
+  chain:   ['unbroken bond', 'while you hold to a ship, wakefulness does not drain at all'],
+  light:   ['following light', 'the light flies a fifth faster'],
+  breath:  ['call of the blink', 'the blink returns two seconds sooner'],
+  echo:    ['echo of light', 'the blink flares and scatters the nightmares around'],
+  coolfl:  ['cold flame', 'the light bears speed longer — it overheats later'],
+  flow:    ['bridle of winds', 'the currents carry you wherever you please'],
+  riftg:   ['mercy of the rift', 'thoughts near rifts heal twice over'],
+  magnet:  ['greedy radiance', 'thoughts cling to your warmth'],
+  grav:    ['distant call', 'far thoughts drift slowly toward you'],
+  horizon: ['generous horizon', 'thoughts are born markedly more often'],
+  feast:   ['feast of nightmares', 'a scattered nightmare may leave a thought behind'],
+  blanket: ['quilted armour', 'all harm is a quarter weaker'],
+  stormh:  ['heart of the storm', 'in storm nights harm to you is halved'],
+  wind2:   ['second wind', 'once a run a mortal blow does not put you out'],
+  starf:   ['hour of stars', 'fallen stars rain markedly more often'],
+  keen:    ['unquenched swarm', 'a spent spark rekindles a third sooner'],
+  dew:     ['dawn dew', 'every dawn washes you with a dozen wakefulness'],
+  chreda:  ['long chain', 'the chain of thoughts holds twice as long'],
+  zharcz:  ['heat of the chain', 'at a chain of five every thought grants an extra point'],
+  rod:     ['lightning rod', 'lightning does not harm you — it rouses you'],
+  veil:    ['veil of the blink', 'after a blink the night dares not touch you for two and a half seconds'],
+  zhatva:  ['storm harvest', 'in storm nights every thought grants an extra point'],
+  skoro:   ['sky courier', 'the limit of your speed is pushed higher'],
+};
+function upName(u) { const e = UP_EN[u.id]; return LANG === 'en' && e ? e[0] : u.name; }
+function upDesc(u) { const e = UP_EN[u.id]; return LANG === 'en' && e ? e[1] : u.desc; }
+
+const SPARK_TXT = {
+  ru: {
+    mem:   ['искра памяти',   'предел бодрости выше на 10'],
+    warm:  ['искра тепла',    'всякая мысль целит на 1 сильнее'],
+    ring:  ['искра хоровода', 'лишний спирит с самого начала'],
+    blink: ['искра мерцания', 'мерцание возвращается секундой ранее'],
+    reach: ['искра простора', 'мысли льнут к тебе охотнее'],
+    swift: ['искра полёта',   'свет летит на десятую долю быстрее'],
+    dawn:  ['искра рассвета', 'бессонница начинается со вторым дыханием'],
+  },
+  en: {
+    mem:   ['spark of memory', 'the limit of wakefulness is 10 higher'],
+    warm:  ['spark of warmth', 'every thought heals 1 more'],
+    ring:  ['spark of the round', 'an extra spirit from the very start'],
+    blink: ['spark of the blink', 'the blink returns a second sooner'],
+    reach: ['spark of reach', 'thoughts cling to you more readily'],
+    swift: ['spark of flight', 'the light flies a tenth faster'],
+    dawn:  ['spark of dawn', 'every sleepless run begins with a second wind'],
+  },
+};
+function sparkTxt(s) { return (SPARK_TXT[LANG] || SPARK_TXT.ru)[s.id]; }
 
 // иконки даров — тонкий штрих в духе созвездий
 const ICONS = {
@@ -1080,7 +1412,7 @@ function spawnBoss() {
     bob: rand(TAU), seed: rand(TAU), open: 0, flashT: 0,
     dropT: 2, volley: 0, volleyT: 0,
   };
-  spawnText(io.x, io.y - 130, 'корабль-кошмар идёт по небу', true);
+  spawnText(io.x, io.y - 130, tr('bossComes'), true);
   sfxRiser();
   S.glitch = Math.max(S.glitch, 0.7);
   S.shake = Math.max(S.shake, 0.5);
@@ -1175,9 +1507,8 @@ function killBoss() {
     const p = spawnRing(160, 420);
     stars.push({ x: p.x, y: p.y, t: 0, life: 16, seed: rand(TAU) });
   }
-  if (!SKY.has(DEED_PHRASES[0])) RUN.newStars++;
-  catchPhrase(DEED_PHRASES[0]);
-  spawnText(b.x, b.y - 90, 'КОРАБЛЬ-КОШМАР ПОШЁЛ КО ДНУ', true);
+  if (catchKey(phraseKey(5, 0))) RUN.newStars++;
+  spawnText(b.x, b.y - 90, deeds()[0], true);
   RUN.xp += RUN.xpNext - RUN.xp; // добыча стоит целой степени
   levelUp();
 }
@@ -1190,9 +1521,10 @@ function spawnBolt() {
   bolts.push({ x, t: 0, warn: 1.35, strike: 0.22, hitDone: false });
 }
 const TEXT_SS = 2; // спрайт фразы в 2× — чёткость при глубинном масштабе
+const GAME_FONT = '"SAO UI", "Trebuchet MS", sans-serif'; // единый шрифт игры
 function spawnText(x, y, str, big) {
   const fs = big ? 30 : 24;
-  const font = (big ? '400 ' : '300 ') + 'italic ' + fs * TEXT_SS + 'px Cormorant, Georgia, serif';
+  const font = '400 ' + fs * TEXT_SS + 'px ' + GAME_FONT;
   const pad = 30 * TEXT_SS;
   const mc = document.createElement('canvas');
   const mg = mc.getContext('2d');
@@ -1231,7 +1563,7 @@ function sfxZap(worldX) {
   o.frequency.exponentialRampToValueAtTime(90, t + 0.14);
   og.gain.setValueAtTime(0.12, t);
   og.gain.exponentialRampToValueAtTime(0.001, t + 0.16);
-  o.connect(og); og.connect(A.master); o.start(t); o.stop(t + 0.18);
+  o.connect(og); og.connect(A.sfxBus); o.start(t); o.stop(t + 0.18);
 }
 function sfxKill(worldX) {
   if (!A.started) return;
@@ -1254,7 +1586,7 @@ function sfxHurt() {
   g.gain.setValueAtTime(0.34, t);
   g.gain.exponentialRampToValueAtTime(0.001, t + 0.3);
   const lp2 = ctx.createBiquadFilter(); lp2.type = 'lowpass'; lp2.frequency.value = 700;
-  o.connect(lp2); lp2.connect(g); g.connect(A.master); o.start(t); o.stop(t + 0.32);
+  o.connect(lp2); lp2.connect(g); g.connect(A.sfxBus); o.start(t); o.stop(t + 0.32);
 }
 function sfxReloc(back) {
   if (!A.started) return;
@@ -1266,7 +1598,7 @@ function sfxReloc(back) {
   g.gain.setValueAtTime(0.001, t);
   g.gain.exponentialRampToValueAtTime(0.18, t + 0.02);
   g.gain.exponentialRampToValueAtTime(0.001, t + 0.22);
-  o.connect(g); g.connect(A.master);
+  o.connect(g); g.connect(A.sfxBus);
   const send = ctx.createGain(); send.gain.value = 1; g.connect(send); send.connect(A.verbSend);
   o.start(t); o.stop(t + 0.25);
 }
@@ -1280,7 +1612,7 @@ function sfxChoice() {
     g.gain.setValueAtTime(0.001, tt);
     g.gain.exponentialRampToValueAtTime(0.14, tt + 0.01);
     g.gain.exponentialRampToValueAtTime(0.001, tt + 0.7);
-    o.connect(g); g.connect(A.master);
+    o.connect(g); g.connect(A.sfxBus);
     const send = ctx.createGain(); send.gain.value = 1.2; g.connect(send); send.connect(A.verbSend);
     o.start(tt); o.stop(tt + 0.75);
   });
@@ -1293,6 +1625,7 @@ window.addEventListener('pointerdown', e => {
   pointer.x = e.clientX; pointer.y = e.clientY; pointer.active = true;
   if (S.mode !== 'play' || S.paused) return;
   if (e.target && e.target.id === 'ocBtn') return;
+  if (e.target && e.target.closest && e.target.closest('#setBtn,#setPanel')) return;
   const now = performance.now();
   if (e.pointerType === 'touch' && now - lastTap < 300) { tryRelocate(); lastTap = 0; return; }
   lastTap = now;
@@ -1305,7 +1638,10 @@ window.addEventListener('keydown', e => {
     if (card) card.click();
     return;
   }
-  if (e.key === 'Escape' && S.mode === 'play') togglePause();
+  if (e.key === 'Escape') {
+    if (!setPanel.classList.contains('hidden')) { closeSettings(); return; }
+    if (S.mode === 'play') togglePause();
+  }
   if ((e.key === ' ' || e.code === 'Space') && S.mode === 'play' && !S.paused) { e.preventDefault(); tryRelocate(); }
   if (e.key === 'Shift') io.oc = true;
 });
@@ -1336,7 +1672,7 @@ function toggleTether() {
     const d = Math.hypot(io.x - sh.x, io.y - sh.y);
     if (d < bd) { bd = d; best = sh; }
   }
-  if (best) { io.tether = best; sfxWind(); spawnText(best.x, best.y - 70 * best.scl, 'нить натянута надёжно'); }
+  if (best) { io.tether = best; sfxWind(); spawnText(best.x, best.y - 70 * best.scl, tr('tether')); }
 }
 
 function echoBlast(x, y) {
@@ -1398,7 +1734,7 @@ function checkDissolve() {
   if (RUN.secondWind) {
     RUN.secondWind = false;
     RUN.wake = 40;
-    spawnText(io.x, io.y - 60, 'второе дыхание', true);
+    spawnText(io.x, io.y - 60, tr('secondWind'), true);
     burst(io.x, io.y, [1, 0.86, 0.5], 40, 420);
     sfxChoice();
   } else die();
@@ -1415,7 +1751,7 @@ function update(dt) {
       RUN.night++;
       S.stormFired = false; S.dawnFired = false; S.bossDone = false;
       audioNight();
-      spawnText(io.x, io.y - 100, (isStormNight() ? 'буря · ночь ' : 'ночь ') + RUN.night, true);
+      spawnText(io.x, io.y - 100, tr('nightText', RUN.night, isStormNight()), true);
     }
     if (!S.stormFired && S.t >= 0.714) { S.stormFired = true; sfxRiser(); S.glitch = Math.max(S.glitch, 0.5); }
     if (!S.dawnFired && S.t >= 0.88) { // рассвет: свет разливается и стекает в сумерки
@@ -1423,10 +1759,10 @@ function update(dt) {
       audioDawn();
       if (RUN.dawnDew > 0) {
         RUN.wake = Math.min(RUN.wakeMax, RUN.wake + RUN.dawnDew);
-        spawnText(io.x, io.y - 60, 'роса рассветная', true);
+        spawnText(io.x, io.y - 60, tr('dew'), true);
         burst(io.x, io.y, [1, 0.9, 0.7], 24, 300);
       }
-      spawnText(io.x, io.y - 110, 'рассвет — а день промелькнёт мимо', true);
+      spawnText(io.x, io.y - 110, tr('dawnLine'), true);
     }
   }
   S.pal = palette(S.t);
@@ -1581,7 +1917,7 @@ function update(dt) {
       RUN.xp += 3;
       if (RUN.xp >= RUN.xpNext) levelUp();
       burst(st.x, st.y, [1, 0.95, 0.8], 30, 380);
-      spawnText(st.x, st.y - 46, 'павшая звезда', true);
+      spawnText(st.x, st.y - 46, tr('star'), true);
       sfxChoice();
       updateHud();
     }
@@ -1597,7 +1933,7 @@ function update(dt) {
     // --- корабль-кошмар: всякая пятая ночь ---
     if (!boss && !S.bossDone && RUN.night % 5 === 0 && S.t > 0.22 && S.t < 0.8) spawnBoss();
     if (boss && S.t >= 0.9) { // рассвет прогоняет его за край неба
-      spawnText(io.x, io.y - 130, 'рассвет прогнал корабль-кошмар', true);
+      spawnText(io.x, io.y - 130, tr('bossFled'), true);
       boss = null; anchors = []; S.bossDone = true;
       bossHud.classList.remove('on');
     }
@@ -1609,7 +1945,7 @@ function update(dt) {
         WAVE.left = Math.min(16, 4 + WAVE.n * 2 + Math.floor(D));
         WAVE.spawnT = 0.4;
         WAVE.theme = pickEnemyType();
-        spawnText(io.x, io.y - 120, 'волна ' + WAVE.n + ' — ночь прибывает', true);
+        spawnText(io.x, io.y - 120, tr('waveIn', WAVE.n), true);
         sfxRiser();
         S.glitch = Math.max(S.glitch, 0.4);
       }
@@ -1623,7 +1959,7 @@ function update(dt) {
     } else if (enemies.length <= 3) {
       WAVE.active = false;
       WAVE.timer = rand(34, 50);
-      spawnText(io.x, io.y - 120, 'волна отхлынула — дыши', true);
+      spawnText(io.x, io.y - 120, tr('waveOut'), true);
       // отлив оставляет мысли кольцом окрест
       for (let k2 = 0; k2 < 6; k2++) {
         const a2 = k2 / 6 * TAU + rand(0.5);
@@ -1739,7 +2075,7 @@ function update(dt) {
             RUN.xp += 2;
             if (RUN.xp >= RUN.xpNext) levelUp();
             burst(e.x, e.y, [0.7, 0.4, 1], 40, 420);
-            spawnText(e.x, e.y - 50, 'тёмный двойник угас', true);
+            spawnText(e.x, e.y - 50, tr('twinDown'), true);
             died = true;
           }
           break;
@@ -1876,7 +2212,7 @@ function update(dt) {
       if (S.mode === 'play' && Math.abs(io.x - b.x) < 24) {
         if (RUN.boltRod) { // громоотвод: разряд бодрит
           RUN.wake = Math.min(RUN.wakeMax, RUN.wake + 8);
-          spawnText(io.x, io.y - 60, 'громоотвод', false);
+          spawnText(io.x, io.y - 60, tr('rod'), false);
           burst(io.x, io.y, [1, 0.9, 0.5], 20, 300);
         } else damageIo(12, b.x, io.y + 50);
       }
@@ -2062,12 +2398,13 @@ function collectMote(m) {
   burst(m.x, m.y, S.pal.mote, 12, 200);
   const tier = phraseTier(S.t);
   if (RUN.thoughts === 1 || Math.random() < 0.35) {
-    const ph = pick(PHRASES[tier]);
-    if (!SKY.has(ph)) { // впервые пойманная фраза зажигает звезду навсегда
-      catchPhrase(ph); RUN.newStars++;
+    const list = phrases()[tier];
+    const pi = (Math.random() * list.length) | 0;
+    if (catchKey(phraseKey(tier, pi))) { // впервые пойманная фраза зажигает звезду навсегда
+      RUN.newStars++;
       burst(m.x, m.y - 40, [1, 0.95, 0.82], 16, 240);
     }
-    spawnText(m.x, m.y - 40, ph, tier >= 3);
+    spawnText(m.x, m.y - 40, list[pi], tier >= 3);
   }
   let gain = nearRift ? 2 : 1;
   if (RUN.comboXp && S.combo >= 5) gain++;
@@ -2856,9 +3193,11 @@ function drawGL() {
   gl.uniform3f(U.uTint, ...pal.tint);
   gl.uniform1f(U.uAurI, pal.aurI);
   gl.uniform1f(U.uStars, pal.stars);
-  gl.uniform1f(U.uAberr, 0.0015 + S.energy * S.energy * 0.008 + S.glitch * 0.01);
-  gl.uniform1f(U.uGlitch, S.glitch * 0.6);
-  gl.uniform1f(U.uShake, S.shake);
+  const fxK = SET.fx / 100;
+  gl.uniform1f(U.uAberr, (0.0015 + S.energy * S.energy * 0.008 + S.glitch * 0.01) * fxK);
+  gl.uniform1f(U.uGlitch, S.glitch * 0.6 * fxK);
+  gl.uniform1f(U.uGrain, fxK);
+  gl.uniform1f(U.uShake, S.shake * SET.shake / 100);
   gl.uniform1f(U.uEnergy, S.energy);
   gl.uniform1f(U.uDawn, dawn);
   gl.uniform2f(U.uMoonPos, mx, my);
@@ -2882,10 +3221,10 @@ const elBossFill = document.getElementById('bossFill');
 let hudTimer = 0;
 
 function updateHud() {
-  elScore.textContent = 'мыслей · ' + RUN.thoughts;
-  elLvl.textContent = 'степень ' + RUN.level;
+  elScore.textContent = tr('thoughts', RUN.thoughts);
+  elLvl.textContent = tr('tierN', RUN.level);
   if (S.combo >= 2) {
-    elCombo.textContent = 'чреда ×' + S.combo;
+    elCombo.textContent = tr('chain', S.combo);
     elCombo.classList.add('hot');
   } else elCombo.classList.remove('hot');
   const frac = clamp(RUN.wake / RUN.wakeMax, 0, 1);
@@ -2896,10 +3235,10 @@ function updateHud() {
   elXp.style.width = (clamp(RUN.xp / RUN.xpNext, 0, 1) * 100).toFixed(1) + '%';
   if (boss) elBossFill.style.width = (clamp(boss.hp / boss.hpMax, 0, 1) * 100).toFixed(1) + '%';
   if (io.reloc.cd > 0) {
-    elReloc.textContent = 'мерцание · ' + io.reloc.cd.toFixed(1) + 'с';
+    elReloc.textContent = tr('blinkCd', io.reloc.cd.toFixed(1));
     elReloc.classList.remove('ready');
   } else {
-    elReloc.textContent = 'мерцание · готово';
+    elReloc.textContent = tr('blinkReady');
     elReloc.classList.add('ready');
   }
 }
@@ -2911,7 +3250,7 @@ function updateClock() {
   const m = Math.floor(mins % 60);
   elClock.textContent = String(h).padStart(2, '0') + ':' + String(m).padStart(2, '0');
   const storm = isStormNight();
-  elNight.textContent = (storm ? 'буря · ночь ' : 'ночь ') + RUN.night;
+  elNight.textContent = tr('nightText', RUN.night, storm);
   elNight.classList.toggle('storm', storm && S.t >= 0.43 && S.t < 0.87);
 }
 
@@ -2928,13 +3267,11 @@ function saveBest(nights, thoughts) {
 }
 function showBestLine() {
   const c = skyCaught();
-  document.getElementById('skyBtn').textContent = c
-    ? 'созвездие · ' + c + ' из ' + skyTotal() + ' фраз'
-    : 'созвездие пойманных фраз';
+  document.getElementById('skyBtn').textContent = c ? tr('skyBtn', c, skyTotal()) : tr('skyBtnEmpty');
   const b = loadBest();
   const el = document.getElementById('bestLine');
   if (b) {
-    el.textContent = 'славнейшая бессонница · ' + b.nights + ' ноч' + plural(b.nights) + ' · ' + b.thoughts + ' мыслей';
+    el.textContent = tr('bestLine', b.nights, b.thoughts, plural(b.nights));
     el.classList.remove('hidden');
   }
 }
@@ -2963,7 +3300,7 @@ function layoutSky() {
       const rr = 24 + hash2(pi + 3, gi + 5) * 70;
       skyStars.push({
         x: c[0] + Math.cos(a) * rr * 1.2, y: c[1] + Math.sin(a) * rr * 0.78,
-        ph, got: SKY.has(ph), gi,
+        ph, got: SKY.has(phraseKey(gi, pi)), gi,
       });
     });
   });
@@ -2986,9 +3323,9 @@ function renderSky(hover) {
     g.stroke();
   }
   // подписи ярусов
-  g.font = '10px "JetBrains Mono", monospace';
+  g.font = '10px ' + GAME_FONT;
   g.textAlign = 'center';
-  SKY_NAMES.forEach((nm, gi) => {
+  skyNames().forEach((nm, gi) => {
     const c = SKY_CENTERS[gi];
     const total = skyGroups()[gi].length;
     const got = skyStars.filter(s => s.gi === gi && s.got).length;
@@ -3028,18 +3365,18 @@ function skyHitTest(ev) {
 
 function openSky() {
   const c = skyCaught(), tot = skyTotal();
-  document.getElementById('skyCount').textContent = c + ' из ' + tot;
+  document.getElementById('skyCount').textContent = tr('skyCount', c, tot);
   const box = document.getElementById('skySparks');
   box.innerHTML = '';
   for (const s of SPARKS) {
     const need = sparkNeed(s);
     const el = document.createElement('div');
     el.className = 'spark' + (c >= need ? ' lit' : '');
-    el.innerHTML = '<b>' + s.name + '</b><span>' +
-      (c >= need ? s.desc : 'зажжётся на ' + need + '-й фразе') + '</span>';
+    const st = sparkTxt(s);
+    el.innerHTML = '<b>' + st[0] + '</b><span>' + (c >= need ? st[1] : tr('sparkLocked', need)) + '</span>';
     box.appendChild(el);
   }
-  document.getElementById('skyCaption').textContent = 'наведи на звезду — она вспомнит свою фразу';
+  document.getElementById('skyCaption').textContent = tr('skyHint');
   renderSky(-1);
   skyScreen.classList.remove('hidden');
 }
@@ -3047,8 +3384,8 @@ function openSky() {
 skyCanvas.addEventListener('pointermove', ev => {
   const i = skyHitTest(ev);
   const cap = document.getElementById('skyCaption');
-  cap.textContent = i < 0 ? 'наведи на звезду — она вспомнит свою фразу'
-    : skyStars[i].got ? '«' + skyStars[i].ph + '»' : 'эта звезда ещё не зажжена';
+  cap.textContent = i < 0 ? tr('skyHint')
+    : skyStars[i].got ? '«' + skyStars[i].ph + '»' : tr('skyDark');
   renderSky(i);
 });
 document.getElementById('skyBtn').addEventListener('pointerdown', e => { e.stopPropagation(); openSky(); });
@@ -3088,7 +3425,8 @@ function levelUp() {
   S.mode = 'level';
   io.oc = false; ocBtn.classList.remove('held');
   document.body.classList.remove('playing');
-  document.getElementById('restHead').textContent = 'степень ' + RUN.level + ' · бодрости ' + Math.max(1, Math.ceil(RUN.wake)) + ' из ' + RUN.wakeMax;
+  document.getElementById('restHead').textContent =
+    tr('restHead', RUN.level, Math.max(1, Math.ceil(RUN.wake)), RUN.wakeMax);
   const box = document.getElementById('dreams');
   box.innerHTML = '';
   // тройка всегда свежая: дар, мелькнувший в последних пяти бросках, не выпадает
@@ -3119,7 +3457,7 @@ function levelUp() {
       '<span class="d-orb"><svg class="d-ring" viewBox="0 0 100 100">' +
       '<circle class="r1" cx="50" cy="50" r="46"/><circle class="r2" cx="50" cy="50" r="39"/></svg>' +
       '<span class="d-ic"><svg viewBox="0 0 24 24">' + (ICONS[u.id] || ICONS.spark) + '</svg></span></span>' +
-      '<span class="d-name">' + u.name + '</span><span class="d-desc">' + u.desc + '</span>';
+      '<span class="d-name">' + upName(u) + '</span><span class="d-desc">' + upDesc(u) + '</span>';
     d.addEventListener('click', () => {
       u.apply(RUN);
       RUN.taken.push(u.id);
@@ -3141,20 +3479,17 @@ function die() {
   io.oc = false; ocBtn.classList.remove('held');
   document.body.classList.remove('playing');
   saveBest(RUN.night, RUN.thoughts);
-  document.getElementById('deathNight').textContent = 'бессонница твоя длилась ' + RUN.night + ' ноч' + plural(RUN.night);
+  document.getElementById('deathNight').textContent = tr('deathNight', RUN.night, plural(RUN.night));
   document.getElementById('stNights').textContent = RUN.night;
   document.getElementById('stMoths').textContent = RUN.thoughts;
   document.getElementById('stKills').textContent = RUN.kills;
-  document.getElementById('stDist').textContent = (RUN.dist / 1000).toFixed(1) + 'к';
+  document.getElementById('stDist').textContent = (RUN.dist / 1000).toFixed(1) + tr('distK');
   const sg = document.getElementById('skyGain');
   if (RUN.newStars > 0) {
-    const n = RUN.newStars, m = n % 10, hh = n % 100;
-    const word = (m === 1 && hh !== 11) ? 'новая звезда'
-      : (m >= 2 && m <= 4 && (hh < 12 || hh > 14)) ? 'новые звёзды' : 'новых звёзд';
-    sg.textContent = 'созвездие пополнилось · ' + n + ' ' + word;
+    sg.textContent = tr('skyGain', RUN.newStars, starWord(RUN.newStars));
     sg.classList.remove('hidden');
   } else sg.classList.add('hidden');
-  document.getElementById('deathQuote').textContent = pick(DEATH_QUOTES);
+  document.getElementById('deathQuote').textContent = pick(DEATH_QUOTES[LANG] || DEATH_QUOTES.ru);
   sfxCrash();
   S.shake = 1; S.glitch = 1;
   burst(io.x, io.y, IO_COL, 60, 500);
@@ -3168,6 +3503,104 @@ document.getElementById('againBtn').addEventListener('click', e => {
   startRun();
 });
 
+// ---------- панель настроек ----------
+const setBtn = document.getElementById('setBtn');
+const setPanel = document.getElementById('setPanel');
+let pausedBySettings = false, resetArmed = false;
+
+function applyLang() {
+  document.documentElement.lang = LANG;
+  for (const el of document.querySelectorAll('[data-i18n]')) el.textContent = tr(el.dataset.i18n);
+  for (const el of document.querySelectorAll('[data-i18n-lines]'))
+    el.innerHTML = el.dataset.i18nLines.split(',').map(k => tr(k)).join('<br>');
+  showBestLine();
+  updateHud(); updateClock();
+  if (!setPanel.classList.contains('hidden'))
+    document.getElementById('setReset').textContent = resetArmed ? tr('sResetSure') : tr('sReset');
+}
+function applyAudioSet() {
+  if (!A.started) return;
+  A.master.gain.value = 0.85 * SET.vol / 100;
+  A.musicBus.gain.value = SET.music / 100;
+  A.sfxBus.gain.value = SET.sfx / 100;
+}
+function applyQuality() {
+  if (SET.quality === 'high') { sceneScale = 1; maxScale = 1; }
+  else if (SET.quality === 'low') { sceneScale = 0.65; maxScale = 0.65; }
+  else { maxScale = 1; }          // авто: контроллер сам найдёт свой потолок
+  resize();
+}
+function applyHudMode() {
+  document.body.classList.toggle('hud-lite', SET.hud === 'lite');
+  document.body.classList.toggle('hud-off', SET.hud === 'off');
+}
+function syncSetUI() {
+  for (const [id, val] of [['segLang', LANG], ['segQual', SET.quality], ['segHud', SET.hud]])
+    for (const b of document.querySelectorAll('#' + id + ' button'))
+      b.classList.toggle('on', b.dataset.v === val);
+  for (const [rid, vid, val] of [['rngVol', 'valVol', SET.vol], ['rngMusic', 'valMusic', SET.music],
+    ['rngSfx', 'valSfx', SET.sfx], ['rngShake', 'valShake', SET.shake], ['rngFx', 'valFx', SET.fx]]) {
+    document.getElementById(rid).value = val;
+    document.getElementById(vid).textContent = val + '%';
+  }
+}
+function applySettings() { applyLang(); applyAudioSet(); applyQuality(); applyHudMode(); syncSetUI(); }
+
+function openSettings() {
+  if (S.mode === 'play' && !S.paused) { // ночь ждёт, покуда открыты настройки
+    S.paused = true; pausedBySettings = true;
+    if (A.started) A.ctx.suspend();
+  }
+  resetArmed = false;
+  document.getElementById('setReset').textContent = tr('sReset');
+  syncSetUI();
+  setPanel.classList.remove('hidden');
+}
+function closeSettings() {
+  setPanel.classList.add('hidden');
+  if (pausedBySettings) {
+    pausedBySettings = false; S.paused = false;
+    if (A.started) A.ctx.resume();
+  }
+}
+setBtn.addEventListener('pointerdown', e => {
+  e.stopPropagation();
+  setPanel.classList.contains('hidden') ? openSettings() : closeSettings();
+});
+setPanel.addEventListener('pointerdown', e => e.stopPropagation());
+document.getElementById('setClose').addEventListener('click', e => { e.stopPropagation(); closeSettings(); });
+
+document.getElementById('segLang').addEventListener('click', e => {
+  const b = e.target.closest('button'); if (!b) return;
+  LANG = SET.lang = b.dataset.v; saveSettings();
+  applyLang(); syncSetUI();
+});
+document.getElementById('segQual').addEventListener('click', e => {
+  const b = e.target.closest('button'); if (!b) return;
+  SET.quality = b.dataset.v; saveSettings(); applyQuality(); syncSetUI();
+});
+document.getElementById('segHud').addEventListener('click', e => {
+  const b = e.target.closest('button'); if (!b) return;
+  SET.hud = b.dataset.v; saveSettings(); applyHudMode(); syncSetUI();
+});
+for (const [rid, key, sound] of [['rngVol', 'vol', true], ['rngMusic', 'music', true],
+  ['rngSfx', 'sfx', true], ['rngShake', 'shake', false], ['rngFx', 'fx', false]]) {
+  document.getElementById(rid).addEventListener('input', e => {
+    SET[key] = +e.target.value; saveSettings();
+    if (sound) applyAudioSet();
+    syncSetUI();
+  });
+}
+// созвездие гасится в два нажатия — вещь необратимая
+document.getElementById('setReset').addEventListener('click', e => {
+  e.stopPropagation();
+  if (!resetArmed) { resetArmed = true; e.currentTarget.textContent = tr('sResetSure'); return; }
+  SKY = new Set(); saveSky();
+  resetArmed = false;
+  e.currentTarget.textContent = tr('sResetDone');
+  showBestLine();
+});
+
 // ---------- цикл ----------
 let last = performance.now();
 // адаптивное разрешение: скользящее среднее кадра с гистерезисом;
@@ -3179,7 +3612,7 @@ function frame(now) {
   last = now;
   if (dt > 0.1) dt = 0.1;
   if (S.paused) return;
-  if (S.mode === 'play') {
+  if (S.mode === 'play' && SET.quality === 'auto') {
     emaMs += (dt * 1000 - emaMs) * 0.06;
     resPause -= dt;
     if (resPause <= 0) {
@@ -3206,16 +3639,22 @@ function frame(now) {
 }
 
 if (document.fonts && document.fonts.load) {
-  document.fonts.load('italic 300 24px Cormorant');
-  document.fonts.load('italic 400 30px Cormorant');
+  // спрайты фраз пекутся на лету — шрифт должен быть готов заранее
+  document.fonts.load('400 48px "SAO UI"');
+  document.fonts.load('400 60px "SAO UI"');
 }
-showBestLine();
+applySettings();
 resetWorld(true);
 requestAnimationFrame(frame);
 
 // отладка: ?auto=1&t=0.5&night=4&d=3
 {
   const q = new URLSearchParams(location.search);
+  if (q.get('lang')) { // отладка языка: не записывая выбор в память
+    LANG = SET.lang = q.get('lang') === 'en' ? 'en' : 'ru';
+    applyLang(); syncSetUI();
+  }
+  if (q.get('set')) setTimeout(openSettings, 300);
   if (q.get('sky')) { // отладка созвездия: зажечь часть звёзд, памяти не трогая
     skyGroups().forEach((tier, gi) => tier.forEach((p, pi) => { if ((pi + gi) % 2 === 0) SKY.add(p); }));
     setTimeout(openSky, 300);
