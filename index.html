@@ -3,6 +3,11 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="бесконечная ночь">
+<meta name="theme-color" content="#07090c">
 <title>бесконечная ночь</title>
 <style>
   /* SAO UI — единый шрифт игры; вшит в страницу, чтобы билд был самодостаточен */
@@ -20,8 +25,10 @@
     --ease:cubic-bezier(.2,.7,.2,1);
   }
   *,*::before,*::after{box-sizing:border-box}
-  html,body{margin:0;padding:0;height:100%;background:var(--night-0);color:var(--ink);overflow:hidden}
-  body{font-family:var(--font-mono);-webkit-font-smoothing:antialiased;overscroll-behavior:none;touch-action:none}
+  html,body{margin:0;padding:0;height:100%;background:var(--night-0);color:var(--ink);overflow:hidden;
+    overscroll-behavior:none;-webkit-touch-callout:none;-webkit-tap-highlight-color:transparent}
+  body{font-family:var(--font-mono);-webkit-font-smoothing:antialiased;touch-action:none;
+    user-select:none;-webkit-user-select:none}
   canvas#gl{position:fixed;inset:0;width:100%;height:100%;display:block}
   .playing{cursor:none}
 
@@ -30,8 +37,8 @@
   /* ---------- HUD ---------- */
   #hud{position:fixed;inset:0;pointer-events:none;opacity:0;transition:opacity 1.2s var(--ease);z-index:5}
   #hud.on{opacity:1}
-  #hud .tl{position:fixed;top:calc(18px + env(safe-area-inset-top));left:22px}
-  #hud .tr{position:fixed;top:calc(18px + env(safe-area-inset-top));right:22px;text-align:right}
+  #hud .tl{position:fixed;top:calc(18px + env(safe-area-inset-top));left:calc(22px + env(safe-area-inset-left))}
+  #hud .tr{position:fixed;top:calc(18px + env(safe-area-inset-top));right:calc(22px + env(safe-area-inset-right));text-align:right}
   #hud .clock{font-size:13px;color:var(--ink-2);letter-spacing:.22em;font-family:var(--font-mono)}
   #hud .nightname{margin-top:6px;font-size:10px;color:var(--ink-3);letter-spacing:.2em;text-transform:uppercase;font-family:var(--font-mono)}
   #hud .nightname.storm{color:var(--hyper);animation:blink .6s steps(2) infinite}
@@ -45,9 +52,10 @@
   #meterFill{height:100%;width:100%;background:linear-gradient(90deg, var(--io), #c9e8ff);box-shadow:0 0 14px var(--io);transition:background .8s}
   #xpbar{position:fixed;left:0;right:0;bottom:6px;height:2px;background:rgba(235,232,225,.04)}
   #xpFill{height:100%;width:0%;background:var(--ember);box-shadow:0 0 10px var(--ember);opacity:.9;transition:width .25s var(--ease)}
-  #meterLabel{position:fixed;bottom:16px;left:66px;font-size:10px;letter-spacing:.22em;text-transform:uppercase;color:var(--ink-4);font-family:var(--font-mono)}
-  #relocHud{position:fixed;bottom:16px;right:22px;font-size:10px;letter-spacing:.22em;text-transform:uppercase;color:var(--ink-4);font-family:var(--font-mono);transition:color .3s}
+  #meterLabel{position:fixed;bottom:calc(16px + env(safe-area-inset-bottom));left:calc(66px + env(safe-area-inset-left));font-size:10px;letter-spacing:.22em;text-transform:uppercase;color:var(--ink-4);font-family:var(--font-mono)}
+  #relocHud{position:fixed;bottom:calc(16px + env(safe-area-inset-bottom));right:calc(22px + env(safe-area-inset-right));font-size:10px;letter-spacing:.22em;text-transform:uppercase;color:var(--ink-4);font-family:var(--font-mono);transition:color .3s}
   #relocHud.ready{color:var(--io)}
+  .touch #relocHud{display:none}
   #hud .lvl{margin-top:6px;font-size:10px;letter-spacing:.2em;text-transform:uppercase;color:var(--ink-4);font-family:var(--font-mono)}
   #hud .tl,#hud .tr{padding-top:2px}
   #hud .tl{border-left:1px solid var(--line);padding-left:12px}
@@ -63,13 +71,22 @@
   #bossFill{height:100%;width:100%;background:linear-gradient(90deg,#6d2496,var(--hyper));
     box-shadow:0 0 14px rgba(255,79,216,.55);transition:width .25s var(--ease)}
 
-  /* оверчардж-кнопка (тач) */
-  #ocBtn{position:fixed;right:20px;bottom:26px;width:64px;height:64px;border-radius:50%;
-    border:1px solid var(--line);background:rgba(12,16,21,.5);color:var(--io);
-    font-family:var(--font-mono);font-size:9px;letter-spacing:.12em;text-transform:uppercase;
-    pointer-events:auto;display:none;align-items:center;justify-content:center;user-select:none;-webkit-user-select:none}
-  #ocBtn.held{background:rgba(143,208,255,.25);box-shadow:0 0 24px rgba(143,208,255,.4)}
-  .touch #ocBtn{display:flex}
+  /* кнопки под большой палец (тач) */
+  #touchPad{position:fixed;right:calc(18px + env(safe-area-inset-right));
+    bottom:calc(24px + env(safe-area-inset-bottom));display:none;flex-direction:column;gap:13px;
+    pointer-events:none;z-index:6}
+  .touch #touchPad{display:flex}
+  body.touch-left #touchPad{right:auto;left:calc(18px + env(safe-area-inset-left))}
+  body.touch-left #setBtn{left:auto;right:calc(16px + env(safe-area-inset-right))}
+  .tbtn{width:64px;height:64px;border-radius:50%;border:1px solid var(--line);
+    background:rgba(12,16,21,.55);color:var(--io);-webkit-backdrop-filter:blur(2px);backdrop-filter:blur(2px);
+    font-family:var(--font-mono);font-size:9px;letter-spacing:.1em;text-transform:uppercase;
+    pointer-events:auto;display:flex;align-items:center;justify-content:center;text-align:center;
+    padding:4px;transition:background .15s,box-shadow .15s,opacity .25s;touch-action:none}
+  .tbtn.held,.tbtn.on{background:rgba(143,208,255,.25);box-shadow:0 0 24px rgba(143,208,255,.4)}
+  .tbtn.cool{opacity:.32;color:var(--ink-3)}
+  #btnTether{width:56px;height:56px;align-self:flex-end}
+  body.touch-left #btnTether{align-self:flex-start}
 
   /* ---------- overlays ---------- */
   .veil{position:fixed;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;
@@ -102,7 +119,7 @@
   .title-best{margin-top:14px;font-size:10px;letter-spacing:.2em;color:var(--ember);text-transform:uppercase;font-family:var(--font-mono)}
 
   /* выбор сна между ночами */
-  #restScreen{background:rgba(7,9,12,.55);backdrop-filter:blur(3px)}
+  #restScreen{background:rgba(7,9,12,.55);-webkit-backdrop-filter:blur(3px);backdrop-filter:blur(3px)}
   .rest-head{font-size:11px;letter-spacing:.3em;color:var(--ink-3);text-transform:uppercase;font-family:var(--font-mono)}
   .rest-big{font-family:var(--font-display);font-weight:300;font-size:clamp(34px,6vw,64px);margin-top:14px;color:var(--ink)}
   .rest-sub{margin-top:10px;font-size:10px;letter-spacing:.22em;color:var(--ink-4);text-transform:uppercase;font-family:var(--font-mono)}
@@ -149,7 +166,7 @@
     background:radial-gradient(circle, rgba(232,165,74,.3), rgba(255,79,216,.08) 55%, transparent 74%)}
 
   /* смерть */
-  #deathScreen{background:rgba(7,9,12,.6);backdrop-filter:blur(3px)}
+  #deathScreen{background:rgba(7,9,12,.6);-webkit-backdrop-filter:blur(3px);backdrop-filter:blur(3px)}
   .death-big{font-family:var(--font-display);font-weight:300;
     font-size:clamp(38px,8vw,84px);line-height:1.05;color:var(--ink)}
   .death-sub{margin-top:16px;font-size:11px;letter-spacing:.28em;color:var(--ink-3);text-transform:uppercase;font-family:var(--font-mono)}
@@ -167,7 +184,7 @@
     color:var(--ink-3);font-family:var(--font-mono);font-size:10px;letter-spacing:.24em;
     text-transform:uppercase;border-bottom:1px solid var(--line);padding:6px 2px;transition:all .25s var(--ease)}
   .sky-link:hover{color:var(--io);border-color:var(--io)}
-  #skyScreen{background:rgba(5,6,10,.965);backdrop-filter:blur(4px);justify-content:flex-start;padding-top:6vh;overflow-y:auto}
+  #skyScreen{background:rgba(5,6,10,.965);-webkit-backdrop-filter:blur(4px);backdrop-filter:blur(4px);justify-content:flex-start;padding-top:6vh;overflow-y:auto}
   .sky-count{margin-top:12px;font-family:var(--font-display);font-weight:300;
     font-size:clamp(26px,4.5vw,46px);color:var(--ink)}
   #skyCanvas{width:min(920px,94vw);height:auto;margin-top:10px;pointer-events:auto;touch-action:none}
@@ -188,7 +205,7 @@
   .sky-gain.hidden{display:none}
 
   /* ---------- настройки ---------- */
-  #setBtn{position:fixed;left:16px;bottom:22px;z-index:30;width:38px;height:38px;padding:8px;
+  #setBtn{position:fixed;left:calc(16px + env(safe-area-inset-left));bottom:calc(22px + env(safe-area-inset-bottom));z-index:30;width:38px;height:38px;padding:8px;
     background:rgba(10,14,20,.5);border:1px solid var(--line);color:var(--ink-3);
     cursor:pointer;pointer-events:auto;opacity:.55;transition:all .25s var(--ease)}
   #setBtn svg{width:100%;height:100%;fill:none;stroke:currentColor;stroke-width:1.3;stroke-linejoin:round}
@@ -197,6 +214,7 @@
   .playing #setBtn{opacity:.22}
   .playing #setBtn:hover{opacity:1}
   #setPanel{position:fixed;left:0;top:0;bottom:0;z-index:31;width:min(372px,88vw);
+    padding-left:calc(24px + env(safe-area-inset-left));
     background:rgba(6,8,12,.965);border-right:1px solid var(--line);
     padding:26px 24px 34px;overflow-y:auto;display:flex;flex-direction:column;
     transition:transform .35s var(--ease),opacity .35s var(--ease)}
@@ -227,6 +245,9 @@
     color:var(--danger);font-family:var(--font-mono);font-size:10px;letter-spacing:.18em;
     text-transform:uppercase;cursor:pointer;transition:all .2s var(--ease)}
   .set-danger:hover{background:rgba(216,105,90,.14)}
+  .touch-only{display:none}
+  .touch .touch-only{display:block}
+  .touch label.set-row.touch-only,.touch .seg.touch-only{display:flex}
   #setPanel .end-btn{margin-top:26px}
   /* режимы интерфейса */
   body.hud-lite #hud .tl,body.hud-lite #hud .tr,body.hud-lite #meterLabel,body.hud-lite #relocHud{display:none}
@@ -247,7 +268,7 @@
     .d-ic{width:36px;height:36px}
     .d-desc{font-size:14.5px}
     .dream::after{right:14px}
-    .title-help{display:none}
+    .title-help{font-size:9.5px;line-height:2;letter-spacing:.1em;margin-top:22px;padding:0 10px}
     .sky-sparks{gap:8px}
     .spark{min-width:132px;padding:7px 9px}
     .spark span{font-size:13px}
@@ -280,13 +301,17 @@
   <div id="relocHud" class="ready">мерцание · готово</div>
   <div id="xpbar"><div id="xpFill"></div></div>
   <div id="meter"><div id="meterFill"></div></div>
-  <div id="ocBtn" data-i18n="ocBtn"></div>
+  <div id="touchPad">
+    <button class="tbtn" id="btnTether" data-i18n="btnTether"></button>
+    <button class="tbtn" id="btnBlink" data-i18n="btnBlink"></button>
+    <button class="tbtn" id="ocBtn" data-i18n="ocBtn"></button>
+  </div>
 </div>
 
 <div id="titleScreen" class="veil">
   <div class="title-big" data-i18n="titleBig"></div>
   <div class="title-sub" data-i18n="titleSub"></div>
-  <div class="title-help" data-i18n-lines="help1,help2,help3,help4"></div>
+  <div class="title-help" data-i18n-lines="help1,help2,help3,help4" data-i18n-lines-touch="help1t,help2t,help3,help4"></div>
   <div class="title-best hidden" id="bestLine"></div>
   <button class="sky-link" id="skyBtn" data-i18n="skyBtnEmpty"></button>
   <div class="title-hint" data-i18n="titleHint"></div>
@@ -363,6 +388,14 @@
     <button data-v="lite" data-i18n="hLite"></button>
     <button data-v="off" data-i18n="hOff"></button>
   </div>
+
+  <div class="set-group touch-only" data-i18n="sTouch"></div>
+  <div class="set-label touch-only" data-i18n="sTouchSide"></div>
+  <div class="seg touch-only" id="segSide">
+    <button data-v="right" data-i18n="sideRight"></button>
+    <button data-v="left" data-i18n="sideLeft"></button>
+  </div>
+  <label class="set-row touch-only"><span data-i18n="sTouchLift"></span><input type="range" id="rngLift" min="0" max="140" step="10"><b id="valLift"></b></label>
 
   <div class="set-group" data-i18n="sMemory"></div>
   <button class="set-danger" id="setReset" data-i18n="sReset"></button>

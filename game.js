@@ -27,6 +27,7 @@ function css3(c, a = 1) { return `rgba(${(c[0] * 255) | 0},${(c[1] * 255) | 0},$
 const DEFAULT_SET = {
   lang: 'ru', vol: 85, music: 100, sfx: 100,
   quality: 'auto', shake: 100, fx: 100, hud: 'full',
+  touchSide: 'right', touchLift: 70,
 };
 let SET = loadSettings();
 let LANG = SET.lang;
@@ -77,6 +78,14 @@ const TXT = {
     titleBig: 'бесконечная\u00a0ночь',
     titleSub: 'роглайк о шарике света, коему не спится',
     help1: 'мышью — лететь · клик подле корабля — нить · пробел — мерцание',
+    help1t: 'веди пальцем — свет летит следом, чуть выше самого пальца',
+    help2t: 'кнопки под большим пальцем: нить · мерцание · заряд',
+    btnTether: 'нить',
+    btnBlink: 'мерцание',
+    sTouch: 'палец',
+    sTouchSide: 'сторона кнопок',
+    sideRight: 'справа', sideLeft: 'слева',
+    sTouchLift: 'отступ от пальца',
     help2: 'shift — оверчардж · бодрость тает всечасно — одни мысли её держат',
     help3: 'луга щедры · разломы гибельны · теченья сносят · скорость жжёт',
     help4: 'всякая пятая ночь приводит корабль-кошмар — бей, покуда фонарь открыт',
@@ -152,6 +161,14 @@ const TXT = {
     titleBig: 'endless\u00a0night',
     titleSub: 'a roguelike about a wisp that cannot sleep',
     help1: 'mouse — fly · click near a ship — thread · space — blink',
+    help1t: 'drag your finger — the light follows just above it',
+    help2t: 'buttons under your thumb: thread · blink · charge',
+    btnTether: 'thread',
+    btnBlink: 'blink',
+    sTouch: 'finger',
+    sTouchSide: 'button side',
+    sideRight: 'right', sideLeft: 'left',
+    sTouchLift: 'lift above finger',
     help2: 'shift — overcharge · wakefulness always drains — only thoughts hold it',
     help3: 'meadows are generous · rifts are deadly · currents carry · speed burns',
     help4: 'every fifth night brings the nightmare ship — strike while its lantern is open',
@@ -959,7 +976,12 @@ function resize() {
   gl.viewport(0, 0, glCanvas.width, glCanvas.height);
   allocGlTextures();
 }
-window.addEventListener('resize', resize);
+let resizeT = 0;
+function resizeSoon(ms) { clearTimeout(resizeT); resizeT = setTimeout(resize, ms || 120); }
+window.addEventListener('resize', () => resizeSoon(120));
+// поворот экрана и уползающие панели Safari меняют высоту не сразу
+window.addEventListener('orientationchange', () => resizeSoon(280));
+if (window.visualViewport) window.visualViewport.addEventListener('resize', () => resizeSoon(160));
 resize();
 
 const cloudSpr = document.createElement('canvas');
@@ -1619,18 +1641,44 @@ function sfxChoice() {
 }
 
 // ---------- ввод ----------
-let lastTap = 0;
-window.addEventListener('pointermove', e => { pointer.x = e.clientX; pointer.y = e.clientY; pointer.active = true; });
+// На касании палец — штурвал: куда ведёшь, туда и летит свет. Цель берётся
+// чуть выше самого пальца, чтобы он не закрывал искру собою; величина
+// отступа живёт в настройках. Действия ушли на кнопки под большой палец —
+// оттого перетаскивание больше ни с чем не спорит.
+let TOUCH = matchMedia('(pointer: coarse)').matches;
+let steerId = null;
+function uiHit(e) {
+  return !!(e.target && e.target.closest &&
+    e.target.closest('#touchPad,#setBtn,#setPanel,.veil:not(.hidden)'));
+}
+function setPointer(e) {
+  pointer.x = e.clientX;
+  pointer.y = e.clientY - (e.pointerType === 'mouse' ? 0 : SET.touchLift);
+  pointer.active = true;
+}
+function audioUnlock() { // iOS будит звук лишь изнутри касания
+  try { if (A.started && A.ctx.state === 'suspended' && !S.paused) A.ctx.resume(); } catch (_) {}
+}
+window.addEventListener('pointermove', e => {
+  if (e.pointerType === 'mouse') { setPointer(e); return; }
+  if (steerId === e.pointerId) setPointer(e);
+}, { passive: true });
 window.addEventListener('pointerdown', e => {
-  pointer.x = e.clientX; pointer.y = e.clientY; pointer.active = true;
-  if (S.mode !== 'play' || S.paused) return;
-  if (e.target && e.target.id === 'ocBtn') return;
-  if (e.target && e.target.closest && e.target.closest('#setBtn,#setPanel')) return;
-  const now = performance.now();
-  if (e.pointerType === 'touch' && now - lastTap < 300) { tryRelocate(); lastTap = 0; return; }
-  lastTap = now;
-  toggleTether();
+  if (uiHit(e)) return;
+  if (e.pointerType === 'mouse') {
+    setPointer(e);
+    if (S.mode !== 'play' || S.paused) return;
+    toggleTether();
+    return;
+  }
+  audioUnlock();
+  if (steerId !== null) return; // второй палец не перехватывает штурвал
+  steerId = e.pointerId;
+  setPointer(e);
 });
+for (const ev of ['pointerup', 'pointercancel']) {
+  window.addEventListener(ev, e => { if (steerId === e.pointerId) steerId = null; });
+}
 window.addEventListener('keydown', e => {
   keys[e.key] = true;
   if (S.mode === 'level' && ['1', '2', '3'].includes(e.key)) {
@@ -1650,10 +1698,25 @@ window.addEventListener('keyup', e => {
   if (e.key === 'Shift') io.oc = false;
 });
 const ocBtn = document.getElementById('ocBtn');
-ocBtn.addEventListener('pointerdown', e => { e.stopPropagation(); io.oc = true; ocBtn.classList.add('held'); });
+const btnTether = document.getElementById('btnTether');
+const btnBlink = document.getElementById('btnBlink');
+ocBtn.addEventListener('pointerdown', e => {
+  e.preventDefault(); e.stopPropagation();
+  audioUnlock(); io.oc = true; ocBtn.classList.add('held');
+});
 for (const ev of ['pointerup', 'pointercancel', 'pointerleave'])
   ocBtn.addEventListener(ev, () => { io.oc = false; ocBtn.classList.remove('held'); });
-if (matchMedia('(pointer: coarse)').matches) document.body.classList.add('touch');
+btnTether.addEventListener('pointerdown', e => {
+  e.preventDefault(); e.stopPropagation();
+  audioUnlock();
+  if (S.mode === 'play' && !S.paused) toggleTether();
+});
+btnBlink.addEventListener('pointerdown', e => {
+  e.preventDefault(); e.stopPropagation();
+  audioUnlock();
+  if (S.mode === 'play' && !S.paused) tryRelocate();
+});
+if (TOUCH) document.body.classList.add('touch');
 document.addEventListener('visibilitychange', () => {
   if (document.hidden && S.mode === 'play' && !S.paused) togglePause();
 });
@@ -3234,6 +3297,10 @@ function updateHud() {
   elMeter.style.boxShadow = '0 0 12px ' + col;
   elXp.style.width = (clamp(RUN.xp / RUN.xpNext, 0, 1) * 100).toFixed(1) + '%';
   if (boss) elBossFill.style.width = (clamp(boss.hp / boss.hpMax, 0, 1) * 100).toFixed(1) + '%';
+  if (TOUCH) { // кнопки под пальцем показывают, что готово, а что ещё стынет
+    btnBlink.classList.toggle('cool', io.reloc.cd > 0 || io.reloc.phase !== 'idle');
+    btnTether.classList.toggle('on', !!io.tether);
+  }
   if (io.reloc.cd > 0) {
     elReloc.textContent = tr('blinkCd', io.reloc.cd.toFixed(1));
     elReloc.classList.remove('ready');
@@ -3511,8 +3578,10 @@ let pausedBySettings = false, resetArmed = false;
 function applyLang() {
   document.documentElement.lang = LANG;
   for (const el of document.querySelectorAll('[data-i18n]')) el.textContent = tr(el.dataset.i18n);
-  for (const el of document.querySelectorAll('[data-i18n-lines]'))
-    el.innerHTML = el.dataset.i18nLines.split(',').map(k => tr(k)).join('<br>');
+  for (const el of document.querySelectorAll('[data-i18n-lines]')) {
+    const keys = (TOUCH && el.dataset.i18nLinesTouch) || el.dataset.i18nLines;
+    el.innerHTML = keys.split(',').map(k => tr(k)).join('<br>');
+  }
   showBestLine();
   updateHud(); updateClock();
   if (!setPanel.classList.contains('hidden'))
@@ -3530,12 +3599,16 @@ function applyQuality() {
   else { maxScale = 1; }          // авто: контроллер сам найдёт свой потолок
   resize();
 }
+function applyTouch() {
+  document.body.classList.toggle('touch-left', SET.touchSide === 'left');
+}
 function applyHudMode() {
   document.body.classList.toggle('hud-lite', SET.hud === 'lite');
   document.body.classList.toggle('hud-off', SET.hud === 'off');
 }
 function syncSetUI() {
-  for (const [id, val] of [['segLang', LANG], ['segQual', SET.quality], ['segHud', SET.hud]])
+  for (const [id, val] of [['segLang', LANG], ['segQual', SET.quality], ['segHud', SET.hud],
+    ['segSide', SET.touchSide]])
     for (const b of document.querySelectorAll('#' + id + ' button'))
       b.classList.toggle('on', b.dataset.v === val);
   for (const [rid, vid, val] of [['rngVol', 'valVol', SET.vol], ['rngMusic', 'valMusic', SET.music],
@@ -3543,8 +3616,12 @@ function syncSetUI() {
     document.getElementById(rid).value = val;
     document.getElementById(vid).textContent = val + '%';
   }
+  document.getElementById('rngLift').value = SET.touchLift;
+  document.getElementById('valLift').textContent = SET.touchLift;
 }
-function applySettings() { applyLang(); applyAudioSet(); applyQuality(); applyHudMode(); syncSetUI(); }
+function applySettings() {
+  applyLang(); applyAudioSet(); applyQuality(); applyHudMode(); applyTouch(); syncSetUI();
+}
 
 function openSettings() {
   if (S.mode === 'play' && !S.paused) { // ночь ждёт, покуда открыты настройки
@@ -3583,8 +3660,13 @@ document.getElementById('segHud').addEventListener('click', e => {
   const b = e.target.closest('button'); if (!b) return;
   SET.hud = b.dataset.v; saveSettings(); applyHudMode(); syncSetUI();
 });
+document.getElementById('segSide').addEventListener('click', e => {
+  const b = e.target.closest('button'); if (!b) return;
+  SET.touchSide = b.dataset.v; saveSettings(); applyTouch(); syncSetUI();
+});
 for (const [rid, key, sound] of [['rngVol', 'vol', true], ['rngMusic', 'music', true],
-  ['rngSfx', 'sfx', true], ['rngShake', 'shake', false], ['rngFx', 'fx', false]]) {
+  ['rngSfx', 'sfx', true], ['rngShake', 'shake', false], ['rngFx', 'fx', false],
+  ['rngLift', 'touchLift', false]]) {
   document.getElementById(rid).addEventListener('input', e => {
     SET[key] = +e.target.value; saveSettings();
     if (sound) applyAudioSet();
@@ -3652,6 +3734,11 @@ requestAnimationFrame(frame);
   const q = new URLSearchParams(location.search);
   if (q.get('lang')) { // отладка языка: не записывая выбор в память
     LANG = SET.lang = q.get('lang') === 'en' ? 'en' : 'ru';
+    applyLang(); syncSetUI();
+  }
+  if (q.get('touch')) { // отладка тач-раскладки на настольном браузере
+    TOUCH = true;
+    document.body.classList.add('touch');
     applyLang(); syncSetUI();
   }
   if (q.get('set')) setTimeout(openSettings, 300);
