@@ -72,6 +72,7 @@ const TXT = {
     tether: 'нить натянута надёжно',
     hintTether: 'корабль близко — брось нить: она вяжет и жжёт ночь',
     sling: 'разгон',
+    snap: 'нить лопнула',
     secondWind: 'второе дыхание',
     dew: 'роса рассветная',
     dawnLine: 'рассвет — а день промелькнёт мимо',
@@ -161,6 +162,7 @@ const TXT = {
     tether: 'the thread is drawn taut',
     hintTether: 'a ship is near — cast the thread: it snares and burns the night',
     sling: 'a rush',
+    snap: 'the thread snapped',
     secondWind: 'second wind',
     dew: 'dawn dew',
     dawnLine: 'dawn — and the day will flit past',
@@ -1319,7 +1321,7 @@ const S = {
   combo: 0, comboT: 0,
   shake: 0, glitch: 0,
   hurtT: 0, stormFired: false, dawnFired: false, bossDone: false,
-  reachShip: null, tetherHinted: false,
+  reachShip: null, tetherHinted: false, strain: 0,
   pal: palette(0), energy: 0.13,
 };
 function isStormNight() { return RUN.night % 3 === 0; }
@@ -1830,7 +1832,7 @@ function togglePause() {
 // подле него, а сама нить, натянутая от света к корме, вяжет и жжёт всё,
 // что её пересекает. С палубы притом сыплются мысли. Плата — круг: далеко
 // от корабля не улетишь, покуда держишься. Отпустил — швырнёт вперёд.
-const TETHER_LEASH = 250;   // радиус, в котором ты волен
+const TETHER_LEASH = 380;   // радиус полной воли; дальше — упругая оттяжка
 const TETHER_BITE = 24;     // полутолщина нити
 const TETHER_BURN = 0.6;    // сколько ночи тлеть в нити до погибели
 function shipInReach() {
@@ -1852,18 +1854,25 @@ function toggleTether() {
     spawnText(best.x, best.y - 70 * best.scl, tr('tether'));
   }
 }
-function releaseTether() {
+function releaseTether(snapped) {
   const sh = io.tether;
   io.tether = null;
+  S.strain = 0;
   if (!sh) return;
-  // швырок в сторону, куда правишь; правишь никуда — по ходу корабля
-  let dx = steerTX - io.x, dy = steerTY - io.y;
+  let dx, dy;
+  if (snapped) { // лопнула — уносит прочь от корабля
+    const ax = sh.x - sh.dir * 60 * sh.scl, ay = sh.y - 30 * sh.scl;
+    dx = io.x - ax; dy = io.y - ay;
+  } else {       // отпустил сам — швырок туда, куда правишь
+    dx = steerTX - io.x; dy = steerTY - io.y;
+  }
   let l = hyp(dx, dy);
   if (l < 40) { dx = sh.dir; dy = -0.2; l = hyp(dx, dy); }
-  io.vx += dx / l * 540; io.vy += dy / l * 540;
+  io.vx += dx / l * (snapped ? 620 : 540);
+  io.vy += dy / l * (snapped ? 620 : 540);
   burst(io.x, io.y, IO_COL, 18, 260);
   sfxWind();
-  spawnText(io.x, io.y - 50, tr('sling'));
+  spawnText(io.x, io.y - 50, tr(snapped ? 'snap' : 'sling'));
 }
 
 function echoBlast(x, y) {
@@ -2038,13 +2047,8 @@ function update(dt) {
       const sh = io.tether;
       if (!ships.includes(sh)) io.tether = null;
       else {
-        // рулим свободно — цель остаётся своя, её лишь зажимает поводок
-        const ax = sh.x - sh.dir * 60 * sh.scl, ay = sh.y - 30 * sh.scl;
-        const ddx = tx - ax, ddy = ty - ay, dd = hyp(ddx, ddy);
-        if (dd > TETHER_LEASH) {
-          tx = ax + ddx / dd * TETHER_LEASH;
-          ty = ay + ddy / dd * TETHER_LEASH;
-        }
+        // цель — своя, куда правишь, туда и летишь: поводок вмешивается
+        // не здесь, а после, и не стеной, а натяжением
         // с палубы сыплется добро — за то и держатся
         sh.cargoT = (sh.cargoT || 0) - dt;
         if (sh.cargoT <= 0) {
@@ -2092,17 +2096,22 @@ function update(dt) {
     }
 
     io.x += io.vx * dt; io.y += io.vy * dt;
-    if (io.tether) { // поводок натянут — дальше не пустит
+    if (io.tether) {
+      // Внутри круга — полная воля. За кругом нить натягивается и тянет
+      // назад тем сильнее, чем дальше ушёл, — упруго, а не стеной. Рванул
+      // совсем далеко — нить лопается и швыряет вперёд. Стены нет нигде.
       const sh = io.tether;
       const ax = sh.x - sh.dir * 60 * sh.scl, ay = sh.y - 30 * sh.scl;
-      const dx2 = io.x - ax, dy2 = io.y - ay, d2 = hyp(dx2, dy2);
+      const dx2 = io.x - ax, dy2 = io.y - ay, d2 = hyp(dx2, dy2) || 1;
       if (d2 > TETHER_LEASH) {
-        io.x = ax + dx2 / d2 * TETHER_LEASH;
-        io.y = ay + dy2 / d2 * TETHER_LEASH;
-        const vr = (io.vx * dx2 + io.vy * dy2) / d2;   // гасим уходящую составляющую
-        if (vr > 0) { io.vx -= dx2 / d2 * vr; io.vy -= dy2 / d2 * vr; }
-      }
-    }
+        const over = (d2 - TETHER_LEASH) / TETHER_LEASH;
+        S.strain = Math.min(1, over * 2.4);
+        const pull = Math.min(1, over * 2.6) * 2000;
+        io.vx -= dx2 / d2 * pull * dt;
+        io.vy -= dy2 / d2 * pull * dt;
+        if (d2 > TETHER_LEASH * 1.5) releaseTether(true);
+      } else S.strain = 0;
+    } else S.strain = 0;
     RUN.dist += spd * dt;
     io.trail.unshift({ x: io.x, y: io.y });
     if (io.trail.length > 22) io.trail.pop();
@@ -3373,8 +3382,11 @@ function drawTetherLine(P, tm) {
   const sh = io.tether;
   if (!sh || !ships.includes(sh)) return;
   const B = proj(sh.x - sh.dir * 60 * sh.scl, sh.y - 30 * sh.scl);
-  // круг воли: докуда пускает поводок — чтобы правило читалось глазами
-  sc.strokeStyle = css3(IO_COL, 0.13);
+  // круг воли: докуда пускает поводок — чтобы правило читалось глазами;
+  // натянешь нить — круг и сама нить наливаются жаром
+  const strain = S.strain || 0;
+  const tcol = strain > 0 ? mix3(IO_COL, [1, 0.5, 0.3], strain) : IO_COL;
+  sc.strokeStyle = css3(tcol, 0.13 + strain * 0.35);
   sc.lineWidth = 1;
   sc.setLineDash([7, 11]);
   sc.beginPath();
@@ -3384,11 +3396,11 @@ function drawTetherLine(P, tm) {
   // нить натянута и горяча: широкое свечение, белое сердце, бегущие искры
   sc.globalCompositeOperation = 'lighter';
   sc.lineCap = 'round';
-  sc.strokeStyle = css3(IO_COL, 0.16);
-  sc.lineWidth = 9;
+  sc.strokeStyle = css3(tcol, 0.16 + strain * 0.2);
+  sc.lineWidth = 9 + strain * 5;
   sc.beginPath(); sc.moveTo(P.x, P.y); sc.lineTo(B.x, B.y); sc.stroke();
-  sc.strokeStyle = css3(IO_COL, 0.6 + 0.15 * Math.sin(tm * 6));
-  sc.lineWidth = 2.4;
+  sc.strokeStyle = css3(tcol, 0.6 + 0.15 * Math.sin(tm * 6) + strain * 0.25);
+  sc.lineWidth = 2.4 + strain * 1.6;
   sc.beginPath(); sc.moveTo(P.x, P.y); sc.lineTo(B.x, B.y); sc.stroke();
   sc.strokeStyle = 'rgba(255,255,255,.85)';
   sc.lineWidth = 1;
@@ -4073,6 +4085,14 @@ requestAnimationFrame(frame);
     applyLang(); syncSetUI();
   }
   if (q.get('perf')) PERF.on = true;
+  if (q.get('tlog')) setInterval(() => {   // отладка нити: видно ли движение под нею
+    if (!io.tether) { console.log('нити нет'); return; }
+    const sh = io.tether;
+    const ax = sh.x - sh.dir * 60 * sh.scl, ay = sh.y - 30 * sh.scl;
+    console.log('НИТЬ: от кормы ' + hyp(io.x - ax, io.y - ay).toFixed(0) +
+      ' · цель за ' + hyp(steerTX - io.x, steerTY - io.y).toFixed(0) +
+      ' · скорость ' + hyp(io.vx, io.vy).toFixed(0));
+  }, 500);
   if (q.get('nofade')) { // отладка: снимки без плавных переходов
     const st = document.createElement('style');
     st.textContent = '*{transition:none !important;animation:none !important}';
