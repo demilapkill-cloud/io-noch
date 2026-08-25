@@ -1,0 +1,165 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+<title>бесконечная ночь</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Cormorant:ital,wght@0,300;0,400;1,300;1,400&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --night-0:#07090c; --ink:#ebe8e1;
+    --ink-2:rgba(235,232,225,.62); --ink-3:rgba(235,232,225,.38); --ink-4:rgba(235,232,225,.18);
+    --line:rgba(235,232,225,.12);
+    --ember:#e8a54a; --frost:#9fb4c7; --hyper:#ff4fd8; --io:#8fd0ff;
+    --danger:#d8695a;
+    --font-display:'Cormorant',Georgia,serif;
+    --font-mono:'JetBrains Mono',ui-monospace,Menlo,monospace;
+    --ease:cubic-bezier(.2,.7,.2,1);
+  }
+  *,*::before,*::after{box-sizing:border-box}
+  html,body{margin:0;padding:0;height:100%;background:var(--night-0);color:var(--ink);overflow:hidden}
+  body{font-family:var(--font-mono);-webkit-font-smoothing:antialiased;overscroll-behavior:none;touch-action:none}
+  canvas#gl{position:fixed;inset:0;width:100%;height:100%;display:block}
+  .playing{cursor:none}
+
+  .mono{font-family:var(--font-mono);font-size:11px;letter-spacing:.14em;text-transform:uppercase;color:var(--ink-3)}
+
+  /* ---------- HUD ---------- */
+  #hud{position:fixed;inset:0;pointer-events:none;opacity:0;transition:opacity 1.2s var(--ease);z-index:5}
+  #hud.on{opacity:1}
+  #hud .tl{position:fixed;top:calc(18px + env(safe-area-inset-top));left:22px}
+  #hud .tr{position:fixed;top:calc(18px + env(safe-area-inset-top));right:22px;text-align:right}
+  #hud .clock{font-size:13px;color:var(--ink-2);letter-spacing:.22em;font-family:var(--font-mono)}
+  #hud .nightname{margin-top:6px;font-size:10px;color:var(--ink-3);letter-spacing:.2em;text-transform:uppercase;font-family:var(--font-mono)}
+  #hud .nightname.storm{color:var(--hyper);animation:blink .6s steps(2) infinite}
+  @keyframes blink{50%{opacity:.25}}
+  #hud .score{font-size:13px;color:var(--ink-2);letter-spacing:.22em;font-family:var(--font-mono)}
+  #hud .combo{margin-top:6px;font-size:10px;letter-spacing:.2em;text-transform:uppercase;color:var(--ink-4);transition:color .3s,opacity .3s;opacity:0;font-family:var(--font-mono)}
+  #hud .combo.hot{opacity:1;color:var(--ember)}
+  /* бодрость */
+  #meter{position:fixed;left:0;right:0;bottom:0;height:3px;background:rgba(235,232,225,.06)}
+  #meterFill{height:100%;width:100%;background:var(--io);box-shadow:0 0 12px var(--io);transition:width .3s var(--ease),background .8s}
+  #meterLabel{position:fixed;bottom:12px;left:22px;font-size:9px;letter-spacing:.22em;text-transform:uppercase;color:var(--ink-4);font-family:var(--font-mono)}
+
+  /* оверчардж-кнопка (тач) */
+  #ocBtn{position:fixed;right:20px;bottom:26px;width:64px;height:64px;border-radius:50%;
+    border:1px solid var(--line);background:rgba(12,16,21,.5);color:var(--io);
+    font-family:var(--font-mono);font-size:9px;letter-spacing:.12em;text-transform:uppercase;
+    pointer-events:auto;display:none;align-items:center;justify-content:center;user-select:none;-webkit-user-select:none}
+  #ocBtn.held{background:rgba(143,208,255,.25);box-shadow:0 0 24px rgba(143,208,255,.4)}
+  .touch #ocBtn{display:flex}
+
+  /* ---------- overlays ---------- */
+  .veil{position:fixed;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;
+    text-align:center;z-index:10;transition:opacity 1.2s var(--ease);padding:24px}
+  .veil.hidden{opacity:0;pointer-events:none}
+  #titleScreen{background:radial-gradient(120% 90% at 50% 110%, rgba(143,208,255,.06), transparent 60%)}
+  .title-big{font-family:var(--font-display);font-style:italic;font-weight:300;
+    font-size:clamp(44px,11vw,132px);line-height:.95;letter-spacing:-.02em;color:var(--ink);
+    text-shadow:0 0 60px rgba(143,208,255,.3)}
+  .title-sub{margin-top:26px;font-size:11px;letter-spacing:.3em;color:var(--ink-3);text-transform:uppercase;font-family:var(--font-mono)}
+  .title-help{margin-top:34px;font-size:10px;line-height:2.2;letter-spacing:.18em;color:var(--ink-4);text-transform:uppercase;font-family:var(--font-mono)}
+  .title-hint{margin-top:40px;font-size:11px;letter-spacing:.25em;color:var(--ink-2);text-transform:uppercase;font-family:var(--font-mono);animation:pulse 2.6s var(--ease) infinite}
+  @keyframes pulse{50%{opacity:.3}}
+  .title-ver{position:fixed;bottom:18px;left:0;right:0;font-size:9px;letter-spacing:.2em;color:var(--ink-4);text-transform:uppercase;font-family:var(--font-mono)}
+  .title-best{margin-top:14px;font-size:10px;letter-spacing:.2em;color:var(--ember);text-transform:uppercase;font-family:var(--font-mono)}
+
+  /* выбор сна между ночами */
+  #restScreen{background:rgba(7,9,12,.55);backdrop-filter:blur(3px)}
+  .rest-head{font-size:11px;letter-spacing:.3em;color:var(--ink-3);text-transform:uppercase;font-family:var(--font-mono)}
+  .rest-big{font-family:var(--font-display);font-style:italic;font-weight:300;font-size:clamp(34px,6vw,64px);margin-top:14px;color:var(--ink)}
+  .rest-sub{margin-top:10px;font-size:10px;letter-spacing:.22em;color:var(--ink-4);text-transform:uppercase;font-family:var(--font-mono)}
+  .dreams{margin-top:44px;display:flex;gap:18px;justify-content:center;flex-wrap:wrap;max-width:900px}
+  .dream{pointer-events:auto;cursor:pointer;width:240px;padding:26px 22px;text-align:left;
+    border:1px solid var(--line);background:rgba(12,16,21,.55);transition:all .22s var(--ease)}
+  .dream:hover{border-color:var(--io);box-shadow:0 0 30px rgba(143,208,255,.15);transform:translateY(-3px)}
+  .dream .d-name{font-family:var(--font-mono);font-size:10px;letter-spacing:.2em;text-transform:uppercase;color:var(--io)}
+  .dream .d-desc{margin-top:12px;font-family:var(--font-display);font-style:italic;font-weight:300;font-size:19px;line-height:1.35;color:var(--ink-2)}
+  .dream.rare .d-name{color:var(--ember)}
+  .dream.rare:hover{border-color:var(--ember);box-shadow:0 0 30px rgba(232,165,74,.2)}
+
+  /* смерть */
+  #deathScreen{background:rgba(7,9,12,.6);backdrop-filter:blur(3px)}
+  .death-big{font-family:var(--font-display);font-style:italic;font-weight:300;
+    font-size:clamp(38px,8vw,84px);line-height:1.05;color:var(--ink)}
+  .death-sub{margin-top:16px;font-size:11px;letter-spacing:.28em;color:var(--ink-3);text-transform:uppercase;font-family:var(--font-mono)}
+  .end-stats{margin-top:42px;display:flex;gap:48px;justify-content:center;flex-wrap:wrap}
+  .end-stat b{display:block;font-family:var(--font-display);font-weight:300;font-size:44px;color:var(--ink);line-height:1}
+  .end-stat span{display:block;margin-top:10px;font-size:9px;letter-spacing:.22em;color:var(--ink-3);text-transform:uppercase;font-family:var(--font-mono)}
+  .death-quote{margin-top:44px;font-family:var(--font-display);font-style:italic;font-weight:300;font-size:22px;color:var(--ink-2);max-width:520px}
+  .end-btn{margin-top:50px;pointer-events:auto;cursor:pointer;background:none;color:var(--ink-2);
+    border:1px solid var(--line);padding:14px 34px;font-family:var(--font-mono);font-size:11px;
+    letter-spacing:.25em;text-transform:uppercase;transition:all .25s var(--ease)}
+  .end-btn:hover{color:var(--night-0);background:var(--io);border-color:var(--io);box-shadow:0 0 30px rgba(143,208,255,.4)}
+
+  #pauseScreen{background:rgba(7,9,12,.55)}
+  .pause-txt{font-family:var(--font-display);font-style:italic;font-weight:300;font-size:44px;color:var(--ink-2)}
+  .pause-sub{margin-top:18px;font-size:10px;letter-spacing:.25em;color:var(--ink-4);text-transform:uppercase;font-family:var(--font-mono)}
+
+  @media (max-width:640px){
+    #hud .tl{left:14px} #hud .tr{right:14px}
+    .end-stats{gap:26px}
+    .dreams{gap:12px}
+    .dream{width:100%;max-width:340px;padding:18px}
+    .title-help{display:none}
+  }
+</style>
+</head>
+<body>
+<canvas id="gl"></canvas>
+
+<div id="hud">
+  <div class="tl">
+    <div class="clock" id="clock">23:00</div>
+    <div class="nightname" id="nightname">ночь 1</div>
+  </div>
+  <div class="tr">
+    <div class="score" id="score">мыслей · 0</div>
+    <div class="combo" id="combo">серия ×2</div>
+  </div>
+  <div id="meterLabel">бодрость</div>
+  <div id="meter"><div id="meterFill"></div></div>
+  <div id="ocBtn">заряд</div>
+</div>
+
+<div id="titleScreen" class="veil">
+  <div class="title-big">бесконечная&nbsp;ночь</div>
+  <div class="title-sub">рогалик про шарик света, который не спит</div>
+  <div class="title-help">
+    мышь — лететь · клик у корабля — нить · пробел — релокейт<br>
+    shift — оверчардж (жжёт бодрость) · мысли лечат · кошмары нет
+  </div>
+  <div class="title-best hidden" id="bestLine"></div>
+  <div class="title-hint">нажми, чтобы зажечься</div>
+  <div class="title-ver">killu × fable · роглайк-ответвление «третьей ночи» · наушники обязательны</div>
+</div>
+
+<div id="restScreen" class="veil hidden">
+  <div class="rest-head" id="restHead">ночь 1 пережита</div>
+  <div class="rest-big">что тебе приснится?</div>
+  <div class="rest-sub">сон длится мгновение — выбери один</div>
+  <div class="dreams" id="dreams"></div>
+</div>
+
+<div id="deathScreen" class="veil hidden">
+  <div class="death-big">сон забрал тебя</div>
+  <div class="death-sub" id="deathNight">на третьей ночи</div>
+  <div class="end-stats">
+    <div class="end-stat"><b id="stNights">0</b><span>ночей пережито</span></div>
+    <div class="end-stat"><b id="stMoths">0</b><span>мыслей поймано</span></div>
+    <div class="end-stat"><b id="stKills">0</b><span>кошмаров рассеяно</span></div>
+  </div>
+  <div class="death-quote" id="deathQuote">даже свет иногда моргает.</div>
+  <button class="end-btn" id="againBtn">зажечься снова</button>
+</div>
+
+<div id="pauseScreen" class="veil hidden">
+  <div class="pause-txt">пауза</div>
+  <div class="pause-sub">esc — вернуться в ночь</div>
+</div>
+
+<script src="game.js"></script>
+</body>
+</html>
