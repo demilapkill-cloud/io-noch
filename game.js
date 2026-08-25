@@ -172,9 +172,35 @@ function audioInit() {
   A.verbSend.connect(verb); verb.connect(vg); vg.connect(A.master);
 
   A.noise = makeNoiseBuffer(ctx, 1);
+
+  // восьмушечное эхо для лида и звона мыслей
+  A.dly = ctx.createDelay(1.5); A.dly.delayTime.value = 0.28;
+  const fb = ctx.createGain(); fb.gain.value = 0.34;
+  const fLp = ctx.createBiquadFilter(); fLp.type = 'lowpass'; fLp.frequency.value = 3400;
+  A.dly.connect(fLp); fLp.connect(fb); fb.connect(A.dly);
+  const dlyOut = ctx.createGain(); dlyOut.gain.value = 0.5;
+  A.dly.connect(dlyOut); dlyOut.connect(A.master);
+  A.dlySend = ctx.createGain(); A.dlySend.gain.value = 1; A.dlySend.connect(A.dly);
+
+  // дыхание ветра — тихий фильтрованный шум, живёт с энергией и перегревом
+  const wSrc = ctx.createBufferSource(); wSrc.buffer = makeNoiseBuffer(ctx, 3); wSrc.loop = true;
+  const wLp = ctx.createBiquadFilter(); wLp.type = 'lowpass'; wLp.frequency.value = 420; wLp.Q.value = 0.6;
+  A.windGain = ctx.createGain(); A.windGain.gain.value = 0.012;
+  wSrc.connect(wLp); wLp.connect(A.windGain); A.windGain.connect(A.master);
+  wSrc.start();
+
   A.next = ctx.currentTime + 0.1;
   A.step = 0; A.bar = 0; A.started = true;
   setInterval(schedulerTick, 25);
+}
+
+function panOut(g, worldX, amt) {
+  // привязка звука к месту на экране
+  const ctx = A.ctx;
+  if (worldX === undefined || !ctx.createStereoPanner) { g.connect(A.master); return; }
+  const p = ctx.createStereoPanner();
+  p.pan.value = clamp((worldX - cam.x) / (W * 0.6), -1, 1) * (amt || 0.7);
+  g.connect(p); p.connect(A.master);
 }
 
 function schedulerTick() {
@@ -248,14 +274,19 @@ function playChord(t) {
   filt.connect(g); g.connect(A.sc);
   const send = ctx.createGain(); send.gain.value = 0.5; g.connect(send); send.connect(A.verbSend);
   const oscs = [];
+  const lfo = ctx.createOscillator(); lfo.frequency.value = 0.6 + rand(0.3);
+  const lfoG = ctx.createGain(); lfoG.gain.value = 3.5;
+  lfo.connect(lfoG); lfo.start(t);
   for (const m of chord) {
     for (const det of [-7, 6]) {
       const o = ctx.createOscillator();
       o.type = e > 0.5 && !A.dawnMode ? 'sawtooth' : 'triangle';
       o.frequency.value = m2f(m); o.detune.value = det + rand(-3, 3);
+      lfoG.connect(o.detune);
       o.connect(filt); o.start(t); oscs.push(o);
     }
   }
+  oscs.push(lfo);
   A.chordVoices.push({ g, oscs });
 }
 
@@ -268,6 +299,13 @@ function kick(t) {
   g.gain.setValueAtTime(0.9, t);
   g.gain.exponentialRampToValueAtTime(0.001, t + 0.3);
   o.connect(g); g.connect(A.drums); o.start(t); o.stop(t + 0.32);
+  const cl = ctx.createBufferSource(); cl.buffer = A.noise;
+  const clHp = ctx.createBiquadFilter(); clHp.type = 'highpass'; clHp.frequency.value = 3000;
+  const clG = ctx.createGain();
+  clG.gain.setValueAtTime(0.18, t);
+  clG.gain.exponentialRampToValueAtTime(0.001, t + 0.02);
+  cl.connect(clHp); clHp.connect(clG); clG.connect(A.drums);
+  cl.start(t); cl.stop(t + 0.03);
   // сайдчейн-провал
   A.sc.gain.cancelScheduledValues(t);
   A.sc.gain.setValueAtTime(A.sc.gain.value, t);
@@ -310,6 +348,7 @@ function lead(t, midi) {
   const hp = ctx.createBiquadFilter(); hp.type = 'highpass'; hp.frequency.value = 320;
   hp.connect(g); g.connect(A.master);
   const send = ctx.createGain(); send.gain.value = 0.8; g.connect(send); send.connect(A.verbSend);
+  if (A.dlySend) { const ds = ctx.createGain(); ds.gain.value = 0.4; g.connect(ds); ds.connect(A.dlySend); }
   for (const det of [-11, 0, 12]) { // суперсоу с глайдом
     const o = ctx.createOscillator();
     o.type = 'sawtooth'; o.detune.value = det;
@@ -320,7 +359,7 @@ function lead(t, midi) {
   A.leadPrev = f;
 }
 
-function sfxCollect(combo) {
+function sfxCollect(combo, worldX) {
   if (!A.started) return;
   const ctx = A.ctx, t = ctx.currentTime;
   const midi = PENT[combo % PENT.length] + (combo >= PENT.length ? 12 : 0);
@@ -329,7 +368,8 @@ function sfxCollect(combo) {
   g.gain.setValueAtTime(0.001, t);
   g.gain.exponentialRampToValueAtTime(0.22, t + 0.008);
   g.gain.exponentialRampToValueAtTime(0.001, t + 0.6);
-  g.connect(A.master);
+  panOut(g, worldX);
+  if (A.dlySend) { const ds = ctx.createGain(); ds.gain.value = 0.3; g.connect(ds); ds.connect(A.dlySend); }
   const send = ctx.createGain(); send.gain.value = 1.2; g.connect(send); send.connect(A.verbSend);
   const o1 = ctx.createOscillator(); o1.type = 'triangle'; o1.frequency.value = f;
   const o2 = ctx.createOscillator(); o2.type = 'sine'; o2.frequency.value = f * 2.005;
@@ -512,16 +552,23 @@ void main(){
   vec3 sceneRGB = vec3(r, c0.g, b);
   vec3 col = sky*(1.-c0.a) + sceneRGB;
 
-  // дешёвый блум сцены
-  vec2 px = 5./uRes;
+  // мягкий блум двумя кольцами
+  vec2 px = 6./uRes;
   vec3 bl = vec3(0.);
   bl += texture2D(uScene, suv+vec2( px.x, 0.)).rgb;
   bl += texture2D(uScene, suv+vec2(-px.x, 0.)).rgb;
   bl += texture2D(uScene, suv+vec2(0.,  px.y)).rgb;
   bl += texture2D(uScene, suv+vec2(0., -px.y)).rgb;
-  bl += texture2D(uScene, suv+vec2( px.x, px.y)*1.8).rgb;
-  bl += texture2D(uScene, suv+vec2(-px.x,-px.y)*1.8).rgb;
-  col += bl * .09 * (.6+uEnergy);
+  bl += texture2D(uScene, suv+vec2( px.x, px.y)*.7).rgb;
+  bl += texture2D(uScene, suv+vec2(-px.x,-px.y)*.7).rgb;
+  bl += texture2D(uScene, suv+vec2( px.x,-px.y)*.7).rgb;
+  bl += texture2D(uScene, suv+vec2(-px.x, px.y)*.7).rgb;
+  vec3 bl2 = vec3(0.);
+  bl2 += texture2D(uScene, suv+vec2( px.x, 0.)*2.6).rgb;
+  bl2 += texture2D(uScene, suv+vec2(-px.x, 0.)*2.6).rgb;
+  bl2 += texture2D(uScene, suv+vec2(0.,  px.y)*2.6).rgb;
+  bl2 += texture2D(uScene, suv+vec2(0., -px.y)*2.6).rgb;
+  col += (bl * .075 + bl2 * .045) * (.6+uEnergy);
 
   // зерно
   col += (hash(uv*uRes+fract(uTime)*7.)-.5)*.06*(.5+uEnergy);
@@ -529,6 +576,11 @@ void main(){
   // насыщенность растёт с энергией
   float l = dot(col, vec3(.299,.587,.114));
   col = mix(vec3(l), col, 1. + uEnergy*.4);
+
+  // сплит-тонирование: тени чуть холоднее, света чуть теплее
+  float l2 = dot(col, vec3(.299,.587,.114));
+  col += (1.-smoothstep(0., .45, l2)) * vec3(-.010, .004, .028);
+  col += smoothstep(.55, 1., l2) * vec3(.026, .012, -.008);
 
   // виньетка
   float v = smoothstep(1.25,.3, length((uv-.5)*vec2(1.15,1.))*1.5);
@@ -579,10 +631,10 @@ gl.uniform1i(U.uScene, 0);
 // ============================================================
 const scene = document.createElement('canvas');
 const sc = scene.getContext('2d');
-let W = 0, H = 0, DPR = 1;
+let W = 0, H = 0, DPR = 1, DPR_CAP = 2.5;
 
 function resize() {
-  DPR = Math.min(window.devicePixelRatio || 1, 1.5);
+  DPR = Math.min(Math.max(window.devicePixelRatio || 1, 2), DPR_CAP); // суперсэмплинг ×2
   W = window.innerWidth; H = window.innerHeight;
   glCanvas.width = (W * DPR) | 0; glCanvas.height = (H * DPR) | 0;
   scene.width = glCanvas.width; scene.height = glCanvas.height;
@@ -853,7 +905,7 @@ function burst(x, y, col, n, sp) {
 }
 
 // ---------- новые звуки ----------
-function sfxZap() {
+function sfxZap(worldX) {
   if (!A.started) return;
   const ctx = A.ctx, t = ctx.currentTime;
   const src = ctx.createBufferSource(); src.buffer = A.noise;
@@ -861,7 +913,7 @@ function sfxZap() {
   const g = ctx.createGain();
   g.gain.setValueAtTime(0.4, t);
   g.gain.exponentialRampToValueAtTime(0.001, t + 0.22);
-  src.connect(hp); hp.connect(g); g.connect(A.master);
+  src.connect(hp); hp.connect(g); panOut(g, worldX);
   src.start(t); src.stop(t + 0.25);
   const o = ctx.createOscillator(), og = ctx.createGain();
   o.type = 'square';
@@ -871,7 +923,7 @@ function sfxZap() {
   og.gain.exponentialRampToValueAtTime(0.001, t + 0.16);
   o.connect(og); og.connect(A.master); o.start(t); o.stop(t + 0.18);
 }
-function sfxKill() {
+function sfxKill(worldX) {
   if (!A.started) return;
   const ctx = A.ctx, t = ctx.currentTime;
   const o = ctx.createOscillator(), g = ctx.createGain();
@@ -880,7 +932,7 @@ function sfxKill() {
   o.frequency.exponentialRampToValueAtTime(50, t + 0.28);
   g.gain.setValueAtTime(0.3, t);
   g.gain.exponentialRampToValueAtTime(0.001, t + 0.32);
-  o.connect(g); g.connect(A.master); o.start(t); o.stop(t + 0.35);
+  o.connect(g); panOut(g, worldX); o.start(t); o.stop(t + 0.35);
 }
 function sfxHurt() {
   if (!A.started) return;
@@ -938,6 +990,11 @@ window.addEventListener('pointerdown', e => {
 });
 window.addEventListener('keydown', e => {
   keys[e.key] = true;
+  if (S.mode === 'level' && ['1', '2', '3'].includes(e.key)) {
+    const card = document.querySelector('.dream[data-key="' + e.key + '"]');
+    if (card) card.click();
+    return;
+  }
   if (e.key === 'Escape' && S.mode === 'play') togglePause();
   if ((e.key === ' ' || e.code === 'Space') && S.mode === 'play' && !S.paused) { e.preventDefault(); tryRelocate(); }
   if (e.key === 'Shift') io.oc = true;
@@ -1001,7 +1058,7 @@ function killEnemy(i) {
   enemies.splice(i, 1);
   RUN.kills++;
   burst(e.x, e.y, [0.72, 0.4, 0.9], 18, 260);
-  sfxKill();
+  sfxKill(e.x);
   if (e.type === 'eater' && e.eaten > 0) {
     for (let k = 0; k < Math.min(e.eaten, 5); k++) spawnMoteAt(e.x + rand(-30, 30), e.y + rand(-30, 30));
   } else if (Math.random() < RUN.feast) {
@@ -1054,6 +1111,8 @@ function update(dt) {
   const D = difficulty();
   S.energy = clamp(energyAt(S.t) + Math.min(0.18, D * 0.02) + (isStormNight() && playing ? 0.1 : 0), 0, 1);
   A.energy = playing ? S.energy : 0.12;
+  if (A.started && A.windGain)
+    A.windGain.gain.value = 0.008 + S.energy * 0.028 + io.heat * 0.07;
   updateView();
 
   const ksp = 620 * dt;
@@ -1303,7 +1362,7 @@ function update(dt) {
           sp.cd = 4;
           e.hp--; e.flashT = 0.25;
           burst(e.x, e.y, [0.55, 0.25, 0.75], 14, 240);
-          sfxKill();
+          sfxKill(e.x);
           if (e.hp <= 0) {
             enemies.splice(i, 1);
             RUN.kills++;
@@ -1371,7 +1430,7 @@ function update(dt) {
     b.t += dt;
     if (b.t > b.warn && !b.hitDone) {
       b.hitDone = true;
-      sfxZap();
+      sfxZap(b.x);
       S.shake = Math.max(S.shake, 0.4); S.glitch = Math.max(S.glitch, 0.35);
       if (S.mode === 'play' && Math.abs(io.x - b.x) < 30) damageIo(20, b.x, io.y + 50);
     }
@@ -1494,7 +1553,7 @@ function collectMote(m) {
   RUN.wake = Math.min(RUN.wakeMax, RUN.wake + heal);
   S.combo++; S.comboT = 3;
   if (S.combo > RUN.comboBest) RUN.comboBest = S.combo;
-  sfxCollect(S.combo - 1);
+  sfxCollect(S.combo - 1, m.x);
   burst(m.x, m.y, S.pal.mote, 12, 200);
   const tier = phraseTier(S.t);
   if (RUN.thoughts === 1 || Math.random() < 0.35) {
@@ -1710,6 +1769,14 @@ function drawMote(m, P, pal, tm) {
   tintGlow(P.x, P.y, m.r * 3.2 * pulse * P.k, pal.mote, 0.42 * Math.max(0, fade));
   sc.fillStyle = css3([1, 1, 1], 0.85 * Math.max(0, fade));
   sc.beginPath(); sc.arc(P.x, P.y, (m.r * 0.32 * pulse + 0.8) * P.k, 0, TAU); sc.fill();
+  // блик-крестик
+  const gl2 = m.r * 2.6 * pulse * P.k;
+  sc.strokeStyle = css3([1, 1, 1], 0.35 * Math.max(0, fade) * pulse);
+  sc.lineWidth = 0.7;
+  sc.beginPath();
+  sc.moveTo(P.x - gl2, P.y); sc.lineTo(P.x + gl2, P.y);
+  sc.moveTo(P.x, P.y - gl2); sc.lineTo(P.x, P.y + gl2);
+  sc.stroke();
   sc.globalCompositeOperation = 'source-over';
   sc.globalAlpha = 1;
 }
@@ -1936,6 +2003,13 @@ function drawIo(P, pal, tm) {
   sc.strokeStyle = css3(IO_COL, 0.85);
   sc.lineWidth = 1.6;
   sc.beginPath(); sc.arc(P.x, P.y, 11.5 * ocMul + Math.sin(tm * 5) * 1.2, 0, TAU); sc.stroke();
+  // медленное внешнее кольцо из трёх дуг
+  sc.strokeStyle = css3(IO_COL, 0.35);
+  sc.lineWidth = 1;
+  for (let i = 0; i < 3; i++) {
+    const a0 = -tm * 0.6 + i * TAU / 3;
+    sc.beginPath(); sc.arc(P.x, P.y, 22 * ocMul, a0, a0 + 1.4); sc.stroke();
+  }
   for (let i = 0; i < 5; i++) {
     const a = tm * 1.1 + i * TAU / 5;
     const rr = (16 + Math.sin(tm * 3.3 + i * 1.7) * 4) * k;
@@ -2017,6 +2091,7 @@ const elCombo = document.getElementById('combo');
 const elLvl = document.getElementById('lvl');
 const elMeter = document.getElementById('meterFill');
 const elXp = document.getElementById('xpFill');
+const elReloc = document.getElementById('relocHud');
 let hudTimer = 0;
 
 function updateHud() {
@@ -2032,6 +2107,13 @@ function updateHud() {
   elMeter.style.background = col;
   elMeter.style.boxShadow = '0 0 12px ' + col;
   elXp.style.width = (clamp(RUN.xp / RUN.xpNext, 0, 1) * 100).toFixed(1) + '%';
+  if (io.reloc.cd > 0) {
+    elReloc.textContent = 'мерцание · ' + io.reloc.cd.toFixed(1) + 'с';
+    elReloc.classList.remove('ready');
+  } else {
+    elReloc.textContent = 'мерцание · готово';
+    elReloc.classList.add('ready');
+  }
 }
 function updateClock() {
   const mins = S.t * 420;
@@ -2109,9 +2191,11 @@ function levelUp() {
     if (u.rare && Math.random() < 0.5 && pool.length >= 3 - opts.length) continue;
     opts.push(u);
   }
+  let dIdx = 0;
   for (const u of opts) {
     const d = document.createElement('button');
     d.className = 'dream' + (u.rare ? ' rare' : '');
+    d.dataset.key = String(++dIdx);
     d.innerHTML = '<span class="d-name">' + u.name + '</span><span class="d-desc">' + u.desc + '</span>';
     d.addEventListener('click', () => {
       u.apply(RUN);
@@ -2155,12 +2239,21 @@ document.getElementById('againBtn').addEventListener('click', e => {
 
 // ---------- цикл ----------
 let last = performance.now();
+let perfT = 0, perfN = 0, perfChecked = false;
 function frame(now) {
   requestAnimationFrame(frame);
   let dt = (now - last) / 1000;
   last = now;
   if (dt > 0.1) dt = 0.1;
   if (S.paused) return;
+  // страж производительности: если 2× не тянется — тихо отступаем
+  if (!perfChecked && S.mode === 'play') {
+    perfT += dt; perfN++;
+    if (perfN >= 180) {
+      perfChecked = true;
+      if (perfT / perfN > 0.026 && DPR_CAP > 1.5) { DPR_CAP = 1.5; resize(); }
+    }
+  }
   S.time += dt;
   update(dt);
   draw();
