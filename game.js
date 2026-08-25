@@ -590,16 +590,12 @@ void main(){
   bl += texture2D(uScene, suv+vec2(-px.x, 0.)).rgb;
   bl += texture2D(uScene, suv+vec2(0.,  px.y)).rgb;
   bl += texture2D(uScene, suv+vec2(0., -px.y)).rgb;
-  bl += texture2D(uScene, suv+vec2( px.x, px.y)*.7).rgb;
-  bl += texture2D(uScene, suv+vec2(-px.x,-px.y)*.7).rgb;
-  bl += texture2D(uScene, suv+vec2( px.x,-px.y)*.7).rgb;
-  bl += texture2D(uScene, suv+vec2(-px.x, px.y)*.7).rgb;
   vec3 bl2 = vec3(0.);
-  bl2 += texture2D(uScene, suv+vec2( px.x, 0.)*2.6).rgb;
-  bl2 += texture2D(uScene, suv+vec2(-px.x, 0.)*2.6).rgb;
-  bl2 += texture2D(uScene, suv+vec2(0.,  px.y)*2.6).rgb;
-  bl2 += texture2D(uScene, suv+vec2(0., -px.y)*2.6).rgb;
-  col += (bl * .075 + bl2 * .045) * (.6+uEnergy);
+  bl2 += texture2D(uScene, suv+vec2( px.x, px.y)*1.8).rgb;
+  bl2 += texture2D(uScene, suv+vec2(-px.x,-px.y)*1.8).rgb;
+  bl2 += texture2D(uScene, suv+vec2( px.x,-px.y)*1.8).rgb;
+  bl2 += texture2D(uScene, suv+vec2(-px.x, px.y)*1.8).rgb;
+  col += (bl * .112 + bl2 * .073) * (.6+uEnergy);
 
   // зерно
   col += (hash(uv*uRes+fract(uTime)*7.)-.5)*.06*(.5+uEnergy);
@@ -670,11 +666,12 @@ const skyFbo = gl.createFramebuffer();
 let sceneTexW = 0, sceneTexH = 0, skyW = 0, skyH = 0;
 
 function allocGlTextures() {
-  // сцена: хранилище выделяется один раз на размер, кадры льются texSubImage2D
+  // сцена: хранилище выделяется один раз на размер, кадры льются texSubImage2D;
+  // размер сцены может быть ниже выхода — билинейный апсэмпл мягок для свечений
   gl.pixelStorei(gl.UNPACK_FLIP_Y_WEBGL, false);
   gl.bindTexture(gl.TEXTURE_2D, sceneTex);
-  gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, glCanvas.width, glCanvas.height, 0, gl.RGBA, gl.UNSIGNED_BYTE, null);
-  sceneTexW = glCanvas.width; sceneTexH = glCanvas.height;
+  gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, scene.width, scene.height, 0, gl.RGBA, gl.UNSIGNED_BYTE, null);
+  sceneTexW = scene.width; sceneTexH = scene.height;
   // небо: треть разрешения хватает мягким градиентам
   skyW = Math.max(64, Math.ceil(glCanvas.width * 0.35));
   skyH = Math.max(64, Math.ceil(glCanvas.height * 0.35));
@@ -694,13 +691,20 @@ gl.uniform1i(U.uSky, 1);
 // ============================================================
 const scene = document.createElement('canvas');
 const sc = scene.getContext('2d');
-let W = 0, H = 0, DPR = 1, DPR_CAP = 2.5;
+// плавность — приоритет №1: выход GL в родном разрешении экрана (больше
+// экран всё равно не покажет), а 2D-сцена рисуется в динамическом масштабе —
+// адаптивный контроллер в frame() держит кадр лёгким
+let W = 0, H = 0, DPR = 1;
+let outDPR = 1;      // разрешение выхода: родное, кап 2
+let outCap = 2;      // последний рубеж контроллера — снизить и выход
+let sceneScale = 1;  // динамическое разрешение сцены (0.55…1)
 
 function resize() {
-  DPR = Math.min(Math.max(window.devicePixelRatio || 1, 2), DPR_CAP); // суперсэмплинг ×2
+  outDPR = Math.min(window.devicePixelRatio || 1, outCap);
+  DPR = outDPR * sceneScale;
   W = window.innerWidth; H = window.innerHeight;
-  glCanvas.width = (W * DPR) | 0; glCanvas.height = (H * DPR) | 0;
-  scene.width = glCanvas.width; scene.height = glCanvas.height;
+  glCanvas.width = (W * outDPR) | 0; glCanvas.height = (H * outDPR) | 0;
+  scene.width = Math.max(2, (W * DPR) | 0); scene.height = Math.max(2, (H * DPR) | 0);
   gl.viewport(0, 0, glCanvas.width, glCanvas.height);
   allocGlTextures();
 }
@@ -786,36 +790,36 @@ const DEATH_QUOTES = [
 
 // ---------- дары бессонницы (прокачка по очкам) ----------
 const UPGRADES = [
-  { id: 'spark',   name: 'искра сверх прежнего', desc: 'к хороводу твоему пристаёт новый спирит', apply: r => r.spirits++ },
-  { id: 'round',   name: 'хоровод пошире',    desc: 'орбита спиритов делается на треть просторней', apply: r => r.orbitR *= 1.3 },
-  { id: 'spin',    name: 'хоровод порезвее',  desc: 'искры кружатся с вящей быстротою', apply: r => r.spinMul *= 1.4 },
-  { id: 'tea',     name: 'чай крепчайший',    desc: 'предел бодрости возрастает на 25, да и глоток тотчас', apply: r => { r.wakeMax += 25; r.wake = Math.min(r.wakeMax, r.wake + 20); } },
-  { id: 'calm',    name: 'дыхание ровное',    desc: 'бодрость тает пятою долей медленней', apply: r => r.drainMul *= 0.8 },
-  { id: 'dawn',    name: 'свет тёплый',       desc: 'всякая мысль целит на 2 сильнее', apply: r => r.healBonus += 2 },
-  { id: 'thread',  name: 'нить длинная',      desc: 'к кораблю возможно привязаться издалече', apply: r => r.tetherR *= 1.45 },
-  { id: 'chain',   name: 'нить верная',       desc: 'доколе держишься за корабль — бодрость не тает вовсе', once: true, apply: r => r.chain = true },
-  { id: 'light',   name: 'лёгкость',          desc: 'свет летит пятою долей быстрее', apply: r => r.speed *= 1.2 },
-  { id: 'breath',  name: 'вдох глубокий',     desc: 'мерцание возвращается двумя секундами ранее', apply: r => r.relocCd = Math.max(3, r.relocCd - 2) },
+  { id: 'spark',   name: 'искра-побратим', desc: 'к хороводу твоему пристаёт новый спирит', apply: r => r.spirits++ },
+  { id: 'round',   name: 'широкий хоровод',    desc: 'орбита спиритов делается на треть просторней', apply: r => r.orbitR *= 1.3 },
+  { id: 'spin',    name: 'неистовый хоровод',  desc: 'искры кружатся с вящей быстротою', apply: r => r.spinMul *= 1.4 },
+  { id: 'tea',     name: 'настой полуночи',    desc: 'предел бодрости возрастает на 25, да и глоток тотчас', apply: r => { r.wakeMax += 25; r.wake = Math.min(r.wakeMax, r.wake + 20); } },
+  { id: 'calm',    name: 'тихое горение',    desc: 'бодрость тает пятою долей медленней', apply: r => r.drainMul *= 0.8 },
+  { id: 'dawn',    name: 'тёплое зарево',       desc: 'всякая мысль целит на 2 сильнее', apply: r => r.healBonus += 2 },
+  { id: 'thread',  name: 'нить за горизонт',      desc: 'к кораблю возможно привязаться издалече', apply: r => r.tetherR *= 1.45 },
+  { id: 'chain',   name: 'неразрывная связь',       desc: 'доколе держишься за корабль — бодрость не тает вовсе', once: true, apply: r => r.chain = true },
+  { id: 'light',   name: 'попутный свет',          desc: 'свет летит пятою долей быстрее', apply: r => r.speed *= 1.2 },
+  { id: 'breath',  name: 'зов мерцания',     desc: 'мерцание возвращается двумя секундами ранее', apply: r => r.relocCd = Math.max(3, r.relocCd - 2) },
   { id: 'echo',    name: 'эхо света',         desc: 'мерцание вспыхивает и разгоняет кошмаров окрест', once: true, apply: r => r.echo = true },
-  { id: 'coolfl',  name: 'пламя холодное',    desc: 'свет терпит скорость дольше — перегрев наступает позже', apply: r => r.hotMul *= 1.35 },
-  { id: 'flow',    name: 'ветер своенравный', desc: 'теченья несут тебя туда, куда сам изволишь лететь', once: true, apply: r => r.flow = true },
-  { id: 'riftg',   name: 'дар разломов',      desc: 'мысли подле разломов целят вдвое', once: true, apply: r => r.riftGift = true },
-  { id: 'magnet',  name: 'магнит для мыслей', desc: 'мысли сами льнут к теплу твоему', apply: r => r.pickupR *= 1.4 },
-  { id: 'grav',    name: 'притяжение тихое',  desc: 'дальние мысли плывут к тебе неспешно', apply: r => r.gravity++ },
-  { id: 'horizon', name: 'горизонт щедрый',   desc: 'мысли рождаются приметно чаще', apply: r => r.moteRateMul *= 0.75 },
+  { id: 'coolfl',  name: 'холодное пламя',    desc: 'свет терпит скорость дольше — перегрев наступает позже', apply: r => r.hotMul *= 1.35 },
+  { id: 'flow',    name: 'узда ветров', desc: 'теченья несут тебя туда, куда сам изволишь лететь', once: true, apply: r => r.flow = true },
+  { id: 'riftg',   name: 'милость разлома',      desc: 'мысли подле разломов целят вдвое', once: true, apply: r => r.riftGift = true },
+  { id: 'magnet',  name: 'жадное сияние', desc: 'мысли сами льнут к теплу твоему', apply: r => r.pickupR *= 1.4 },
+  { id: 'grav',    name: 'дальний зов',  desc: 'дальние мысли плывут к тебе неспешно', apply: r => r.gravity++ },
+  { id: 'horizon', name: 'щедрый горизонт',   desc: 'мысли рождаются приметно чаще', apply: r => r.moteRateMul *= 0.75 },
   { id: 'feast',   name: 'пир из кошмаров',   desc: 'рассеянный кошмар, случается, оставляет мысль', apply: r => r.feast = Math.min(0.9, r.feast + 0.45) },
-  { id: 'blanket', name: 'одеяло толстое',    desc: 'всё ранит четвертью слабее', apply: r => r.dmgMul *= 0.75 },
+  { id: 'blanket', name: 'стёганая броня',    desc: 'всё ранит четвертью слабее', apply: r => r.dmgMul *= 0.75 },
   { id: 'stormh',  name: 'сердце бури',       desc: 'в ночи бурные урон тебе вдвое меньше', once: true, apply: r => r.stormHeart = true },
   { id: 'wind2',   name: 'второе дыхание',    desc: 'единожды за бессонницу смертный удар тебя не гасит', rare: true, once: true, apply: r => r.secondWind = true },
   { id: 'starf',   name: 'звёздный час',      desc: 'павшие звёзды сыплются с неба приметно чаще', apply: r => r.starRateMul *= 0.62 },
-  { id: 'keen',    name: 'искры бойкие',      desc: 'погасшая искра возгорается на треть скорее', apply: r => r.sparkCdMul *= 0.7 },
+  { id: 'keen',    name: 'неугасимый рой',      desc: 'погасшая искра возгорается на треть скорее', apply: r => r.sparkCdMul *= 0.7 },
   { id: 'dew',     name: 'роса рассветная',   desc: 'всякий рассвет омывает тебя дюжиной бодрости', apply: r => r.dawnDew += 12 },
-  { id: 'chreda',  name: 'чреда долгая',      desc: 'чреда мыслей держится вдвое дольше', apply: r => r.comboMul *= 1.8 },
+  { id: 'chreda',  name: 'долгая чреда',      desc: 'чреда мыслей держится вдвое дольше', apply: r => r.comboMul *= 1.8 },
   { id: 'zharcz',  name: 'жар чреды',         desc: 'при чреде от пяти всякая мысль дарит лишнее очко опыта', once: true, apply: r => r.comboXp = true },
   { id: 'rod',     name: 'громоотвод',        desc: 'молния тебя не ранит — напротив, бодрит', rare: true, once: true, apply: r => r.boltRod = true },
   { id: 'veil',    name: 'вуаль мерцания',    desc: 'после мерцания ночь не смеет тронуть тебя две с половиной секунды', once: true, apply: r => r.relocVeil = true },
   { id: 'zhatva',  name: 'жатва бури',        desc: 'в ночи бурные всякая мысль дарит лишнее очко опыта', once: true, apply: r => r.stormXp = true },
-  { id: 'skoro',   name: 'скороход небесный', desc: 'предел скорости твоей отодвигается ввысь', apply: r => r.maxSpd += 140 },
+  { id: 'skoro',   name: 'небесный скороход', desc: 'предел скорости твоей отодвигается ввысь', apply: r => r.maxSpd += 140 },
 ];
 
 // иконки даров — тонкий штрих в духе созвездий
@@ -1900,13 +1904,15 @@ function draw() {
   for (const wb of webs) drawWeb(wb, tm);
 
   // падающие звёзды — атмосфера, экранный слой
-  for (const s2 of shots) {
+  sc.lineWidth = 1.6; sc.lineCap = 'round';
+  for (const s2 of shots) { // штрих в два тона вместо градиента на каждый кадр
     const a = Math.sin(Math.PI * clamp(s2.t / s2.life, 0, 1));
-    const gr = sc.createLinearGradient(s2.x, s2.y, s2.x - s2.vx * 0.12, s2.y - s2.vy * 0.12);
-    gr.addColorStop(0, css3([1, 1, 1], 0.9 * a));
-    gr.addColorStop(1, css3(pal.tint, 0));
-    sc.strokeStyle = gr; sc.lineWidth = 1.6; sc.lineCap = 'round';
-    sc.beginPath(); sc.moveTo(s2.x, s2.y); sc.lineTo(s2.x - s2.vx * 0.12, s2.y - s2.vy * 0.12); sc.stroke();
+    const tx2 = s2.x - s2.vx * 0.12, ty2 = s2.y - s2.vy * 0.12;
+    const mx2 = (s2.x + tx2) / 2, my2 = (s2.y + ty2) / 2;
+    sc.strokeStyle = css3([1, 1, 1], 0.85 * a);
+    sc.beginPath(); sc.moveTo(s2.x, s2.y); sc.lineTo(mx2, my2); sc.stroke();
+    sc.strokeStyle = css3(pal.tint, 0.32 * a);
+    sc.beginPath(); sc.moveTo(mx2, my2); sc.lineTo(tx2, ty2); sc.stroke();
   }
 
   // мир: собрать, отсортировать по глубине (проекции y), нарисовать
@@ -2717,19 +2723,31 @@ document.getElementById('againBtn').addEventListener('click', e => {
 
 // ---------- цикл ----------
 let last = performance.now();
-let perfT = 0, perfN = 0, perfChecked = false;
+// адаптивное разрешение: скользящее среднее кадра с гистерезисом;
+// вниз — быстро, вверх — осторожно и не выше проверенного потолка
+let emaMs = 16.7, resPause = 2.5, maxScale = 1, lastUp = -99;
 function frame(now) {
   requestAnimationFrame(frame);
   let dt = (now - last) / 1000;
   last = now;
   if (dt > 0.1) dt = 0.1;
   if (S.paused) return;
-  // страж производительности: если 2× не тянется — тихо отступаем
-  if (!perfChecked && S.mode === 'play') {
-    perfT += dt; perfN++;
-    if (perfN >= 180) {
-      perfChecked = true;
-      if (perfT / perfN > 0.026 && DPR_CAP > 1.5) { DPR_CAP = 1.5; resize(); }
+  if (S.mode === 'play') {
+    emaMs += (dt * 1000 - emaMs) * 0.06;
+    resPause -= dt;
+    if (resPause <= 0) {
+      if (emaMs > 29 && sceneScale > 0.56) {
+        if (S.time - lastUp < 9) maxScale = sceneScale; // вверх было рано — запомнить потолок
+        sceneScale = Math.max(0.55, sceneScale - 0.15);
+        resize(); resPause = 2; emaMs = 20;
+      } else if (emaMs > 33 && sceneScale <= 0.56 && outCap > 1) {
+        outCap = 1; // последний рубеж: выход в 1× (совсем слабое железо)
+        resize(); resPause = 3; emaMs = 20;
+      } else if (emaMs < 13.5 && sceneScale < maxScale - 0.01) {
+        sceneScale = Math.min(maxScale, sceneScale + 0.15);
+        lastUp = S.time;
+        resize(); resPause = 3; emaMs = 20;
+      }
     }
   }
   S.time += dt;
