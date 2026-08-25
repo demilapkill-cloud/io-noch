@@ -53,9 +53,32 @@
   #xpbar{position:fixed;left:0;right:0;bottom:6px;height:2px;background:rgba(235,232,225,.04)}
   #xpFill{height:100%;width:0%;background:var(--ember);box-shadow:0 0 10px var(--ember);opacity:.9;transition:width .25s var(--ease)}
   #meterLabel{position:fixed;bottom:calc(16px + env(safe-area-inset-bottom));left:calc(66px + env(safe-area-inset-left));font-size:10px;letter-spacing:.22em;text-transform:uppercase;color:var(--ink-4);font-family:var(--font-mono)}
-  #relocHud{position:fixed;bottom:calc(16px + env(safe-area-inset-bottom));right:calc(22px + env(safe-area-inset-right));font-size:10px;letter-spacing:.22em;text-transform:uppercase;color:var(--ink-4);font-family:var(--font-mono);transition:color .3s}
-  #relocHud.ready{color:var(--io)}
-  .touch #relocHud{display:none}
+  /* полоса способностей: что нажать и готово ли оно */
+  #skills{position:fixed;left:50%;transform:translateX(-50%);
+    bottom:calc(15px + env(safe-area-inset-bottom));display:flex;gap:24px;align-items:center}
+  .sk{display:flex;align-items:center;gap:7px;font-family:var(--font-mono);font-size:10px;
+    letter-spacing:.18em;text-transform:uppercase;color:var(--ink-4);transition:color .25s,opacity .25s}
+  .sk i{font-style:normal;font-size:9px;letter-spacing:.06em;color:var(--ink-4);
+    border:1px solid var(--line);padding:2px 6px;min-width:22px;text-align:center;transition:all .25s}
+  .sk.ready{color:var(--ink-2)}
+  .sk.ready i{color:var(--io);border-color:rgba(143,208,255,.45)}
+  .sk.on{color:var(--io)}
+  .sk.on i{color:var(--night-0);background:var(--io);border-color:var(--io);box-shadow:0 0 16px rgba(143,208,255,.45)}
+  .sk.cool{opacity:.4}
+  .touch #skills{display:none}
+  /* полоса способностей: что нажать и готово ли оно */
+  #skills{position:fixed;left:50%;transform:translateX(-50%);
+    bottom:calc(15px + env(safe-area-inset-bottom));display:flex;gap:24px;align-items:center}
+  .sk{display:flex;align-items:center;gap:7px;font-family:var(--font-mono);font-size:10px;
+    letter-spacing:.18em;text-transform:uppercase;color:var(--ink-4);transition:color .25s,opacity .25s}
+  .sk i{font-style:normal;font-size:9px;letter-spacing:.06em;color:var(--ink-4);
+    border:1px solid var(--line);padding:2px 6px;min-width:22px;text-align:center;transition:all .25s}
+  .sk.ready{color:var(--ink-2)}
+  .sk.ready i{color:var(--io);border-color:rgba(143,208,255,.45)}
+  .sk.on{color:var(--io)}
+  .sk.on i{color:var(--night-0);background:var(--io);border-color:var(--io);box-shadow:0 0 16px rgba(143,208,255,.45)}
+  .sk.cool{opacity:.4}
+  .touch #skills{display:none}
   #hud .lvl{margin-top:6px;font-size:10px;letter-spacing:.2em;text-transform:uppercase;color:var(--ink-4);font-family:var(--font-mono)}
   #hud .tl,#hud .tr{padding-top:2px}
   #hud .tl{border-left:1px solid var(--line);padding-left:12px}
@@ -72,20 +95,22 @@
     box-shadow:0 0 14px rgba(255,79,216,.55);transition:width .25s var(--ease)}
 
   /* кнопки под большой палец (тач) */
-  #touchPad{position:fixed;right:calc(18px + env(safe-area-inset-right));
-    bottom:calc(24px + env(safe-area-inset-bottom));display:none;flex-direction:column;gap:13px;
+  #touchPad{position:fixed;right:calc(16px + env(safe-area-inset-right));
+    bottom:calc(20px + env(safe-area-inset-bottom));display:none;flex-direction:column;gap:11px;
     pointer-events:none;z-index:6}
   .touch #touchPad{display:flex}
   body.touch-left #touchPad{right:auto;left:calc(18px + env(safe-area-inset-left))}
   body.touch-left #setBtn{left:auto;right:calc(16px + env(safe-area-inset-right))}
-  .tbtn{width:64px;height:64px;border-radius:50%;border:1px solid var(--line);
+  .tbtn{width:46px;height:46px;border-radius:50%;border:1px solid var(--line);
     background:rgba(12,16,21,.55);color:var(--io);-webkit-backdrop-filter:blur(2px);backdrop-filter:blur(2px);
-    font-family:var(--font-mono);font-size:9px;letter-spacing:.1em;text-transform:uppercase;
-    pointer-events:auto;display:flex;align-items:center;justify-content:center;text-align:center;
-    padding:4px;transition:background .15s,box-shadow .15s,opacity .25s;touch-action:none}
+    pointer-events:auto;display:flex;align-items:center;justify-content:center;
+    padding:11px;transition:background .15s,box-shadow .15s,opacity .25s;touch-action:none}
+  .tbtn svg{width:100%;height:100%;fill:none;stroke:currentColor;stroke-width:1.7;
+    stroke-linecap:round;stroke-linejoin:round}
+  .tbtn.ready{border-color:rgba(143,208,255,.55);box-shadow:0 0 16px rgba(143,208,255,.25)}
   .tbtn.held,.tbtn.on{background:rgba(143,208,255,.25);box-shadow:0 0 24px rgba(143,208,255,.4)}
   .tbtn.cool{opacity:.32;color:var(--ink-3)}
-  #btnTether{width:56px;height:56px;align-self:flex-end}
+  #btnTether{width:42px;height:42px;padding:10px;align-self:flex-end}
   body.touch-left #btnTether{align-self:flex-start}
 
   /* ---------- overlays ---------- */
@@ -254,8 +279,8 @@
     display:none;text-shadow:0 0 8px rgba(0,0,0,.8)}
   #fpsHud.on{display:block}
   /* режимы интерфейса */
-  body.hud-lite #hud .tl,body.hud-lite #hud .tr,body.hud-lite #meterLabel,body.hud-lite #relocHud{display:none}
-  body.hud-off #hud .tl,body.hud-off #hud .tr,body.hud-off #meterLabel,body.hud-off #relocHud,
+  body.hud-lite #hud .tl,body.hud-lite #hud .tr,body.hud-lite #meterLabel,body.hud-lite #skills{display:none}
+  body.hud-off #hud .tl,body.hud-off #hud .tr,body.hud-off #meterLabel,body.hud-off #skills,
   body.hud-off #meter,body.hud-off #xpbar,body.hud-off #bossHud{display:none}
 
   #pauseScreen{background:rgba(7,9,12,.55)}
@@ -303,13 +328,17 @@
   </div>
   <div id="fpsHud"></div>
   <div id="meterLabel" data-i18n="wakeLabel"></div>
-  <div id="relocHud" class="ready">мерцание · готово</div>
+  <div id="skills">
+    <div class="sk" id="skTether"><b data-i18n="btnTether"></b><i data-i18n="keyMouse"></i></div>
+    <div class="sk" id="skBlink"><b data-i18n="btnBlink"></b><i id="skBlinkKey"></i></div>
+    <div class="sk" id="skCharge"><b data-i18n="ocBtn"></b><i data-i18n="keyShift"></i></div>
+  </div>
   <div id="xpbar"><div id="xpFill"></div></div>
   <div id="meter"><div id="meterFill"></div></div>
   <div id="touchPad">
-    <button class="tbtn" id="btnTether" data-i18n="btnTether"></button>
-    <button class="tbtn" id="btnBlink" data-i18n="btnBlink"></button>
-    <button class="tbtn" id="ocBtn" data-i18n="ocBtn"></button>
+    <button class="tbtn" id="btnTether"><svg viewBox="0 0 24 24"><path d="M4 20c7-1.5 11-5.5 11-11a3 3 0 1 1 6 0"/><circle cx="4" cy="20" r="1.4"/></svg></button>
+    <button class="tbtn" id="btnBlink"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="2"/><path d="M12 4.5a7.5 7.5 0 0 1 7.5 7.5M12 19.5A7.5 7.5 0 0 1 4.5 12"/></svg></button>
+    <button class="tbtn" id="ocBtn"><svg viewBox="0 0 24 24"><path d="M13 3L7 13h4l-1 8 7-11h-4z"/></svg></button>
   </div>
 </div>
 

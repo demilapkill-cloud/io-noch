@@ -70,6 +70,8 @@ const TXT = {
     bossComes: 'корабль-кошмар идёт по небу',
     bossFled: 'рассвет прогнал корабль-кошмар',
     tether: 'нить натянута надёжно',
+    hintTether: 'корабль близко — брось нить: она вяжет и жжёт ночь',
+    sling: 'разгон',
     secondWind: 'второе дыхание',
     dew: 'роса рассветная',
     dawnLine: 'рассвет — а день промелькнёт мимо',
@@ -83,8 +85,7 @@ const TXT = {
     thoughts: n => 'мыслей · ' + n,
     tierN: n => 'степень ' + n,
     chain: n => 'чреда ×' + n,
-    blinkCd: s => 'мерцание · ' + s + 'с',
-    blinkReady: 'мерцание · готово',
+    keyMouse: 'ЛКМ', keySpace: 'пробел', keyShift: 'shift', secShort: 'с',
     wakeLabel: 'бодрость',
     ocBtn: 'заряд',
     bossName: 'корабль-кошмар',
@@ -158,6 +159,8 @@ const TXT = {
     bossComes: 'the nightmare ship sails the sky',
     bossFled: 'dawn drove the nightmare ship away',
     tether: 'the thread is drawn taut',
+    hintTether: 'a ship is near — cast the thread: it snares and burns the night',
+    sling: 'a rush',
     secondWind: 'second wind',
     dew: 'dawn dew',
     dawnLine: 'dawn — and the day will flit past',
@@ -170,8 +173,7 @@ const TXT = {
     thoughts: n => 'thoughts · ' + n,
     tierN: n => 'tier ' + n,
     chain: n => 'chain ×' + n,
-    blinkCd: s => 'blink · ' + s + 's',
-    blinkReady: 'blink · ready',
+    keyMouse: 'LMB', keySpace: 'space', keyShift: 'shift', secShort: 's',
     wakeLabel: 'wakefulness',
     ocBtn: 'charge',
     bossName: 'the nightmare ship',
@@ -1317,6 +1319,7 @@ const S = {
   combo: 0, comboT: 0,
   shake: 0, glitch: 0,
   hurtT: 0, stormFired: false, dawnFired: false, bossDone: false,
+  reachShip: null, tetherHinted: false,
   pal: palette(0), energy: 0.13,
 };
 function isStormNight() { return RUN.night % 3 === 0; }
@@ -1367,6 +1370,7 @@ const io = {
   oc: false, tether: null,
 };
 const pointer = { x: 0, y: 0, active: false };
+let steerTX = 0, steerTY = 0; // куда правит игрок — по этому уходит швырок с нити
 const keys = {};
 let motes = [], ships = [], enemies = [], bolts = [], parts = [], texts = [], shots = [], clouds = [], stars = [], webs = [];
 let moteTimer = 0, shipTimer = 4, shotTimer = 3, eTimer = 3, boltTimer = 8, starTimer = 18;
@@ -1398,6 +1402,7 @@ function resetWorld(attract) {
   pointer.x = W * 0.5; pointer.y = H * 0.45;
   S.t = 0; S.playT = 0; S.combo = 0; S.hurtT = 0; S.shake = 0; S.glitch = 0; S.stormFired = false; S.dawnFired = false;
   webs = [];
+  S.reachShip = null; S.tetherHinted = false;
   boss = null; anchors = []; S.bossDone = false;
   bossHud.classList.remove('on');
   WAVE.n = 0; WAVE.timer = 40; WAVE.active = false; WAVE.left = 0;
@@ -1821,15 +1826,44 @@ function togglePause() {
   if (A.started) { S.paused ? A.ctx.suspend() : A.ctx.resume(); }
 }
 
-function toggleTether() {
-  if (io.tether) { io.tether = null; return; }
+// Нить — поводок и коса разом. Держась за корабль, ты волен летать в круге
+// подле него, а сама нить, натянутая от света к корме, вяжет и жжёт всё,
+// что её пересекает. С палубы притом сыплются мысли. Плата — круг: далеко
+// от корабля не улетишь, покуда держишься. Отпустил — швырнёт вперёд.
+const TETHER_LEASH = 250;   // радиус, в котором ты волен
+const TETHER_BITE = 24;     // полутолщина нити
+const TETHER_BURN = 0.6;    // сколько ночи тлеть в нити до погибели
+function shipInReach() {
   let best = null, bd = RUN.tetherR;
   for (const sh of ships) {
     if (!sh.near) continue;
     const d = hyp(io.x - sh.x, io.y - sh.y);
     if (d < bd) { bd = d; best = sh; }
   }
-  if (best) { io.tether = best; sfxWind(); spawnText(best.x, best.y - 70 * best.scl, tr('tether')); }
+  return best;
+}
+function toggleTether() {
+  if (io.tether) { releaseTether(); return; }
+  const best = S.reachShip || shipInReach();
+  if (best) {
+    io.tether = best;
+    best.cargoT = 1.2;
+    sfxWind();
+    spawnText(best.x, best.y - 70 * best.scl, tr('tether'));
+  }
+}
+function releaseTether() {
+  const sh = io.tether;
+  io.tether = null;
+  if (!sh) return;
+  // швырок в сторону, куда правишь; правишь никуда — по ходу корабля
+  let dx = steerTX - io.x, dy = steerTY - io.y;
+  let l = hyp(dx, dy);
+  if (l < 40) { dx = sh.dir; dy = -0.2; l = hyp(dx, dy); }
+  io.vx += dx / l * 540; io.vy += dy / l * 540;
+  burst(io.x, io.y, IO_COL, 18, 260);
+  sfxWind();
+  spawnText(io.x, io.y - 50, tr('sling'));
 }
 
 function echoBlast(x, y) {
@@ -1855,6 +1889,21 @@ function tryRelocate() {
   burst(io.x, io.y, IO_COL, 16, 220);
   if (RUN.echo) echoBlast(io.x, io.y);
   sfxReloc(false);
+}
+
+// расстояние от кошмара до натянутой нити — отрезок «свет → корма»
+function threadHit(e) {
+  const sh = io.tether;
+  if (!sh) return false;
+  const bx = sh.x - sh.dir * 60 * sh.scl, by = sh.y - 30 * sh.scl;
+  const vx = bx - io.x, vy = by - io.y;
+  const wx = e.x - io.x, wy = e.y - io.y;
+  const l2 = vx * vx + vy * vy || 1;
+  let t = (wx * vx + wy * vy) / l2;
+  t = t < 0 ? 0 : t > 1 ? 1 : t;
+  const px = io.x + vx * t - e.x, py = io.y + vy * t - e.y;
+  const r = TETHER_BITE + e.r;
+  return px * px + py * py < r * r;
 }
 
 function killEnemy(i) {
@@ -1964,6 +2013,7 @@ function update(dt) {
     io.reloc.cd = Math.max(0, io.reloc.cd - dt);
 
     let tx, ty, k = 7.5 * RUN.speed;
+    // направление правки помним — по нему уходит швырок с нити
     if (touchSteer) {
       // цель — впереди Ио по наклону стика; чем сильнее наклон, тем дальше
       // цель, а с нею и скорость. Палец замер — Ио гасит ход и висит.
@@ -1989,9 +2039,22 @@ function update(dt) {
       if (!ships.includes(sh)) io.tether = null;
       else {
         tx = sh.x - sh.dir * 60 * sh.scl; ty = sh.y - 46 * sh.scl; k = 14;
-        if (hyp(io.x - tx, io.y - ty) > RUN.tetherR * 2.4) io.tether = null;
+        // рулим свободно, да не дальше поводка от кормы
+        const ax = sh.x - sh.dir * 60 * sh.scl, ay = sh.y - 30 * sh.scl;
+        const ddx = tx - ax, ddy = ty - ay, dd = hyp(ddx, ddy);
+        if (dd > TETHER_LEASH) {
+          tx = ax + ddx / dd * TETHER_LEASH;
+          ty = ay + ddy / dd * TETHER_LEASH;
+        }
+        // с палубы сыплется добро — за то и держатся
+        sh.cargoT = (sh.cargoT || 0) - dt;
+        if (sh.cargoT <= 0) {
+          sh.cargoT = 3.2;
+          spawnMoteAt(sh.x + rand(-70, 70) * sh.scl, sh.y + 30 * sh.scl, 14);
+        }
       }
     }
+    if (!io.tether) { steerTX = tx; steerTY = ty; }
     io.vx += ((tx - io.x) * k * slowMul - io.vx * 3.4) * dt;
     io.vy += ((ty - io.y) * k * slowMul - io.vy * 3.4) * dt;
 
@@ -2030,6 +2093,17 @@ function update(dt) {
     }
 
     io.x += io.vx * dt; io.y += io.vy * dt;
+    if (io.tether) { // поводок натянут — дальше не пустит
+      const sh = io.tether;
+      const ax = sh.x - sh.dir * 60 * sh.scl, ay = sh.y - 30 * sh.scl;
+      const dx2 = io.x - ax, dy2 = io.y - ay, d2 = hyp(dx2, dy2);
+      if (d2 > TETHER_LEASH) {
+        io.x = ax + dx2 / d2 * TETHER_LEASH;
+        io.y = ay + dy2 / d2 * TETHER_LEASH;
+        const vr = (io.vx * dx2 + io.vy * dy2) / d2;   // гасим уходящую составляющую
+        if (vr > 0) { io.vx -= dx2 / d2 * vr; io.vy -= dy2 / d2 * vr; }
+      }
+    }
     RUN.dist += spd * dt;
     io.trail.unshift({ x: io.x, y: io.y });
     if (io.trail.length > 22) io.trail.pop();
@@ -2047,6 +2121,14 @@ function update(dt) {
       sp.cd = Math.max(0, sp.cd - dt);
     }
   }
+
+  if (playing) { // корабль в досягаемости — подсказать единожды за бессонницу
+    S.reachShip = io.tether ? null : shipInReach();
+    if (S.reachShip && !S.tetherHinted && S.playT > 4) {
+      S.tetherHinted = true;
+      spawnText(S.reachShip.x, S.reachShip.y - 80 * S.reachShip.scl, tr('hintTether'), true);
+    }
+  } else S.reachShip = null;
 
   // камера догоняет свет
   cam.x += (io.x + io.vx * 0.4 - cam.x) * Math.min(1, dt * 2.5);
@@ -2211,8 +2293,44 @@ function update(dt) {
     e.x += e.vx * dt; e.y += e.vy * dt;
     if (!playing) continue;
     if (e.dead) { killEnemy(i); continue; } // мотылёк сгорел в оверчардже
+    // нить вяжет и жжёт всё, что её пересекает
+    if (io.tether && e.type !== 'antio' && threadHit(e)) {
+      const slow = Math.pow(0.12, dt);
+      e.vx *= slow; e.vy *= slow;
+      e.threadT = (e.threadT || 0) + dt;
+      if (Math.random() < dt * 12)
+        newPart(e.x + rand(-e.r, e.r), e.y + rand(-e.r, e.r),
+          rand(-40, 40), rand(-60, -10), rand(0.2, 0.5), IO_COL, rand(0.6, 1.6));
+      if (e.threadT >= TETHER_BURN) {
+        e.threadT = 0;
+        if (e.hp > 1) { e.hp--; e.flashT = 0.22; burst(e.x, e.y, IO_COL, 10, 200); sfxKill(e.x); }
+        else { killEnemy(i); continue; }
+      }
+    } else if (e.threadT) e.threadT = Math.max(0, e.threadT - dt);
+    if (e.type === 'moth' && e.latched && io.tether) { // прицепившийся тоже горит на нити
+      e.latched = false; e.stun = 1.6;
+      e.vx = rand(-160, 160); e.vy = rand(-160, 160);
+    }
     // тёмный двойник: свои правила боя
     if (e.type === 'antio') {
+      if (io.tether && threadHit(e)) { // двойника нить лишь вяжет и точит вдвое дольше
+        const slow = Math.pow(0.35, dt);
+        e.vx *= slow; e.vy *= slow;
+        e.threadT = (e.threadT || 0) + dt;
+        if (e.threadT >= TETHER_BURN * 2) {
+          e.threadT = 0; e.hp--; e.flashT = 0.25;
+          burst(e.x, e.y, IO_COL, 12, 220); sfxKill(e.x);
+          if (e.hp <= 0) {
+            enemies.splice(i, 1); RUN.kills++;
+            for (let k3 = 0; k3 < 4; k3++) spawnMoteAt(e.x + rand(-40, 40), e.y + rand(-40, 40), 20);
+            RUN.xp += 2;
+            if (RUN.xp >= RUN.xpNext) levelUp();
+            burst(e.x, e.y, [0.7, 0.4, 1], 40, 420);
+            spawnText(e.x, e.y - 50, tr('twinDown'), true);
+            continue;
+          }
+        }
+      }
       const orbR2 = RUN.orbitR * (io.oc ? 1.6 : 1);
       let died = false;
       for (const sp of io.spirits) {
@@ -3256,20 +3374,32 @@ function drawTetherLine(P, tm) {
   const sh = io.tether;
   if (!sh || !ships.includes(sh)) return;
   const B = proj(sh.x - sh.dir * 60 * sh.scl, sh.y - 30 * sh.scl);
-  const mx = (P.x + B.x) / 2, my = (P.y + B.y) / 2 + 24 + Math.sin(tm * 3) * 6;
-  sc.globalCompositeOperation = 'lighter';
-  sc.strokeStyle = css3(IO_COL, 0.55 + 0.15 * Math.sin(tm * 6));
-  sc.lineWidth = 1.6;
+  // круг воли: докуда пускает поводок — чтобы правило читалось глазами
+  sc.strokeStyle = css3(IO_COL, 0.13);
+  sc.lineWidth = 1;
+  sc.setLineDash([7, 11]);
   sc.beginPath();
-  sc.moveTo(P.x, P.y);
-  sc.quadraticCurveTo(mx, my, B.x, B.y);
+  sc.ellipse(B.x, B.y, TETHER_LEASH * B.k, TETHER_LEASH * B.k * view.tilt, 0, 0, TAU);
   sc.stroke();
-  for (let i = 0; i < 2; i++) {
-    const q = ((tm * 0.7 + i * 0.5) % 1);
-    const qx = (1 - q) * (1 - q) * P.x + 2 * (1 - q) * q * mx + q * q * B.x;
-    const qy = (1 - q) * (1 - q) * P.y + 2 * (1 - q) * q * my + q * q * B.y;
-    sc.fillStyle = css3(IO_COL, 0.8);
-    sc.beginPath(); sc.arc(qx, qy, 1.6, 0, TAU); sc.fill();
+  sc.setLineDash([]);
+  // нить натянута и горяча: широкое свечение, белое сердце, бегущие искры
+  sc.globalCompositeOperation = 'lighter';
+  sc.lineCap = 'round';
+  sc.strokeStyle = css3(IO_COL, 0.16);
+  sc.lineWidth = 9;
+  sc.beginPath(); sc.moveTo(P.x, P.y); sc.lineTo(B.x, B.y); sc.stroke();
+  sc.strokeStyle = css3(IO_COL, 0.6 + 0.15 * Math.sin(tm * 6));
+  sc.lineWidth = 2.4;
+  sc.beginPath(); sc.moveTo(P.x, P.y); sc.lineTo(B.x, B.y); sc.stroke();
+  sc.strokeStyle = 'rgba(255,255,255,.85)';
+  sc.lineWidth = 1;
+  sc.beginPath(); sc.moveTo(P.x, P.y); sc.lineTo(B.x, B.y); sc.stroke();
+  for (let i = 0; i < 3; i++) {
+    const q = (tm * 0.8 + i / 3) % 1;
+    sc.fillStyle = css3(IO_COL, 0.9);
+    sc.beginPath();
+    sc.arc(P.x + (B.x - P.x) * q, P.y + (B.y - P.y) * q, 2.1, 0, TAU);
+    sc.fill();
   }
   sc.globalCompositeOperation = 'source-over';
 }
@@ -3420,7 +3550,10 @@ const elCombo = document.getElementById('combo');
 const elLvl = document.getElementById('lvl');
 const elMeter = document.getElementById('meterFill');
 const elXp = document.getElementById('xpFill');
-const elReloc = document.getElementById('relocHud');
+const skTether = document.getElementById('skTether');
+const skBlink = document.getElementById('skBlink');
+const skBlinkKey = document.getElementById('skBlinkKey');
+const skCharge = document.getElementById('skCharge');
 const bossHud = document.getElementById('bossHud');
 const elFps = document.getElementById('fpsHud');
 const elBossFill = document.getElementById('bossFill');
@@ -3440,16 +3573,21 @@ function updateHud() {
   elMeter.style.boxShadow = '0 0 12px ' + col;
   elXp.style.width = (clamp(RUN.xp / RUN.xpNext, 0, 1) * 100).toFixed(1) + '%';
   if (boss) elBossFill.style.width = (clamp(boss.hp / boss.hpMax, 0, 1) * 100).toFixed(1) + '%';
+  // полоса способностей: видно, что чем нажать и что уже готово
+  const blinkOk = io.reloc.cd <= 0 && io.reloc.phase === 'idle';
+  const reach = !!S.reachShip;
+  skTether.classList.toggle('on', !!io.tether);
+  skTether.classList.toggle('ready', !io.tether && reach);
+  skBlink.classList.toggle('ready', blinkOk);
+  skBlink.classList.toggle('cool', !blinkOk);
+  skBlinkKey.textContent = io.reloc.cd > 0
+    ? io.reloc.cd.toFixed(1) + tr('secShort') : tr('keySpace');
+  skCharge.classList.toggle('on', io.oc);
   if (TOUCH) { // кнопки под пальцем показывают, что готово, а что ещё стынет
-    btnBlink.classList.toggle('cool', io.reloc.cd > 0 || io.reloc.phase !== 'idle');
+    btnBlink.classList.toggle('cool', !blinkOk);
+    btnBlink.classList.toggle('ready', blinkOk);
     btnTether.classList.toggle('on', !!io.tether);
-  }
-  if (io.reloc.cd > 0) {
-    elReloc.textContent = tr('blinkCd', io.reloc.cd.toFixed(1));
-    elReloc.classList.remove('ready');
-  } else {
-    elReloc.textContent = tr('blinkReady');
-    elReloc.classList.add('ready');
+    btnTether.classList.toggle('ready', !io.tether && reach);
   }
 }
 function updateClock() {
@@ -3725,6 +3863,10 @@ function applyLang() {
     const keys = (TOUCH && el.dataset.i18nLinesTouch) || el.dataset.i18nLines;
     el.innerHTML = keys.split(',').map(k => tr(k)).join('<br>');
   }
+  for (const [id, key] of [['btnTether', 'btnTether'], ['btnBlink', 'btnBlink'], ['ocBtn', 'ocBtn']]) {
+    const el = document.getElementById(id);
+    if (el) { el.setAttribute('aria-label', tr(key)); el.setAttribute('title', tr(key)); }
+  }
   showBestLine();
   updateHud(); updateClock();
   if (!setPanel.classList.contains('hidden'))
@@ -3932,6 +4074,11 @@ requestAnimationFrame(frame);
     applyLang(); syncSetUI();
   }
   if (q.get('perf')) PERF.on = true;
+  if (q.get('nofade')) { // отладка: снимки без плавных переходов
+    const st = document.createElement('style');
+    st.textContent = '*{transition:none !important;animation:none !important}';
+    document.head.appendChild(st);
+  }
   if (q.get('joysim')) { // отладка джойстика: наклон стика без живого пальца
     const p = q.get('joysim').split(',').map(Number);
     SET.joyShow = true;
@@ -3974,6 +4121,13 @@ requestAnimationFrame(frame);
         if (e) { const p = spawnRing(180, viewR() * 0.75); e.x = p.x; e.y = p.y; }
       }
       if (q.get('bolt')) { spawnBolt(); bolts[0].t = parseFloat(q.get('bolt')) || 0; }
+      if (q.get('tether')) { // отладка нити: корабль под боком и нить уже брошена
+        spawnShip();
+        const sh = ships[ships.length - 1];
+        sh.near = true; sh.scl = 1; sh.x = io.x + 150; sh.y = io.y - 40; sh.vx = 18;
+        toggleTether();
+        for (const e of enemies) { e.x = io.x + 60; e.y = io.y - 20; }
+      }
       if (q.get('lvl')) levelUp();
       if (q.get('wave')) { WAVE.timer = 0.5; S.playT = Math.max(S.playT, 26); }
       if (q.get('boss')) {
