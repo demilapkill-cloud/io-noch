@@ -608,6 +608,18 @@ cloudSpr.width = 300; cloudSpr.height = 140;
 const IO_COL = [0.56, 0.815, 1];
 const NIGHT_LEN = 90;
 
+// параллакс-пыль: дальний и ближний слои для ощущения глубины
+const dustFar = [], dustNear = [];
+for (let i = 0; i < 46; i++) dustFar.push({
+  x: Math.random() * 4000, y: Math.random() * 3000,
+  r: rand(0.5, 1.3), a: rand(0.12, 0.3), tw: rand(TAU),
+});
+for (let i = 0; i < 13; i++) dustNear.push({
+  x: Math.random() * 4000, y: Math.random() * 3000,
+  r: rand(2.5, 5.5), a: rand(0.04, 0.1), tw: rand(TAU),
+});
+function wrapCoord(v, span) { return ((v % span) + span) % span; }
+
 PHRASES[1].push('я — маленький шар света', 'нить дрожит, но держит');
 PHRASES[2].push('искры помнят дорогу домой', 'я свечусь, значит я есть');
 const DEATH_QUOTES = [
@@ -668,12 +680,10 @@ const cam = { x: 0, y: 0 };
 const view = { rot: 0, tilt: 0.85, cos: 1, sin: 0 };
 
 function updateView() {
-  // плоскость ночи вращается и кренится сама — игрок на это не влияет
-  view.rot = 0.26 * Math.sin(S.time * 0.047 + RUN.night * 0.7)
-           + 0.14 * Math.sin(S.time * 0.013 + 2.4)
-           + S.energy * S.energy * 0.06 * Math.sin(S.time * 1.1);
-  view.tilt = 0.82 + 0.13 * Math.sin(S.time * 0.037 + 1.2);
-  view.cos = Math.cos(view.rot); view.sin = Math.sin(view.rot);
+  // чистое 2D: без вращения и качания — управление всегда честное.
+  // объём даёт фиксированный лёгкий наклон + глубинный масштаб + параллакс.
+  view.rot = 0; view.cos = 1; view.sin = 0;
+  view.tilt = 0.9;
 }
 function proj(x, y) {
   const dx = x - cam.x, dy = y - cam.y;
@@ -1290,6 +1300,19 @@ function draw() {
   }
   sc.globalAlpha = 1;
 
+  // дальняя пыль — плывёт вдвое медленнее мира (глубина за спиной)
+  {
+    const sx = W + 240, sy = H + 240;
+    sc.fillStyle = css3(pal.tint, 1);
+    for (const d of dustFar) {
+      const px = wrapCoord(d.x - cam.x * 0.45, sx) - 120;
+      const py = wrapCoord(d.y - cam.y * 0.45, sy) - 120;
+      sc.globalAlpha = d.a * (0.7 + 0.3 * Math.sin(tm * 1.3 + d.tw));
+      sc.beginPath(); sc.arc(px, py, d.r, 0, TAU); sc.fill();
+    }
+    sc.globalAlpha = 1;
+  }
+
   // падающие звёзды — атмосфера, экранный слой
   for (const s2 of shots) {
     const a = Math.sin(Math.PI * clamp(s2.t / s2.life, 0, 1));
@@ -1330,6 +1353,17 @@ function draw() {
     sc.beginPath(); sc.arc(P.x, P.y, p.r * P.k, 0, TAU); sc.fill();
   }
   sc.globalCompositeOperation = 'source-over';
+
+  // ближняя пыль — проносится в полтора раза быстрее мира (перед камерой)
+  {
+    const sx = W + 400, sy = H + 400;
+    for (const d of dustNear) {
+      const px = wrapCoord(d.x - cam.x * 1.55, sx) - 200;
+      const py = wrapCoord(d.y - cam.y * 1.55, sy) - 200;
+      sc.globalAlpha = 1;
+      tintGlow(px, py, d.r * 4, pal.tint, d.a * (0.75 + 0.25 * Math.sin(tm * 0.9 + d.tw)));
+    }
+  }
 
   // фразы
   for (const tx of texts) {
