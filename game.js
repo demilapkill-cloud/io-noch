@@ -2038,8 +2038,7 @@ function update(dt) {
       const sh = io.tether;
       if (!ships.includes(sh)) io.tether = null;
       else {
-        tx = sh.x - sh.dir * 60 * sh.scl; ty = sh.y - 46 * sh.scl; k = 14;
-        // рулим свободно, да не дальше поводка от кормы
+        // рулим свободно — цель остаётся своя, её лишь зажимает поводок
         const ax = sh.x - sh.dir * 60 * sh.scl, ay = sh.y - 30 * sh.scl;
         const ddx = tx - ax, ddy = ty - ay, dd = hyp(ddx, ddy);
         if (dd > TETHER_LEASH) {
@@ -2054,7 +2053,7 @@ function update(dt) {
         }
       }
     }
-    if (!io.tether) { steerTX = tx; steerTY = ty; }
+    steerTX = tx; steerTY = ty;   // и под нитью тоже: по этому уходит швырок
     io.vx += ((tx - io.x) * k * slowMul - io.vx * 3.4) * dt;
     io.vy += ((ty - io.y) * k * slowMul - io.vy * 3.4) * dt;
 
