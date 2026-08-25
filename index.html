@@ -249,6 +249,10 @@
   .touch .touch-only{display:block}
   .touch label.set-row.touch-only,.touch .seg.touch-only{display:flex}
   #setPanel .end-btn{margin-top:26px}
+  #fpsHud{position:fixed;top:calc(18px + env(safe-area-inset-top));left:50%;transform:translateX(-50%);
+    font-family:var(--font-mono);font-size:10px;letter-spacing:.14em;color:var(--ink-3);
+    display:none;text-shadow:0 0 8px rgba(0,0,0,.8)}
+  #fpsHud.on{display:block}
   /* режимы интерфейса */
   body.hud-lite #hud .tl,body.hud-lite #hud .tr,body.hud-lite #meterLabel,body.hud-lite #relocHud{display:none}
   body.hud-off #hud .tl,body.hud-off #hud .tr,body.hud-off #meterLabel,body.hud-off #relocHud,
@@ -297,6 +301,7 @@
     <div class="boss-name" data-i18n="bossName"></div>
     <div class="boss-bar"><div id="bossFill"></div></div>
   </div>
+  <div id="fpsHud"></div>
   <div id="meterLabel" data-i18n="wakeLabel"></div>
   <div id="relocHud" class="ready">мерцание · готово</div>
   <div id="xpbar"><div id="xpFill"></div></div>
@@ -389,13 +394,24 @@
     <button data-v="off" data-i18n="hOff"></button>
   </div>
 
+  <div class="set-label" data-i18n="sFps"></div>
+  <div class="seg" id="segFps">
+    <button data-v="off" data-i18n="sOff"></button>
+    <button data-v="on" data-i18n="sOn"></button>
+  </div>
+
   <div class="set-group touch-only" data-i18n="sTouch"></div>
   <div class="set-label touch-only" data-i18n="sTouchSide"></div>
   <div class="seg touch-only" id="segSide">
     <button data-v="right" data-i18n="sideRight"></button>
     <button data-v="left" data-i18n="sideLeft"></button>
   </div>
-  <label class="set-row touch-only"><span data-i18n="sTouchLift"></span><input type="range" id="rngLift" min="0" max="140" step="10"><b id="valLift"></b></label>
+  <label class="set-row touch-only"><span data-i18n="sJoyR"></span><input type="range" id="rngJoy" min="40" max="140" step="5"><b id="valJoy"></b></label>
+  <div class="set-label touch-only" data-i18n="sJoyShow"></div>
+  <div class="seg touch-only" id="segJoyShow">
+    <button data-v="off" data-i18n="sOff"></button>
+    <button data-v="on" data-i18n="sOn"></button>
+  </div>
 
   <div class="set-group" data-i18n="sMemory"></div>
   <button class="set-danger" id="setReset" data-i18n="sReset"></button>

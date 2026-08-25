@@ -17,7 +17,22 @@ const sstep = t => { t = clamp(t, 0, 1); return t * t * (3 - 2 * t); };
 const m2f = m => 440 * Math.pow(2, (m - 69) / 12);
 function hex(h) { const n = parseInt(h.slice(1), 16); return [(n >> 16 & 255) / 255, (n >> 8 & 255) / 255, (n & 255) / 255]; }
 function mix3(a, b, t) { return [lerp(a[0], b[0], t), lerp(a[1], b[1], t), lerp(a[2], b[2], t)]; }
-function css3(c, a = 1) { return `rgba(${(c[0] * 255) | 0},${(c[1] * 255) | 0},${(c[2] * 255) | 0},${a})`; }
+// Math.hypot в V8 много медленнее обычного корня, а в кадре его зовут тысячи раз
+function hyp(x, y) { return Math.sqrt(x * x + y * y); }
+// строки цвета — самый частый мусор кадра; держим их в кэше по огрублённому ключу
+const _css = new Map();
+function css3(c, a = 1) {
+  const r = (c[0] * 255) | 0, g = (c[1] * 255) | 0, b = (c[2] * 255) | 0;
+  const qa = (a * 255) | 0;
+  const key = ((r << 24) | (g << 16) | (b << 8) | qa) >>> 0;
+  let s = _css.get(key);
+  if (s === undefined) {
+    if (_css.size > 4096) _css.clear();
+    s = 'rgba(' + r + ',' + g + ',' + b + ',' + (qa / 255).toFixed(3) + ')';
+    _css.set(key, s);
+  }
+  return s;
+}
 
 // ============================================================
 // ЯЗЫК И НАСТРОЙКИ
@@ -26,8 +41,8 @@ function css3(c, a = 1) { return `rgba(${(c[0] * 255) | 0},${(c[1] * 255) | 0},$
 // ============================================================
 const DEFAULT_SET = {
   lang: 'ru', vol: 85, music: 100, sfx: 100,
-  quality: 'auto', shake: 100, fx: 100, hud: 'full',
-  touchSide: 'right', touchLift: 70,
+  quality: 'auto', shake: 100, fx: 100, hud: 'full', fps: false,
+  touchSide: 'right', joyR: 78, joyShow: false,
 };
 let SET = loadSettings();
 let LANG = SET.lang;
@@ -78,14 +93,15 @@ const TXT = {
     titleBig: 'бесконечная\u00a0ночь',
     titleSub: 'роглайк о шарике света, коему не спится',
     help1: 'мышью — лететь · клик подле корабля — нить · пробел — мерцание',
-    help1t: 'веди пальцем — свет летит следом, чуть выше самого пальца',
+    help1t: 'коснись — под пальцем родится джойстик, наклоняй его в сторону',
     help2t: 'кнопки под большим пальцем: нить · мерцание · заряд',
     btnTether: 'нить',
     btnBlink: 'мерцание',
     sTouch: 'палец',
     sTouchSide: 'сторона кнопок',
     sideRight: 'справа', sideLeft: 'слева',
-    sTouchLift: 'отступ от пальца',
+    sJoyR: 'размер джойстика',
+    sJoyShow: 'показывать джойстик',
     help2: 'shift — оверчардж · бодрость тает всечасно — одни мысли её держат',
     help3: 'луга щедры · разломы гибельны · теченья сносят · скорость жжёт',
     help4: 'всякая пятая ночь приводит корабль-кошмар — бей, покуда фонарь открыт',
@@ -127,6 +143,8 @@ const TXT = {
     sShake: 'тряска экрана',
     sFx: 'помехи и зерно',
     sHud: 'интерфейс',
+    sFps: 'счётчик кадров',
+    sOn: 'вкл', sOff: 'выкл',
     hFull: 'полный', hLite: 'только полосы', hOff: 'скрыт',
     sMemory: 'память',
     sReset: 'погасить созвездие',
@@ -161,14 +179,15 @@ const TXT = {
     titleBig: 'endless\u00a0night',
     titleSub: 'a roguelike about a wisp that cannot sleep',
     help1: 'mouse — fly · click near a ship — thread · space — blink',
-    help1t: 'drag your finger — the light follows just above it',
+    help1t: 'touch anywhere — a joystick is born under your finger',
     help2t: 'buttons under your thumb: thread · blink · charge',
     btnTether: 'thread',
     btnBlink: 'blink',
     sTouch: 'finger',
     sTouchSide: 'button side',
     sideRight: 'right', sideLeft: 'left',
-    sTouchLift: 'lift above finger',
+    sJoyR: 'joystick size',
+    sJoyShow: 'show the joystick',
     help2: 'shift — overcharge · wakefulness always drains — only thoughts hold it',
     help3: 'meadows are generous · rifts are deadly · currents carry · speed burns',
     help4: 'every fifth night brings the nightmare ship — strike while its lantern is open',
@@ -208,6 +227,8 @@ const TXT = {
     sShake: 'screen shake',
     sFx: 'glitch and grain',
     sHud: 'interface',
+    sFps: 'frame counter',
+    sOn: 'on', sOff: 'off',
     hFull: 'full', hLite: 'bars only', hOff: 'hidden',
     sMemory: 'memory',
     sReset: 'extinguish the constellation',
@@ -795,6 +816,14 @@ float noise(vec2 p){
   return mix(mix(hash(i),hash(i+vec2(1.,0.)),f.x),
              mix(hash(i+vec2(0.,1.)),hash(i+vec2(1.,1.)),f.x),f.y);
 }
+// Холст заливается в текстуру как есть — без UNPACK_FLIP_Y и без
+// UNPACK_PREMULTIPLY_ALPHA: эти два флага гонят пиксели через процессор и
+// стоят четверти кадра. Переворот и премножение делаем здесь, даром.
+vec4 scn(vec2 uv){
+  vec4 c = texture2D(uScene, vec2(uv.x, 1.-uv.y));
+  c.rgb *= c.a;
+  return c;
+}
 float starLayer(vec2 uv, float n, float t){
   vec2 g=uv*n; vec2 id=floor(g); vec2 f=fract(g);
   float h=hash(id);
@@ -844,25 +873,25 @@ void main(){
 
   // --- сцена с аберрацией (premultiplied composite) ---
   vec2 dir = suv-.5;
-  vec4 c0 = texture2D(uScene, suv);
+  vec4 c0 = scn(suv);
   float ab = uAberr;
-  float r = texture2D(uScene, suv+dir*ab).r;
-  float b = texture2D(uScene, suv-dir*ab).b;
+  float r = scn(suv+dir*ab).r;
+  float b = scn(suv-dir*ab).b;
   vec3 sceneRGB = vec3(r, c0.g, b);
   vec3 col = sky*(1.-c0.a) + sceneRGB;
 
   // мягкий блум двумя кольцами
   vec2 px = 6./uRes;
   vec3 bl = vec3(0.);
-  bl += texture2D(uScene, suv+vec2( px.x, 0.)).rgb;
-  bl += texture2D(uScene, suv+vec2(-px.x, 0.)).rgb;
-  bl += texture2D(uScene, suv+vec2(0.,  px.y)).rgb;
-  bl += texture2D(uScene, suv+vec2(0., -px.y)).rgb;
+  bl += scn(suv+vec2( px.x, 0.)).rgb;
+  bl += scn(suv+vec2(-px.x, 0.)).rgb;
+  bl += scn(suv+vec2(0.,  px.y)).rgb;
+  bl += scn(suv+vec2(0., -px.y)).rgb;
   vec3 bl2 = vec3(0.);
-  bl2 += texture2D(uScene, suv+vec2( px.x, px.y)*1.8).rgb;
-  bl2 += texture2D(uScene, suv+vec2(-px.x,-px.y)*1.8).rgb;
-  bl2 += texture2D(uScene, suv+vec2( px.x,-px.y)*1.8).rgb;
-  bl2 += texture2D(uScene, suv+vec2(-px.x, px.y)*1.8).rgb;
+  bl2 += scn(suv+vec2( px.x, px.y)*1.8).rgb;
+  bl2 += scn(suv+vec2(-px.x,-px.y)*1.8).rgb;
+  bl2 += scn(suv+vec2( px.x,-px.y)*1.8).rgb;
+  bl2 += scn(suv+vec2(-px.x, px.y)*1.8).rgb;
   col += (bl * .112 + bl2 * .073) * (.6+uEnergy);
 
   // зерно
@@ -936,7 +965,6 @@ let sceneTexW = 0, sceneTexH = 0, skyW = 0, skyH = 0;
 function allocGlTextures() {
   // сцена: хранилище выделяется один раз на размер, кадры льются texSubImage2D;
   // размер сцены может быть ниже выхода — билинейный апсэмпл мягок для свечений
-  gl.pixelStorei(gl.UNPACK_FLIP_Y_WEBGL, false);
   gl.bindTexture(gl.TEXTURE_2D, sceneTex);
   gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, scene.width, scene.height, 0, gl.RGBA, gl.UNSIGNED_BYTE, null);
   sceneTexW = scene.width; sceneTexH = scene.height;
@@ -966,12 +994,20 @@ let W = 0, H = 0, DPR = 1;
 let outDPR = 1;      // разрешение выхода: родное, кап 2
 let outCap = 2;      // последний рубеж контроллера — снизить и выход
 let sceneScale = 1;  // динамическое разрешение сцены (0.55…1)
+// Потолки числа пикселей. Стоимость кадра прямо пропорциональна им: выход
+// платит шейдером (блум — восемь выборок на пиксель), сцена платит дважды —
+// заполнением холста и заливкой всего холста в текстуру каждый кадр. На
+// больших экранах родное разрешение съедает кадр целиком, оттого потолки
+// стоят всегда, а не только когда стало плохо.
+let OUT_PX = 2.6e6;   // ≈ 2150×1210 — выше глаз почти не различает сквозь блум
+let SCENE_PX = 1.5e6; // сцена вся из мягких свечений, ей хватает меньшего
 
 function resize() {
-  outDPR = Math.min(window.devicePixelRatio || 1, outCap);
-  DPR = outDPR * sceneScale;
   W = window.innerWidth; H = window.innerHeight;
-  glCanvas.width = (W * outDPR) | 0; glCanvas.height = (H * outDPR) | 0;
+  const area = Math.max(1, W * H);
+  outDPR = Math.min(window.devicePixelRatio || 1, outCap, Math.sqrt(OUT_PX / area));
+  DPR = Math.min(outDPR * sceneScale, Math.sqrt(SCENE_PX / area));
+  glCanvas.width = Math.max(2, (W * outDPR) | 0); glCanvas.height = Math.max(2, (H * outDPR) | 0);
   scene.width = Math.max(2, (W * DPR) | 0); scene.height = Math.max(2, (H * DPR) | 0);
   gl.viewport(0, 0, glCanvas.width, glCanvas.height);
   allocGlTextures();
@@ -999,6 +1035,10 @@ cloudSpr.width = 300; cloudSpr.height = 140;
 }
 
 const IO_COL = [0.56, 0.815, 1];
+// общие цвета частиц: один массив на всех — так отрисовка кладёт их одной заливкой
+const COL_LAMP = [1, 0.72, 0.35], COL_HEAT = [1, 0.62, 0.3];
+const COL_RIFT = [0.5, 0.25, 0.7], COL_FOE = [0.5, 0.28, 0.66];
+const COL_KILL = [0.72, 0.4, 0.9], COL_HURT = [1, 0.4, 0.55];
 const NIGHT_LEN = 90;
 
 // параллакс-пыль: дальний и ближний слои для ощущения глубины
@@ -1034,8 +1074,8 @@ function zoneOfCell(gx, gy) {
   zoneCache.set(key, z);
   return z;
 }
-function zonesNear(x, y, rad) {
-  const out = [];
+function zonesNear(x, y, rad, out) {
+  out.length = 0;
   const g0x = Math.floor((x - rad) / CELL), g1x = Math.floor((x + rad) / CELL);
   const g0y = Math.floor((y - rad) / CELL), g1y = Math.floor((y + rad) / CELL);
   for (let gx = g0x; gx <= g1x; gx++) for (let gy = g0y; gy <= g1y; gy++) {
@@ -1044,9 +1084,16 @@ function zonesNear(x, y, rad) {
   }
   return out;
 }
+// зону под точкой ищем обходом клеток — без промежуточного массива:
+// зовётся на всякую пойманную мысль и всякий кадр
 function zoneAt(x, y, type) {
-  for (const z of zonesNear(x, y, CELL)) {
-    if ((!type || z.type === type) && Math.hypot(x - z.x, y - z.y) < z.r) return z;
+  const g0x = Math.floor((x - CELL) / CELL), g1x = Math.floor((x + CELL) / CELL);
+  const g0y = Math.floor((y - CELL) / CELL), g1y = Math.floor((y + CELL) / CELL);
+  for (let gx = g0x; gx <= g1x; gx++) for (let gy = g0y; gy <= g1y; gy++) {
+    const z = zoneOfCell(gx, gy);
+    if (!z || (type && z.type !== type)) continue;
+    const dx = x - z.x, dy = y - z.y;
+    if (dx * dx + dy * dy < z.r * z.r) return z;
   }
   return null;
 }
@@ -1285,31 +1332,34 @@ function updateView() {
   view.rot = 0; view.cos = 1; view.sin = 0;
   view.tilt = 0.9;
 }
+// Плоскость игры не вращается (решено в v2.1), оттого проекция — сдвиг,
+// наклон по вертикали и глубинный масштаб. Объект выдаётся из кольцевого
+// запаса: в кадре таких вызовов тысячи, и мусорить ими нельзя.
+const _projRing = [];
+for (let i = 0; i < 64; i++) _projRing.push({ x: 0, y: 0, k: 1 });
+let _projI = 0;
 function proj(x, y) {
-  const dx = x - cam.x, dy = y - cam.y;
-  const rx = dx * view.cos - dy * view.sin;
-  const ry = dx * view.sin + dy * view.cos;
-  return {
-    x: W / 2 + rx,
-    y: H / 2 + ry * view.tilt,
-    k: clamp(1 + ry * 0.00028, 0.78, 1.28), // ближе к нижнему краю — крупнее
-  };
+  const dy = y - cam.y;
+  const p = _projRing[_projI = (_projI + 1) & 63];
+  p.x = W / 2 + (x - cam.x);
+  p.y = H / 2 + dy * view.tilt;
+  const k = 1 + dy * 0.00028;
+  p.k = k < 0.78 ? 0.78 : k > 1.28 ? 1.28 : k;
+  return p;
 }
+const _pw = { x: 0, y: 0 };
 function pointerWorld() {
-  const rx = pointer.x - W / 2;
-  const ry = (pointer.y - H / 2) / view.tilt;
-  return {
-    x: cam.x + rx * view.cos + ry * view.sin,
-    y: cam.y - rx * view.sin + ry * view.cos,
-  };
+  _pw.x = cam.x + pointer.x - W / 2;
+  _pw.y = cam.y + (pointer.y - H / 2) / view.tilt;
+  return _pw;
 }
 function spawnRing(rMin, rMax) {
   const a = rand(TAU), d = rand(rMin, rMax);
   return { x: cam.x + Math.cos(a) * d, y: cam.y + Math.sin(a) * d };
 }
-function viewR() { return Math.hypot(W, H) * 0.55; }
+function viewR() { return hyp(W, H) * 0.55; }
 
-let visZones = []; // зоны вокруг камеры, раз в кадр
+const visZones = []; // зоны вокруг камеры, раз в кадр (массив переиспользуется)
 const io = {
   x: 0, y: 0, vx: 0, vy: 0, trail: [], heat: 0,
   spirits: [],
@@ -1446,7 +1496,7 @@ function updateBoss(dt) {
   b.bob += dt;
   b.flashT = Math.max(0, b.flashT - dt);
   b.stT -= dt;
-  const dx = io.x - b.x, dy = io.y - b.y, d = Math.hypot(dx, dy) || 1;
+  const dx = io.x - b.x, dy = io.y - b.y, d = hyp(dx, dy) || 1;
   const lamp = bossLamp(b);
 
   if (b.st === 'sail') {
@@ -1482,10 +1532,9 @@ function updateBoss(dt) {
     b.vx *= 0.9; b.vy *= 0.9;
     b.open = Math.min(1, b.open + dt * 2.5);
     if (d < 340) RUN.wake -= 3.2 * dt; // свет фонаря вытягивает бодрость
-    if (Math.random() < dt * 20) parts.push({
-      x: lamp.x + rand(-20, 20), y: lamp.y + rand(-20, 20),
-      vx: rand(-40, 40), vy: rand(-70, -20), life: rand(0.4, 0.9), t: 0, col: [1, 0.72, 0.35], r: rand(0.8, 2.2),
-    });
+    if (Math.random() < dt * 20)
+      newPart(lamp.x + rand(-20, 20), lamp.y + rand(-20, 20),
+        rand(-40, 40), rand(-70, -20), rand(0.4, 0.9), COL_LAMP, rand(0.8, 2.2));
     if (b.stT <= 0) { b.st = 'sail'; b.stT = rand(5, 6.5); b.dropT = 1.2; }
   }
   if (b.st !== 'lantern') b.open = Math.max(0, b.open - dt * 2);
@@ -1499,7 +1548,7 @@ function updateBoss(dt) {
     for (const sp of io.spirits) {
       if (sp.cd > 0) continue;
       const sx = io.x + Math.cos(sp.ang) * orbR, sy = io.y + Math.sin(sp.ang) * orbR * 0.82;
-      if (Math.hypot(sx - lamp.x, sy - lamp.y) < 30) {
+      if (hyp(sx - lamp.x, sy - lamp.y) < 30) {
         sp.cd = 1.6 * RUN.sparkCdMul;
         b.hp--; b.flashT = 0.25;
         burst(lamp.x, lamp.y, [1, 0.75, 0.4], 16, 260);
@@ -1511,7 +1560,7 @@ function updateBoss(dt) {
     }
   }
   // борт корабля-кошмара давит — область по силуэту корпуса
-  if (Math.hypot((io.x - b.x) / 3.2, io.y - b.y) < 72) damageIo(22, b.x, b.y);
+  if (hyp((io.x - b.x) / 3.2, io.y - b.y) < 72) damageIo(22, b.x, b.y);
 }
 
 function killBoss() {
@@ -1544,14 +1593,16 @@ function spawnBolt() {
 }
 const TEXT_SS = 2; // спрайт фразы в 2× — чёткость при глубинном масштабе
 const GAME_FONT = '"SAO UI", "Trebuchet MS", sans-serif'; // единый шрифт игры
+const _measC = document.createElement('canvas');
+const _measG = _measC.getContext('2d');
 function spawnText(x, y, str, big) {
   const fs = big ? 30 : 24;
   const font = '400 ' + fs * TEXT_SS + 'px ' + GAME_FONT;
   const pad = 30 * TEXT_SS;
+  _measG.font = font;
+  const tw = Math.ceil(_measG.measureText(str).width);
   const mc = document.createElement('canvas');
   const mg = mc.getContext('2d');
-  mg.font = font;
-  const tw = Math.ceil(mg.measureText(str).width);
   mc.width = tw + pad * 2; mc.height = fs * TEXT_SS + pad * 2;
   mg.font = font; mg.textAlign = 'center'; mg.textBaseline = 'middle';
   mg.shadowColor = css3(S.pal.tint, 0.8); mg.shadowBlur = 18 * TEXT_SS;
@@ -1560,11 +1611,27 @@ function spawnText(x, y, str, big) {
   texts.push({ x, y, str, a: 0, t: 0, big: !!big, vy: rand(-14, -8), spr: mc });
   if (texts.length > 6) texts.shift();
 }
+// Частицы — самая многочисленная мелочь кадра, оттого у них свой запас
+// объектов: ни одного нового за кадр, снятие обменом с хвостом.
+const partPool = [];
+let partCap = 420;
+function newPart(x, y, vx, vy, life, col, r) {
+  if (parts.length >= partCap) return null;
+  const p = partPool.length ? partPool.pop() : { x: 0, y: 0, vx: 0, vy: 0, life: 0, t: 0, col: null, r: 0 };
+  p.x = x; p.y = y; p.vx = vx; p.vy = vy; p.life = life; p.t = 0; p.col = col; p.r = r;
+  parts.push(p);
+  return p;
+}
+function freePart(i) {
+  const p = parts[i];
+  parts[i] = parts[parts.length - 1];
+  parts.pop();
+  if (partPool.length < 700) partPool.push(p);
+}
 function burst(x, y, col, n, sp) {
-  if (parts.length > 420) parts.splice(0, parts.length - 420);
   for (let i = 0; i < n; i++) {
     const a = rand(TAU), v = rand(30, sp || 260);
-    parts.push({ x, y, vx: Math.cos(a) * v, vy: Math.sin(a) * v, life: rand(0.4, 1.1), t: 0, col, r: rand(1, 3) });
+    if (!newPart(x, y, Math.cos(a) * v, Math.sin(a) * v, rand(0.4, 1.1), col, rand(1, 3))) return;
   }
 }
 
@@ -1652,20 +1719,47 @@ function uiHit(e) {
     e.target.closest('#touchPad,#setBtn,#setPanel,.veil:not(.hidden)'));
 }
 function setPointer(e) {
-  pointer.x = e.clientX;
-  pointer.y = e.clientY - (e.pointerType === 'mouse' ? 0 : SET.touchLift);
+  pointer.x = e.clientX; pointer.y = e.clientY;
   pointer.active = true;
 }
+// Невидимый джойстик: в миг касания под пальцем рождается его основание, и
+// дальше важен лишь наклон — направление и сила. Тянуть палец через весь
+// экран не нужно. Если палец уходит за край круга, основание ползёт следом,
+// оттого стик никогда не «кончается».
+const joy = { on: false, ax: 0, ay: 0, fx: 0, fy: 0, nx: 0, ny: 0, mag: 0 };
+let touchSteer = false;
+function joyStart(e) {
+  joy.on = true; touchSteer = true;
+  joy.ax = joy.fx = e.clientX; joy.ay = joy.fy = e.clientY;
+  joy.nx = joy.ny = joy.mag = 0;
+}
+function joyMove(e) {
+  joy.fx = e.clientX; joy.fy = e.clientY;
+  let dx = joy.fx - joy.ax, dy = joy.fy - joy.ay;
+  const R = SET.joyR, d = hyp(dx, dy);
+  if (d > R) {                       // основание тянется следом за пальцем
+    const back = 1 - R / d;
+    joy.ax += dx * back; joy.ay += dy * back;
+    dx *= R / d; dy *= R / d;
+  }
+  const dead = 5;
+  if (d <= dead) { joy.nx = joy.ny = joy.mag = 0; return; }
+  const l = hyp(dx, dy) || 1;
+  joy.nx = dx / l; joy.ny = dy / l;
+  joy.mag = Math.min(1, (l - dead) / Math.max(1, R - dead));
+}
+function joyEnd() { joy.on = false; joy.mag = 0; }
 function audioUnlock() { // iOS будит звук лишь изнутри касания
   try { if (A.started && A.ctx.state === 'suspended' && !S.paused) A.ctx.resume(); } catch (_) {}
 }
 window.addEventListener('pointermove', e => {
-  if (e.pointerType === 'mouse') { setPointer(e); return; }
-  if (steerId === e.pointerId) setPointer(e);
+  if (e.pointerType === 'mouse') { touchSteer = false; setPointer(e); return; }
+  if (steerId === e.pointerId) joyMove(e);
 }, { passive: true });
 window.addEventListener('pointerdown', e => {
   if (uiHit(e)) return;
   if (e.pointerType === 'mouse') {
+    touchSteer = false;
     setPointer(e);
     if (S.mode !== 'play' || S.paused) return;
     toggleTether();
@@ -1674,10 +1768,10 @@ window.addEventListener('pointerdown', e => {
   audioUnlock();
   if (steerId !== null) return; // второй палец не перехватывает штурвал
   steerId = e.pointerId;
-  setPointer(e);
+  joyStart(e);
 });
 for (const ev of ['pointerup', 'pointercancel']) {
-  window.addEventListener(ev, e => { if (steerId === e.pointerId) steerId = null; });
+  window.addEventListener(ev, e => { if (steerId === e.pointerId) { steerId = null; joyEnd(); } });
 }
 window.addEventListener('keydown', e => {
   keys[e.key] = true;
@@ -1732,7 +1826,7 @@ function toggleTether() {
   let best = null, bd = RUN.tetherR;
   for (const sh of ships) {
     if (!sh.near) continue;
-    const d = Math.hypot(io.x - sh.x, io.y - sh.y);
+    const d = hyp(io.x - sh.x, io.y - sh.y);
     if (d < bd) { bd = d; best = sh; }
   }
   if (best) { io.tether = best; sfxWind(); spawnText(best.x, best.y - 70 * best.scl, tr('tether')); }
@@ -1742,7 +1836,7 @@ function echoBlast(x, y) {
   burst(x, y, IO_COL, 30, 340);
   for (let i = enemies.length - 1; i >= 0; i--) {
     const e = enemies[i];
-    if (Math.hypot(e.x - x, e.y - y) < 130 + e.r) {
+    if (hyp(e.x - x, e.y - y) < 130 + e.r) {
       killEnemy(i);
     }
   }
@@ -1767,7 +1861,7 @@ function killEnemy(i) {
   const e = enemies[i];
   enemies.splice(i, 1);
   RUN.kills++;
-  burst(e.x, e.y, [0.72, 0.4, 0.9], 18, 260);
+  burst(e.x, e.y, COL_KILL, 18, 260);
   sfxKill(e.x);
   if (e.type === 'eater' && e.eaten > 0) {
     for (let k = 0; k < Math.min(e.eaten, 5); k++) spawnMoteAt(e.x + rand(-30, 30), e.y + rand(-30, 30));
@@ -1784,9 +1878,9 @@ function damageIo(dmg, srcX, srcY) {
   S.hurtT = 1.1; S.shake = Math.max(S.shake, 0.7); S.glitch = Math.max(S.glitch, 0.6);
   S.combo = 0;
   sfxHurt();
-  burst(io.x, io.y, [1, 0.4, 0.55], 22, 320);
+  burst(io.x, io.y, COL_HURT, 22, 320);
   if (srcX !== undefined) {
-    const dx = io.x - srcX, dy = io.y - srcY, d = Math.hypot(dx, dy) || 1;
+    const dx = io.x - srcX, dy = io.y - srcY, d = hyp(dx, dy) || 1;
     io.vx += dx / d * 340; io.vy += dy / d * 340;
   }
   checkDissolve();
@@ -1835,9 +1929,12 @@ function update(dt) {
   if (A.started && A.windGain)
     A.windGain.gain.value = 0.008 + S.energy * 0.028 + io.heat * 0.07;
   updateView();
-  visZones = zonesNear(cam.x, cam.y, viewR() + 300);
+  zonesNear(cam.x, cam.y, viewR() + 300, visZones);
 
   const ksp = 620 * dt;
+  if (!touchSteer && (keys['ArrowLeft'] || keys['ArrowRight'] || keys['ArrowUp'] || keys['ArrowDown'] ||
+    keys['a'] || keys['d'] || keys['w'] || keys['s'] || keys['ф'] || keys['в'] || keys['ц'] || keys['ы']))
+    pointer.active = true;
   if (keys['ArrowLeft'] || keys['a'] || keys['ф']) pointer.x -= ksp;
   if (keys['ArrowRight'] || keys['d'] || keys['в']) pointer.x += ksp;
   if (keys['ArrowUp'] || keys['w'] || keys['ц']) pointer.y -= ksp;
@@ -1866,21 +1963,33 @@ function update(dt) {
     }
     io.reloc.cd = Math.max(0, io.reloc.cd - dt);
 
-    const pw = pointerWorld();
-    let tx = pw.x, ty = pw.y, k = 7.5 * RUN.speed;
+    let tx, ty, k = 7.5 * RUN.speed;
+    if (touchSteer) {
+      // цель — впереди Ио по наклону стика; чем сильнее наклон, тем дальше
+      // цель, а с нею и скорость. Палец замер — Ио гасит ход и висит.
+      const lead = joy.on ? 410 * joy.mag : 0;
+      tx = io.x + joy.nx * lead;
+      ty = io.y + joy.ny * lead / view.tilt;
+      const P = proj(tx, ty);
+      pointer.x = clamp(P.x, 10, W - 10);
+      pointer.y = clamp(P.y, 10, H - 20);
+    } else {
+      const pw = pointerWorld();
+      tx = pw.x; ty = pw.y;
+    }
     let slowMul = 1;
     for (const e of enemies) { // сирены вяжут движение
-      if (e.type === 'siren' && Math.hypot(io.x - e.x, io.y - e.y) < e.ringR) slowMul = 0.62;
+      if (e.type === 'siren' && hyp(io.x - e.x, io.y - e.y) < e.ringR) slowMul = 0.62;
     }
     for (const wb of webs) { // паутина вяжет крепче
-      if (Math.hypot(io.x - wb.x, io.y - wb.y) < wb.r) { slowMul = Math.min(slowMul, 0.5); RUN.wake -= 2 * dt; }
+      if (hyp(io.x - wb.x, io.y - wb.y) < wb.r) { slowMul = Math.min(slowMul, 0.5); RUN.wake -= 2 * dt; }
     }
     if (io.tether) {
       const sh = io.tether;
       if (!ships.includes(sh)) io.tether = null;
       else {
         tx = sh.x - sh.dir * 60 * sh.scl; ty = sh.y - 46 * sh.scl; k = 14;
-        if (Math.hypot(io.x - tx, io.y - ty) > RUN.tetherR * 2.4) io.tether = null;
+        if (hyp(io.x - tx, io.y - ty) > RUN.tetherR * 2.4) io.tether = null;
       }
     }
     io.vx += ((tx - io.x) * k * slowMul - io.vx * 3.4) * dt;
@@ -1890,7 +1999,7 @@ function update(dt) {
     const cur = zoneAt(io.x, io.y, 'current');
     if (cur) {
       if (RUN.flow) {
-        const l = Math.hypot(io.vx, io.vy) || 1;
+        const l = hyp(io.vx, io.vy) || 1;
         io.vx += io.vx / l * 170 * dt; io.vy += io.vy / l * 170 * dt;
       } else {
         io.vx += cur.dx * 165 * dt; io.vy += cur.dy * 165 * dt;
@@ -1898,18 +2007,17 @@ function update(dt) {
     }
 
     // перегрев: слишком быстрый свет рвёт ночь
-    let spd = Math.hypot(io.vx, io.vy);
+    let spd = hyp(io.vx, io.vy);
     if (spd > RUN.maxSpd) { io.vx *= RUN.maxSpd / spd; io.vy *= RUN.maxSpd / spd; spd = RUN.maxSpd; }
     const HOT = 430 * RUN.hotMul;
     if (spd > HOT) io.heat = Math.min(1, io.heat + (spd / HOT - 1) * 2 * dt);
     else io.heat = Math.max(0, io.heat - dt * 1.2);
     if (io.heat > 0.5) {
       RUN.wake -= (io.heat - 0.5) * 5 * dt;
-      if (Math.random() < dt * 14) parts.push({
-        x: io.x - io.vx * 0.06 + rand(-8, 8), y: io.y - io.vy * 0.06 + rand(-8, 8),
-        vx: -io.vx * 0.15 + rand(-30, 30), vy: -io.vy * 0.15 + rand(-30, 30),
-        life: rand(0.3, 0.7), t: 0, col: [1, 0.62, 0.3], r: rand(1, 2.4),
-      });
+      if (Math.random() < dt * 14)
+        newPart(io.x - io.vx * 0.06 + rand(-8, 8), io.y - io.vy * 0.06 + rand(-8, 8),
+          -io.vx * 0.15 + rand(-30, 30), -io.vy * 0.15 + rand(-30, 30),
+          rand(0.3, 0.7), COL_HEAT, rand(1, 2.4));
       if (io.heat > 0.85 && Math.random() < dt * 0.6) {
         // из разорванной ночи за спиной выползает тень
         const l = spd || 1;
@@ -1974,7 +2082,7 @@ function update(dt) {
     const st = stars[i];
     st.t += dt;
     if (st.t > st.life) { stars.splice(i, 1); continue; }
-    if (playing && Math.hypot(io.x - st.x, io.y - st.y) < RUN.pickupR + 8) {
+    if (playing && hyp(io.x - st.x, io.y - st.y) < RUN.pickupR + 8) {
       stars.splice(i, 1);
       RUN.wake = Math.min(RUN.wakeMax, RUN.wake + 15);
       RUN.xp += 3;
@@ -2068,13 +2176,13 @@ function update(dt) {
     const m = motes[i];
     m.born += dt;
     m.x += m.vx * dt; m.y += m.vy * dt;
-    const dx = io.x - m.x, dy = io.y - m.y, d = Math.hypot(dx, dy);
+    const dx = io.x - m.x, dy = io.y - m.y, d = hyp(dx, dy);
     if (playing && io.tether && d < 320 && d > 1) { m.x += dx / d * 200 * dt; m.y += dy / d * 200 * dt; }
     else if (playing && RUN.gravity > 0 && d < 170 * (1 + RUN.gravity * 0.4) && d > 1) {
       const f = 55 * RUN.gravity;
       m.x += dx / d * f * dt; m.y += dy / d * f * dt;
     }
-    if (m.born > m.life || Math.hypot(m.x - cam.x, m.y - cam.y) > viewR() * 2.5) { motes.splice(i, 1); continue; }
+    if (m.born > m.life || hyp(m.x - cam.x, m.y - cam.y) > viewR() * 2.5) { motes.splice(i, 1); continue; }
     if (playing && d < RUN.pickupR) {
       motes.splice(i, 1);
       collectMote(m);
@@ -2085,21 +2193,20 @@ function update(dt) {
   for (let i = ships.length - 1; i >= 0; i--) {
     const sh = ships[i];
     sh.x += sh.vx * dt; sh.bob += dt * 0.9;
-    if (Math.hypot(sh.x - cam.x, sh.y - cam.y) > viewR() * 2.4 && io.tether !== sh) { ships.splice(i, 1); continue; }
-    if (Math.random() < 0.35) parts.push({
-      x: sh.x - sh.dir * 90 * sh.scl + rand(-10, 10), y: sh.y + rand(-6, 18) * sh.scl,
-      vx: rand(-10, 10), vy: rand(4, 22), life: rand(0.6, 1.4), t: 0, col: S.pal.tint, r: rand(0.6, 1.8),
-    });
+    if (hyp(sh.x - cam.x, sh.y - cam.y) > viewR() * 2.4 && io.tether !== sh) { ships.splice(i, 1); continue; }
+    if (Math.random() < 0.35)
+      newPart(sh.x - sh.dir * 90 * sh.scl + rand(-10, 10), sh.y + rand(-6, 18) * sh.scl,
+        rand(-10, 10), rand(4, 22), rand(0.6, 1.4), S.pal.tint, rand(0.6, 1.8));
     if (playing && sh.near && io.tether !== sh) {
       const dx = io.x - sh.x, dy = io.y - (sh.y + Math.sin(sh.bob) * 6);
-      if (Math.hypot(dx / 1.6, dy) < 68 * sh.scl) damageIo(12, sh.x, sh.y);
+      if (hyp(dx / 1.6, dy) < 68 * sh.scl) damageIo(12, sh.x, sh.y);
     }
   }
 
   // --- враги ---
   for (let i = enemies.length - 1; i >= 0; i--) {
     const e = enemies[i];
-    if (Math.hypot(e.x - cam.x, e.y - cam.y) > viewR() * 2.6) { enemies.splice(i, 1); continue; }
+    if (hyp(e.x - cam.x, e.y - cam.y) > viewR() * 2.6) { enemies.splice(i, 1); continue; }
     if (playing) updateEnemy(e, dt);
     e.x += e.vx * dt; e.y += e.vy * dt;
     if (!playing) continue;
@@ -2118,7 +2225,7 @@ function update(dt) {
           if (esp.cd > 0) continue;
           const ex = e.x + Math.cos(esp.ang) * e.orbR;
           const ey = e.y + Math.sin(esp.ang) * e.orbR * 0.82;
-          if (Math.hypot(sx - ex, sy - ey) < 14) {
+          if (hyp(sx - ex, sy - ey) < 14) {
             sp.cd = 2 * RUN.sparkCdMul; esp.cd = 2; clashed = true;
             burst((sx + ex) / 2, (sy + ey) / 2, [0.8, 0.6, 1], 10, 200);
             break;
@@ -2126,7 +2233,7 @@ function update(dt) {
         }
         if (clashed) continue;
         // искра по ядру — двойник тускнеет
-        if (Math.hypot(sx - e.x, sy - e.y) < 12 + e.r) {
+        if (hyp(sx - e.x, sy - e.y) < 12 + e.r) {
           sp.cd = 4 * RUN.sparkCdMul;
           e.hp--; e.flashT = 0.25;
           burst(e.x, e.y, [0.55, 0.25, 0.75], 14, 240);
@@ -2150,14 +2257,14 @@ function update(dt) {
         if (esp.cd > 0) continue;
         const ex = e.x + Math.cos(esp.ang) * e.orbR;
         const ey = e.y + Math.sin(esp.ang) * e.orbR * 0.82;
-        if (Math.hypot(ex - io.x, ey - io.y) < 18) {
+        if (hyp(ex - io.x, ey - io.y) < 18) {
           esp.cd = 2;
           damageIo(12, ex, ey);
           break;
         }
       }
       // ядро об ядро — больно, но двойник живёт
-      const dd = Math.hypot(io.x - e.x, io.y - e.y);
+      const dd = hyp(io.x - e.x, io.y - e.y);
       if (dd < 16 + e.r) {
         damageIo(e.dmg, e.x, e.y);
         const l = dd || 1;
@@ -2172,7 +2279,7 @@ function update(dt) {
       if (sp.cd > 0) continue;
       const sx = io.x + Math.cos(sp.ang) * orbR;
       const sy = io.y + Math.sin(sp.ang) * orbR * 0.82;
-      if (Math.hypot(sx - e.x, sy - e.y) < 12 + e.r) {
+      if (hyp(sx - e.x, sy - e.y) < 12 + e.r) {
         sp.cd = (e.type === 'siren' ? 6 : 4) * RUN.sparkCdMul;
         if (e.hp > 1) { // короста трескается, да кошмар держится
           e.hp--; e.flashT = 0.22;
@@ -2184,7 +2291,7 @@ function update(dt) {
     }
     if (dead) continue;
     // контакт
-    const d = Math.hypot(io.x - e.x, io.y - e.y);
+    const d = hyp(io.x - e.x, io.y - e.y);
     if (d < 16 + e.r) {
       if (e.type === 'moth') { // мотылёк не ранит — прицепляется
         if (!e.latched && e.stun <= 0) {
@@ -2220,7 +2327,7 @@ function update(dt) {
     an.vx *= 0.995; an.vy *= 0.995;
     if (an.t > an.life) { anchors.splice(i, 1); continue; }
     if (!playing) continue;
-    if (Math.hypot(io.x - an.x, io.y - an.y) < 26) {
+    if (hyp(io.x - an.x, io.y - an.y) < 26) {
       anchors.splice(i, 1);
       damageIo(14, an.x, an.y);
       burst(an.x, an.y, [0.6, 0.35, 0.8], 18, 260);
@@ -2231,7 +2338,7 @@ function update(dt) {
     for (const sp of io.spirits) {
       if (sp.cd > 0) continue;
       const sx = io.x + Math.cos(sp.ang) * orbR4, sy = io.y + Math.sin(sp.ang) * orbR4 * 0.82;
-      if (Math.hypot(sx - an.x, sy - an.y) < 18) {
+      if (hyp(sx - an.x, sy - an.y) < 18) {
         sp.cd = 1.2 * RUN.sparkCdMul;
         anchors.splice(i, 1);
         burst(an.x, an.y, [0.8, 0.6, 1], 14, 220);
@@ -2246,7 +2353,7 @@ function update(dt) {
   for (let i = webs.length - 1; i >= 0; i--) {
     const wb = webs[i];
     wb.t += dt;
-    if (wb.t > wb.life || Math.hypot(wb.x - cam.x, wb.y - cam.y) > viewR() * 2.6) { webs.splice(i, 1); continue; }
+    if (wb.t > wb.life || hyp(wb.x - cam.x, wb.y - cam.y) > viewR() * 2.6) { webs.splice(i, 1); continue; }
     if (!playing) continue;
     // искра рвёт паутину
     const orbR3 = RUN.orbitR * (io.oc ? 1.6 : 1);
@@ -2254,7 +2361,7 @@ function update(dt) {
       if (sp.cd > 0) continue;
       const sx = io.x + Math.cos(sp.ang) * orbR3;
       const sy = io.y + Math.sin(sp.ang) * orbR3 * 0.82;
-      if (Math.hypot(sx - wb.x, sy - wb.y) < 26) {
+      if (hyp(sx - wb.x, sy - wb.y) < 26) {
         sp.cd = 2 * RUN.sparkCdMul;
         webs.splice(i, 1);
         burst(wb.x, wb.y, [0.72, 0.78, 0.9], 14, 200);
@@ -2287,7 +2394,7 @@ function update(dt) {
   for (let i = parts.length - 1; i >= 0; i--) {
     const p = parts[i];
     p.t += dt; p.x += p.vx * dt; p.y += p.vy * dt; p.vx *= 0.98; p.vy *= 0.98;
-    if (p.t > p.life) parts.splice(i, 1);
+    if (p.t > p.life) freePart(i);
   }
   for (let i = texts.length - 1; i >= 0; i--) {
     const tx = texts[i];
@@ -2323,7 +2430,7 @@ function update(dt) {
 }
 
 function updateEnemy(e, dt) {
-  const dx = io.x - e.x, dy = io.y - e.y, d = Math.hypot(dx, dy) || 1;
+  const dx = io.x - e.x, dy = io.y - e.y, d = hyp(dx, dy) || 1;
   if (e.flashT > 0) e.flashT = Math.max(0, e.flashT - dt);
   if (e.type === 'nm' || e.type === 'shade') {
     const wob = Math.sin(S.time * 1.3 + e.seed) * 40;
@@ -2332,11 +2439,11 @@ function updateEnemy(e, dt) {
   } else if (e.type === 'eater') {
     let target = null, td = 600;
     for (const m of motes) {
-      const md = Math.hypot(m.x - e.x, m.y - e.y);
+      const md = hyp(m.x - e.x, m.y - e.y);
       if (md < td) { td = md; target = m; }
     }
     if (target) {
-      const tx2 = target.x - e.x, ty2 = target.y - e.y, l = Math.hypot(tx2, ty2) || 1;
+      const tx2 = target.x - e.x, ty2 = target.y - e.y, l = hyp(tx2, ty2) || 1;
       e.vx += (tx2 / l * e.sp - e.vx) * dt * 1.6;
       e.vy += (ty2 / l * e.sp - e.vy) * dt * 1.6;
       if (l < e.r + 8) {
@@ -2404,7 +2511,7 @@ function updateEnemy(e, dt) {
       if (io.oc) {
         e.burn += dt;
         if (e.burn > 0.7) e.dead = true;
-      } else if (Math.hypot(io.vx, io.vy) > 620) {
+      } else if (hyp(io.vx, io.vy) > 620) {
         e.latched = false; e.stun = 1.6;
         e.vx = rand(-180, 180); e.vy = rand(-180, 180);
         burst(e.x, e.y, [0.75, 0.4, 0.85], 6, 140);
@@ -2532,20 +2639,17 @@ function draw() {
     sc.beginPath(); sc.moveTo(mx2, my2); sc.lineTo(tx2, ty2); sc.stroke();
   }
 
-  // мир: собрать, отсортировать по глубине (проекции y), нарисовать
-  const items = [];
-  for (const sh of ships) items.push({ z: 'ship', o: sh });
-  if (boss) items.push({ z: 'boss', o: boss });
-  for (const an of anchors) items.push({ z: 'anchor', o: an });
-  for (const e of enemies) items.push({ z: 'enemy', o: e });
-  for (const m of motes) items.push({ z: 'mote', o: m });
-  for (const st of stars) items.push({ z: 'star', o: st });
-  if (S.mode === 'play') items.push({ z: 'io', o: io });
-  for (const it of items) {
-    const yy = it.z === 'ship' ? it.o.y + Math.sin(it.o.bob) * 6 * it.o.scl : it.o.y;
-    it.p = proj(it.o.x, yy);
-  }
-  items.sort((a, b) => a.p.y - b.p.y);
+  // мир: собрать, отсеять ушедшее за край, отсортировать по глубине, нарисовать
+  itemN = 0;
+  for (const sh of ships) addItem('ship', sh, sh.y + Math.sin(sh.bob) * 6 * sh.scl, 340);
+  if (boss) addItem('boss', boss, boss.y, 900);
+  for (const an of anchors) addItem('anchor', an, an.y, 90);
+  for (const e of enemies) addItem('enemy', e, e.y, FAR_FOE[e.type] ? 900 : 150);
+  for (const m of motes) addItem('mote', m, m.y, 90);
+  for (const st of stars) addItem('star', st, st.y, 130);
+  if (S.mode === 'play') addItem('io', io, io.y, 1e9);
+  items.length = itemN;
+  items.sort(byDepth);
   for (const it of items) {
     if (it.z === 'ship') drawShip(it.o, it.p, pal, tm);
     else if (it.z === 'boss') drawBoss(it.o, it.p, pal, tm);
@@ -2560,13 +2664,24 @@ function draw() {
   for (const b of bolts) drawBolt(b, pal, tm);
 
   // частицы
+  // частицы: одна заливка на цвет (вспышка раздаёт всем один и тот же массив),
+  // прозрачность — через globalAlpha, форма — квадрат: под блумом не отличить
+  // от круга, а стоит втрое дешевле дуги
   sc.globalCompositeOperation = 'lighter';
-  for (const p of parts) {
-    const a = 1 - p.t / p.life;
-    const P = proj(p.x, p.y);
-    sc.fillStyle = css3(p.col, a * 0.8);
-    sc.beginPath(); sc.arc(P.x, P.y, p.r * P.k, 0, TAU); sc.fill();
+  let lastCol = null;
+  for (let i = 0; i < parts.length; i++) {
+    const p = parts[i];
+    const dy = p.y - cam.y;
+    const sx = W / 2 + (p.x - cam.x), sy = H / 2 + dy * view.tilt;
+    if (sx < -24 || sx > W + 24 || sy < -24 || sy > H + 24) continue;
+    if (p.col !== lastCol) { sc.fillStyle = css3(p.col, 0.8); lastCol = p.col; }
+    sc.globalAlpha = 1 - p.t / p.life;
+    let k = 1 + dy * 0.00028;
+    k = k < 0.78 ? 0.78 : k > 1.28 ? 1.28 : k;
+    const r = p.r * k;
+    sc.fillRect(sx - r, sy - r, r + r, r + r);
   }
+  sc.globalAlpha = 1;
   sc.globalCompositeOperation = 'source-over';
 
   // ближняя пыль — проносится в полтора раза быстрее мира (перед камерой)
@@ -2589,10 +2704,39 @@ function draw() {
   }
   sc.globalAlpha = 1;
 
-  if (S.mode === 'play' && pointer.active && !io.tether) {
+  if (S.mode === 'play' && pointer.active && !io.tether && !touchSteer) {
     sc.fillStyle = 'rgba(235,232,225,.35)';
     sc.beginPath(); sc.arc(pointer.x, pointer.y, 2, 0, TAU); sc.fill();
   }
+  // джойстик невидим, покуда его не попросят показать
+  if (S.mode === 'play' && joy.on && SET.joyShow) {
+    const R = SET.joyR;
+    sc.strokeStyle = 'rgba(143,208,255,.22)';
+    sc.lineWidth = 1;
+    sc.beginPath(); sc.arc(joy.ax, joy.ay, R, 0, TAU); sc.stroke();
+    sc.fillStyle = 'rgba(143,208,255,.18)';
+    sc.beginPath(); sc.arc(joy.ax + joy.nx * R * joy.mag, joy.ay + joy.ny * R * joy.mag, 13, 0, TAU); sc.fill();
+  }
+}
+
+// Записи списка отрисовки живут в запасе и переиспользуются кадр за кадром.
+// Те, чьё дело видно и с края экрана (луч ока, прицел осколка, кольцо сирены,
+// громада корабля-кошмара), отсеиваются с большим запасом.
+const FAR_FOE = { eye: 1, dasher: 1, siren: 1 };
+const items = [], itemPool = [];
+let itemN = 0;
+function byDepth(a, b) { return a.p.y - b.p.y; }
+function addItem(z, o, yy, margin) {
+  const dy = yy - cam.y;
+  const sx = W / 2 + (o.x - cam.x), sy = H / 2 + dy * view.tilt;
+  if (sx < -margin || sx > W + margin || sy < -margin || sy > H + margin) return;
+  let it = itemPool[itemN];
+  if (!it) it = itemPool[itemN] = { z: '', o: null, p: { x: 0, y: 0, k: 1 } };
+  it.z = z; it.o = o;
+  it.p.x = sx; it.p.y = sy;
+  const k = 1 + dy * 0.00028;
+  it.p.k = k < 0.78 ? 0.78 : k > 1.28 ? 1.28 : k;
+  items[itemN++] = it;
 }
 
 // свечения: кэш спрайтов по квантованному цвету вместо градиента на каждый вызов
@@ -2663,10 +2807,9 @@ function drawZone(z, pal, tm) {
     sc.globalCompositeOperation = 'lighter';
     tintGlow(P.x, P.y, R * 0.55, [0.45, 0.2, 0.65], 0.09 * (0.7 + pulse * 0.5));
     sc.globalCompositeOperation = 'source-over';
-    if (Math.random() < 0.15) parts.push({
-      x: z.x + rand(-z.r * 0.5, z.r * 0.5), y: z.y + rand(-z.r * 0.3, z.r * 0.3),
-      vx: rand(-8, 8), vy: rand(-30, -10), life: rand(0.5, 1.2), t: 0, col: [0.5, 0.25, 0.7], r: rand(0.7, 1.8),
-    });
+    if (Math.random() < 0.15)
+      newPart(z.x + rand(-z.r * 0.5, z.r * 0.5), z.y + rand(-z.r * 0.3, z.r * 0.3),
+        rand(-8, 8), rand(-30, -10), rand(0.5, 1.2), COL_RIFT, rand(0.7, 1.8));
   } else if (z.type === 'current') {
     // течение: направленные штрихи ветра
     sc.strokeStyle = css3([0.62, 0.71, 0.8], 1);
@@ -2676,7 +2819,7 @@ function drawZone(z, pal, tm) {
       const off = (hash2(i * 7, z.seed) - 0.5) * z.r * 1.6;
       const px = z.x + z.dx * (s2 * 2 - 1) * z.r - z.dy * off;
       const py = z.y + z.dy * (s2 * 2 - 1) * z.r + z.dx * off;
-      if (Math.hypot(px - z.x, py - z.y) > z.r) continue;
+      if (hyp(px - z.x, py - z.y) > z.r) continue;
       const Q = proj(px, py);
       sc.globalAlpha = Math.sin(s2 * Math.PI) * 0.3;
       sc.beginPath();
@@ -2923,7 +3066,7 @@ function drawEnemy(e, P, tm) {
     sc.save();
     sc.translate(P.x, P.y);
     sc.scale(k, k);
-    const dxi = io.x - e.x, dyi = io.y - e.y, di = Math.hypot(dxi, dyi) || 1;
+    const dxi = io.x - e.x, dyi = io.y - e.y, di = hyp(dxi, dyi) || 1;
     sc.fillStyle = 'rgba(6,4,12,.95)';
     sc.strokeStyle = css3([0.85, 0.45, 0.6], 0.75);
     sc.lineWidth = 1.3;
@@ -3070,10 +3213,9 @@ function drawEnemy(e, P, tm) {
     }
   }
   sc.restore();
-  if (Math.random() < 0.1) parts.push({
-    x: e.x + rand(-e.r, e.r), y: e.y + rand(-e.r, e.r),
-    vx: rand(-8, 8), vy: rand(-16, -4), life: rand(0.3, 0.8), t: 0, col: [0.5, 0.28, 0.66], r: rand(0.6, 1.6),
-  });
+  if (Math.random() < 0.1)
+    newPart(e.x + rand(-e.r, e.r), e.y + rand(-e.r, e.r),
+      rand(-8, 8), rand(-16, -4), rand(0.3, 0.8), COL_FOE, rand(0.6, 1.6));
 }
 
 function drawBolt(b, pal, tm) {
@@ -3231,13 +3373,13 @@ function drawGL() {
   gl.useProgram(prog);
 
   // сцена: без реаллокации хранилища
-  gl.pixelStorei(gl.UNPACK_FLIP_Y_WEBGL, true);
-  gl.pixelStorei(gl.UNPACK_PREMULTIPLY_ALPHA_WEBGL, true);
   gl.activeTexture(gl.TEXTURE1);
   gl.bindTexture(gl.TEXTURE_2D, skyTex);
   gl.activeTexture(gl.TEXTURE0);
   gl.bindTexture(gl.TEXTURE_2D, sceneTex);
+  const _tu = PERF.on ? performance.now() : 0;
   gl.texSubImage2D(gl.TEXTURE_2D, 0, 0, 0, gl.RGBA, gl.UNSIGNED_BYTE, scene);
+  if (PERF.on) PERF.up += performance.now() - _tu;
 
   // рассвет всходит к 0.93 и стекает к шву ночи — без скачка светила
   const dawn = sstep((t - 0.87) / 0.06) * (1 - sstep((t - 0.945) / 0.055));
@@ -3280,6 +3422,7 @@ const elMeter = document.getElementById('meterFill');
 const elXp = document.getElementById('xpFill');
 const elReloc = document.getElementById('relocHud');
 const bossHud = document.getElementById('bossHud');
+const elFps = document.getElementById('fpsHud');
 const elBossFill = document.getElementById('bossFill');
 let hudTimer = 0;
 
@@ -3424,7 +3567,7 @@ function skyHitTest(ev) {
   const y = (ev.clientY - r.top) / r.height * SKY_LH;
   let best = -1, bd = 20;
   skyStars.forEach((s, i) => {
-    const d = Math.hypot(s.x - x, s.y - y);
+    const d = hyp(s.x - x, s.y - y);
     if (d < bd) { bd = d; best = i; }
   });
   return best;
@@ -3594,9 +3737,16 @@ function applyAudioSet() {
   A.sfxBus.gain.value = SET.sfx / 100;
 }
 function applyQuality() {
-  if (SET.quality === 'high') { sceneScale = 1; maxScale = 1; }
-  else if (SET.quality === 'low') { sceneScale = 0.65; maxScale = 0.65; }
-  else { maxScale = 1; }          // авто: контроллер сам найдёт свой потолок
+  if (SET.quality === 'high') {        // сильному железу — больше пикселей
+    OUT_PX = 4.2e6; SCENE_PX = 2.6e6;
+    sceneScale = 1; maxScale = 1;
+  } else if (SET.quality === 'low') {
+    OUT_PX = 1.5e6; SCENE_PX = 0.85e6;
+    sceneScale = 0.8; maxScale = 0.8;
+  } else {                             // авто: потолки средние, остальное решает кадр
+    OUT_PX = 2.6e6; SCENE_PX = 1.5e6;
+    maxScale = 1;
+  }
   resize();
 }
 function applyTouch() {
@@ -3605,10 +3755,11 @@ function applyTouch() {
 function applyHudMode() {
   document.body.classList.toggle('hud-lite', SET.hud === 'lite');
   document.body.classList.toggle('hud-off', SET.hud === 'off');
+  elFps.classList.toggle('on', !!SET.fps);
 }
 function syncSetUI() {
   for (const [id, val] of [['segLang', LANG], ['segQual', SET.quality], ['segHud', SET.hud],
-    ['segSide', SET.touchSide]])
+    ['segSide', SET.touchSide], ['segFps', SET.fps ? 'on' : 'off']])
     for (const b of document.querySelectorAll('#' + id + ' button'))
       b.classList.toggle('on', b.dataset.v === val);
   for (const [rid, vid, val] of [['rngVol', 'valVol', SET.vol], ['rngMusic', 'valMusic', SET.music],
@@ -3616,8 +3767,10 @@ function syncSetUI() {
     document.getElementById(rid).value = val;
     document.getElementById(vid).textContent = val + '%';
   }
-  document.getElementById('rngLift').value = SET.touchLift;
-  document.getElementById('valLift').textContent = SET.touchLift;
+  document.getElementById('rngJoy').value = SET.joyR;
+  document.getElementById('valJoy').textContent = SET.joyR;
+  for (const b of document.querySelectorAll('#segJoyShow button'))
+    b.classList.toggle('on', b.dataset.v === (SET.joyShow ? 'on' : 'off'));
 }
 function applySettings() {
   applyLang(); applyAudioSet(); applyQuality(); applyHudMode(); applyTouch(); syncSetUI();
@@ -3660,13 +3813,21 @@ document.getElementById('segHud').addEventListener('click', e => {
   const b = e.target.closest('button'); if (!b) return;
   SET.hud = b.dataset.v; saveSettings(); applyHudMode(); syncSetUI();
 });
+document.getElementById('segFps').addEventListener('click', e => {
+  const b = e.target.closest('button'); if (!b) return;
+  SET.fps = b.dataset.v === 'on'; saveSettings(); applyHudMode(); syncSetUI();
+});
+document.getElementById('segJoyShow').addEventListener('click', e => {
+  const b = e.target.closest('button'); if (!b) return;
+  SET.joyShow = b.dataset.v === 'on'; saveSettings(); syncSetUI();
+});
 document.getElementById('segSide').addEventListener('click', e => {
   const b = e.target.closest('button'); if (!b) return;
   SET.touchSide = b.dataset.v; saveSettings(); applyTouch(); syncSetUI();
 });
 for (const [rid, key, sound] of [['rngVol', 'vol', true], ['rngMusic', 'music', true],
   ['rngSfx', 'sfx', true], ['rngShake', 'shake', false], ['rngFx', 'fx', false],
-  ['rngLift', 'touchLift', false]]) {
+  ['rngJoy', 'joyR', false]]) {
   document.getElementById(rid).addEventListener('input', e => {
     SET[key] = +e.target.value; saveSettings();
     if (sound) applyAudioSet();
@@ -3685,6 +3846,8 @@ document.getElementById('setReset').addEventListener('click', e => {
 
 // ---------- цикл ----------
 let last = performance.now();
+// замер кадра по частям: ?perf=1
+const PERF = { on: false, upd: 0, drw: 0, gl: 0, up: 0, frame: 0, n: 0 };
 // адаптивное разрешение: скользящее среднее кадра с гистерезисом;
 // вниз — быстро, вверх — осторожно и не выше проверенного потолка
 let emaMs = 16.7, resPause = 2.5, maxScale = 1, lastUp = -99;
@@ -3694,8 +3857,12 @@ function frame(now) {
   last = now;
   if (dt > 0.1) dt = 0.1;
   if (S.paused) return;
-  if (S.mode === 'play' && SET.quality === 'auto') {
+  if (S.mode === 'play') {
     emaMs += (dt * 1000 - emaMs) * 0.06;
+    // когда кадр тяжелеет, первой уступает россыпь искр — её убыль незаметна
+    partCap = emaMs > 26 ? 190 : emaMs > 20 ? 290 : 420;
+  }
+  if (S.mode === 'play' && SET.quality === 'auto') {
     resPause -= dt;
     if (resPause <= 0) {
       if (emaMs > 29 && sceneScale > 0.56) {
@@ -3713,11 +3880,39 @@ function frame(now) {
     }
   }
   S.time += dt;
-  update(dt);
-  draw();
-  drawGL();
+  if (PERF.on) {
+    const t0 = performance.now();
+    update(dt);
+    const t1 = performance.now();
+    draw();
+    const t2 = performance.now();
+    drawGL();
+    const t3 = performance.now();
+    PERF.upd += t1 - t0; PERF.drw += t2 - t1; PERF.gl += t3 - t2;
+    PERF.frame += dt * 1000; PERF.n++;
+    if (PERF.n >= 120) {
+      const n = PERF.n;
+      console.log('кадр ' + (PERF.frame / n).toFixed(2) + ' мс' +
+        ' · update ' + (PERF.upd / n).toFixed(2) +
+        ' · draw2d ' + (PERF.drw / n).toFixed(2) +
+        ' · gl ' + (PERF.gl / n).toFixed(2) +
+        ' (заливка ' + (PERF.up / n).toFixed(2) + ')' +
+        ' · сцена ' + scene.width + '×' + scene.height +
+        ' · сущностей ' + (enemies.length + motes.length + parts.length));
+      PERF.upd = PERF.drw = PERF.gl = PERF.up = PERF.frame = 0; PERF.n = 0;
+    }
+  } else {
+    update(dt);
+    draw();
+    drawGL();
+  }
   hudTimer -= dt;
-  if (hudTimer <= 0 && S.mode === 'play') { hudTimer = 0.25; updateClock(); updateHud(); }
+  if (hudTimer <= 0 && S.mode === 'play') {
+    hudTimer = 0.25; updateClock(); updateHud();
+    if (SET.fps) elFps.textContent =
+      Math.round(1000 / Math.max(1, emaMs)) + ' fps · ' + emaMs.toFixed(1) + ' мс · ' +
+      scene.width + '×' + scene.height;
+  }
 }
 
 if (document.fonts && document.fonts.load) {
@@ -3736,6 +3931,17 @@ requestAnimationFrame(frame);
     LANG = SET.lang = q.get('lang') === 'en' ? 'en' : 'ru';
     applyLang(); syncSetUI();
   }
+  if (q.get('perf')) PERF.on = true;
+  if (q.get('joysim')) { // отладка джойстика: наклон стика без живого пальца
+    const p = q.get('joysim').split(',').map(Number);
+    SET.joyShow = true;
+    setTimeout(() => {
+      TOUCH = true; document.body.classList.add('touch');
+      joyStart({ clientX: W / 2, clientY: H * 0.62 });
+      joyMove({ clientX: W / 2 + (p[0] || 0), clientY: H * 0.62 + (p[1] || 0) });
+    }, 900);
+  }
+  if (q.get('q')) { SET.quality = q.get('q'); applyQuality(); }
   if (q.get('touch')) { // отладка тач-раскладки на настольном браузере
     TOUCH = true;
     document.body.classList.add('touch');
