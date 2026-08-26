@@ -42,7 +42,10 @@ function css3(c, a = 1) {
 const DEFAULT_SET = {
   lang: 'ru', vol: 85, music: 100, sfx: 100,
   quality: 'auto', shake: 100, fx: 100, hud: 'full', fps: false,
-  touchSide: 'right', joyR: 78, joyShow: false, visuals: { trail: 'default', shell: 'default', spirits: 'default', halo: 'default' },
+  touchSide: 'right', joyR: 78, joyShow: false,
+  // облики: четыре гнезда-выбора да три слоя-переключателя — они складываются
+  visuals: { trail: 'default', shell: 'default', spirits: 'default', halo: 'default',
+    dust: false, ring: false, emberSp: false },
 };
 let SET = loadSettings();
 let LANG = SET.lang;
@@ -87,7 +90,7 @@ const TXT = {
     nightText: (n, storm) => (storm ? 'буря · ночь ' : 'ночь ') + n,
     // — жители ночи —
     lm_lighthouse: 'уснувший фонарь',
-    lm_lighthouse_lit: 'фонарь разгорелся — в свете его бодрость не тает',
+    lm_lighthouse_lit: 'фонарь разгорелся — в свете его бодрость тает вдвое медленней',
     lm_graveyard: 'кладбище кораблей',
     lm_graveyard_hint: 'мысли меж рёбер сытнее вдвое',
     lm_whale: 'небесный кит',
@@ -135,7 +138,24 @@ const TXT = {
     help2: 'shift — заряд · бодрость тает всечасно — одни мысли её держат',
     help3: 'луга щедры · разломы гибельны · теченья сносят · скорость жжёт',
     help4: 'всякая пятая ночь приводит корабль-кошмар — бей, покуда фонарь открыт',
-    titleHint: 'соблаговоли нажать — и зажгись',
+    titleHint: 'коснись огонька',
+    mPlay: 'зажечься',
+    mSky: 'созвездие',
+    mSkyN: (c, t) => 'созвездие · ' + c + '/' + t,
+    mMeta: 'шкатулка',
+    mSkins: 'облики',
+    wd_head: 'облики ночи',
+    wd_sub: 'краса, добытая созвездиями · на силу не влияет ничуть',
+    wd_count: (n, t) => 'добыто ' + n + ' из ' + t,
+    wd_grp_shell: 'оболочка — цвет света',
+    wd_grp_trail: 'след',
+    wd_grp_spirits: 'спириты',
+    wd_grp_halo: 'ореолы',
+    wd_worn: 'надето · снять',
+    wd_have: 'в запасе · надеть',
+    wd_lock_theme: n2 => 'созвездие «' + n2 + '» ещё не полно',
+    wd_lock_themes: n2 => 'собери полных созвездий испытаний: ' + n2,
+    wd_lock_phr: n2 => 'поймай фраз в созвездие: ' + n2,
     titleVer: 'killu × fable · роглайк-ответвление «третьей ночи» · наушники надобны непременно',
     bestLine: (n, t, p) => 'славнейшая бессонница · ' + n + ' ноч' + p + ' · ' + t + ' мыслей',
     restHead: (lvl, w, mx) => 'степень ' + lvl + ' · бодрости ' + w + ' из ' + mx,
@@ -217,7 +237,7 @@ const TXT = {
     rod: 'lightning rod',
     nightText: (n, storm) => (storm ? 'storm · night ' : 'night ') + n,
     lm_lighthouse: 'the sleeping lantern',
-    lm_lighthouse_lit: 'the lantern flares — wakefulness does not fade in its light',
+    lm_lighthouse_lit: 'the lantern flares — wakefulness fades half as slow in its light',
     lm_graveyard: 'the ship graveyard',
     lm_graveyard_hint: 'thoughts among the ribs heal twice as much',
     lm_whale: 'the sky whale',
@@ -263,7 +283,24 @@ const TXT = {
     help2: 'shift — overcharge · wakefulness always drains — only thoughts hold it',
     help3: 'meadows are generous · rifts are deadly · currents carry · speed burns',
     help4: 'every fifth night brings the nightmare ship — strike while its lantern is open',
-    titleHint: 'press anywhere — and kindle',
+    titleHint: 'touch the wisp',
+    mPlay: 'kindle',
+    mSky: 'constellation',
+    mSkyN: (c, t) => 'constellation · ' + c + '/' + t,
+    mMeta: 'casket',
+    mSkins: 'guises',
+    wd_head: 'guises of the night',
+    wd_sub: 'beauty earned by constellations · never touches your strength',
+    wd_count: (n, t) => n + ' of ' + t + ' earned',
+    wd_grp_shell: 'shell — the hue of light',
+    wd_grp_trail: 'trail',
+    wd_grp_spirits: 'spirits',
+    wd_grp_halo: 'halos',
+    wd_worn: 'worn · take off',
+    wd_have: 'earned · put on',
+    wd_lock_theme: n2 => 'the "' + n2 + '" constellation is not yet full',
+    wd_lock_themes: n2 => 'complete full trial constellations: ' + n2,
+    wd_lock_phr: n2 => 'catch phrases for the sky: ' + n2,
     titleVer: 'killu × fable · a roguelike offshoot of "the third night" · headphones are essential',
     bestLine: (n, t) => 'finest sleeplessness · ' + n + (n === 1 ? ' night · ' : ' nights · ') + t + ' thoughts',
     restHead: (lvl, w, mx) => 'tier ' + lvl + ' · wakefulness ' + w + ' of ' + mx,
@@ -1126,14 +1163,28 @@ const IO_COL = [0.56, 0.815, 1];
 const SHELL_AMBER = [1, 0.72, 0.36];
 const FIREFLY_COL = [1, 0.85, 0.5]; // тёплые огоньки ореола Жителей
 const SHELL_NIGHT = [0.66, 0.54, 1];
+const SHELL_DAWN = [1, 0.62, 0.72];      // заря, что так и не пришла
+const SHELL_AURORA = [0.55, 1, 0.75];    // зелёный огонь северного неба
+const EMBER_SP = [1, 0.72, 0.4];         // жар хоровода
+const DUST_GOLD = [1, 0.9, 0.62];        // звёздная пыль следа
 const FIRE_RAMP = [];
 for (let i = 0; i < 8; i++) FIRE_RAMP.push(mix3([1, 0.95, 0.82], [0.95, 0.3, 0.1], i / 7));
+// полярный след: кольцо из двенадцати готовых цветов, зелень — синь — сирень
+const AUR_RAMP = [];
+{
+  const st = [[0.4, 1, 0.72], [0.45, 0.8, 1], [0.75, 0.55, 1], [0.4, 1, 0.72]];
+  for (let i = 0; i < 12; i++) {
+    const t = i / 12 * 3, s = Math.floor(t);
+    AUR_RAMP.push(mix3(st[s], st[s + 1], t - s));
+  }
+}
 function ioCol() {
   const s = SET.visuals.shell;
-  return s === 'storm_shell' ? SHELL_AMBER : s === 'night_shell' ? SHELL_NIGHT : IO_COL;
+  return s === 'storm_shell' ? SHELL_AMBER : s === 'night_shell' ? SHELL_NIGHT
+    : s === 'dawn_shell' ? SHELL_DAWN : s === 'aurora_shell' ? SHELL_AURORA : IO_COL;
 }
 // общие цвета частиц: один массив на всех — так отрисовка кладёт их одной заливкой
-const COL_LAMP = [1, 0.72, 0.35], COL_HEAT = [1, 0.62, 0.3];
+const COL_LAMP = [1, 0.72, 0.35], COL_HEAT = [1, 0.3, 0.22]; // перегрев горит алым
 const COL_RIFT = [0.5, 0.25, 0.7], COL_FOE = [0.5, 0.28, 0.66];
 const COL_KILL = [0.72, 0.4, 0.9], COL_HURT = [1, 0.4, 0.55];
 const NIGHT_LEN = 90;
@@ -1257,7 +1308,7 @@ function populateCell(gx, gy, factor, visit) {
   for (let i = 0; i < moteCount; i++) {
     const mx = cx + rnd(-CELL/2, CELL/2), my = cy + rnd(-CELL/2, CELL/2);
     const m = allocMote();
-    Object.assign(m, { x: mx, y: my, vx: rnd(-8, 8), vy: rnd(-5, 5), r: rnd(5, 8), seed: rnd(TAU), life: 100000, born: 0 });
+    Object.assign(m, { x: mx, y: my, vx: rnd(-8, 8), vy: rnd(-5, 5), r: rnd(4, 6.2), seed: rnd(TAU), life: 100000, born: 0 });
     motes.push(m);
   }
   
@@ -1368,7 +1419,62 @@ metaBackBtn.addEventListener('pointerdown', (e) => {
 function renderMeta() {
   metaThoughts.textContent = tr('meta_thoughts', META.thoughts);
   metaList.innerHTML = '';
+
+  // — способности: их изучают и возвышают прежде даров —
+  const abHead = document.createElement('div');
+  abHead.style.cssText = 'font-family:var(--font-mono);font-size:11px;letter-spacing:.3em;text-transform:uppercase;color:var(--ink-3);margin:4px 0 2px;text-align:left';
+  abHead.textContent = tr('ab_head');
+  metaList.appendChild(abHead);
+  ABILITIES.forEach(a => {
+    const lvl = META.ab[a.id] || 0;
+    const isMax = lvl >= a.max;
+    const cost = isMax ? 0 : a.costs[lvl];
+    const div = document.createElement('div');
+    div.style.cssText = 'background:rgba(143,208,255,0.06);padding:15px;border-radius:8px;display:flex;justify-content:space-between;align-items:center;gap:12px;';
+    const info = document.createElement('div');
+    info.style.textAlign = 'left';
+    const state = lvl === 0 ? `<span style="color:#aaa;font-size:15px;">· ${tr('ab_locked')}</span>`
+      : `<span style="color:#8fd0ff;font-size:15px;">· ${tr('ab_lvl', lvl)}${isMax ? '' : ' / ' + a.max}</span>`;
+    info.innerHTML = `<div style="color:#cfe6ff;font-size:20px;margin-bottom:6px">${tr('ab_' + a.id)} ${state}</div>
+                      <div style="color:#9fb4c7;font-size:15px;">${tr('ab_' + a.id + '_desc')}</div>`;
+    div.appendChild(info);
+    const btn = document.createElement('button');
+    btn.className = 'sky-link';
+    btn.style.margin = '0';
+    btn.style.flexShrink = '0';
+    if (isMax) {
+      btn.textContent = 'MAX';
+      btn.disabled = true;
+      btn.style.opacity = '0.5';
+    } else {
+      btn.textContent = tr('meta_buy') + cost;
+      if (META.thoughts < cost) {
+        btn.disabled = true;
+        btn.style.opacity = '0.5';
+      } else {
+        btn.addEventListener('pointerdown', (e) => {
+          e.stopPropagation();
+          META.thoughts -= cost;
+          META.ab[a.id] = lvl + 1;
+          saveMeta();
+          renderMeta();
+        });
+      }
+    }
+    div.appendChild(btn);
+    metaList.appendChild(div);
+  });
+
+  const upHead = document.createElement('div');
+  upHead.style.cssText = abHead.style.cssText;
+  upHead.style.marginTop = '18px';
+  upHead.textContent = tr('meta_head');
+  metaList.appendChild(upHead);
+
   META_UP.forEach(u => {
+    // строки, что точат ещё не изученную способность, до времени молчат
+    if (u.id === 'blink' && (META.ab.blink || 0) < 1) return;
+    if (u.id === 'tether' && (META.ab.tether || 0) < 1) return;
     const lvl = META.up[u.id] || 0;
     const isMax = lvl >= u.max;
     const cost = metaCost(u.id, lvl);
@@ -1543,8 +1649,13 @@ function skyCaught() {
 // ---------- Метапрогрессия (Шкатулка мыслей) ----------
 let META = loadMeta();
 function loadMeta() {
-  try { return JSON.parse(localStorage.getItem('io-noch-meta')) || { thoughts: 0, up: {} }; }
-  catch (_) { return { thoughts: 0, up: {} }; }
+  let m;
+  try { m = JSON.parse(localStorage.getItem('io-noch-meta')) || {}; } catch (_) { m = {}; }
+  m.thoughts = m.thoughts || 0;
+  m.up = m.up || {};
+  // способности изучаются за мысли; спириты дарованы от рождения первой степенью
+  m.ab = Object.assign({ tether: 0, blink: 0, charge: 0, spirits: 1 }, m.ab || {});
+  return m;
 }
 function saveMeta() {
   try { localStorage.setItem('io-noch-meta', JSON.stringify(META)); } catch (_) {}
@@ -1589,6 +1700,41 @@ TXT.ru.meta_xp = 'Ясность ума'; TXT.ru.meta_xp_desc = 'Каждая м
 TXT.ru.meta_revive = 'Ещё одна ночь'; TXT.ru.meta_revive_desc = 'Единожды за забег смерть отступает.';
 TXT.ru.meta_buy = 'Взять за ';
 
+// ---------- способности: их надобно изучать и возвышать ----------
+const ABILITIES = [
+  { id: 'tether',  max: 3, costs: [30, 60, 110] },
+  { id: 'blink',   max: 3, costs: [25, 55, 100] },
+  { id: 'charge',  max: 3, costs: [40, 80, 140] },
+  { id: 'spirits', max: 3, costs: [0, 70, 150] },
+];
+// отладочный лётчик мерит живучесть при первой степени всего — прежняя база
+const BOT = { on: false, tx: 0, ty: 0 };
+const BOT_AB = { tether: 1, blink: 1, charge: 1, spirits: 1 };
+function abLvl(id) { return BOT.on ? BOT_AB[id] : (META.ab[id] || 0); }
+
+TXT.ru.ab_head = 'Способности';
+TXT.ru.ab_tether = 'нить';
+TXT.ru.ab_tether_desc = 'связать себя с кораблём: нить держит в пути и жжёт кошмаров. II — нить длиннее · III — жжёт злее.';
+TXT.ru.ab_blink = 'мерцание';
+TXT.ru.ab_blink_desc = 'перенестись к персту указующему; позади тлеет отголосок-приманка, и вторым нажатием можно вернуться к нему. II — возвращается скорее · III — отголосок жжёт кошмаров.';
+TXT.ru.ab_charge = 'заряд';
+TXT.ru.ab_charge_desc = 'свет разгорается: спириты кружат вдвое быстрее, перегрев молчит, бодрость тает вполсилы. Выше степень — дольше горит (3 / 4½ / 6 с).';
+TXT.ru.ab_spirits = 'спириты';
+TXT.ru.ab_spirits_desc = 'хоровод искр, жгущих ночь. II — четвёртая искра · III — пятая.';
+TXT.ru.ab_lvl = n => 'степень ' + n;
+TXT.ru.ab_locked = 'не изучено';
+TXT.en.ab_head = 'Abilities';
+TXT.en.ab_tether = 'thread';
+TXT.en.ab_tether_desc = 'bind yourself to a ship: the thread carries you and burns nightmares. II — longer thread · III — burns fiercer.';
+TXT.en.ab_blink = 'blink';
+TXT.en.ab_blink_desc = 'step to where you point; an echo-lure smolders behind, and a second press returns you to it. II — returns sooner · III — the echo burns nightmares.';
+TXT.en.ab_charge = 'charge';
+TXT.en.ab_charge_desc = 'the light flares up: spirits whirl twice as fast, overheat is silent, wakefulness drains at half strength. Higher tier — burns longer (3 / 4½ / 6 s).';
+TXT.en.ab_spirits = 'spirits';
+TXT.en.ab_spirits_desc = 'the round of sparks that burn the night. II — a fourth spark · III — a fifth.';
+TXT.en.ab_lvl = n => 'tier ' + n;
+TXT.en.ab_locked = 'not learned';
+
 TXT.en.meta_head = 'Casket of Thoughts';
 TXT.en.meta_thoughts = n => 'Thoughts in stash: ' + n;
 TXT.en.meta_startWake = 'Reserve of Strength'; TXT.en.meta_startWake_desc = 'The light holds more wakefulness.';
@@ -1602,25 +1748,40 @@ TXT.en.meta_revive = 'One More Night'; TXT.en.meta_revive_desc = 'Once a run, de
 TXT.en.meta_buy = 'Take for ';
 
 function applyMeta(r) {
+  applyAbilities(r); // способности кладут основу; дары шкатулки строят поверх
   for (const u of META_UP) {
     const lvl = META.up[u.id] || 0;
     if (lvl > 0) u.apply(r, lvl);
   }
 }
 
+function applyAbilities(r) {
+  r.spirits = 2 + Math.max(1, abLvl('spirits'));   // I — три искры, далее гуще
+  const tl = abLvl('tether');
+  if (tl >= 2) r.tetherR *= 1.25;
+  r.threadBurnMul = tl >= 3 ? 0.7 : 1;             // III: нить прожигает скорее
+  const bl = abLvl('blink');
+  if (bl >= 2) r.relocCd = Math.max(3, r.relocCd - 2);
+  r.echoLife = 2.2 + bl * 0.4;                     // отголосок тлеет дольше со степенью
+  r.echoBurn = bl >= 3;
+  const cl = abLvl('charge');
+  r.ocDur = [0, 3, 4.5, 6][cl];
+  r.ocCd = 14;
+}
+
 // ---------- дары бессонницы (прокачка по очкам) ----------
 const UPGRADES = [
-  { id: 'spark',   name: 'искра-побратим', desc: 'к хороводу твоему пристаёт новый спирит', apply: r => r.spirits++ },
-  { id: 'round',   name: 'широкий хоровод',    desc: 'орбита спиритов делается на треть просторней', apply: r => r.orbitR *= 1.3 },
-  { id: 'spin',    name: 'неистовый хоровод',  desc: 'искры кружатся с вящей быстротою', apply: r => r.spinMul *= 1.4 },
+  { id: 'spark', ab: 'spirits',   name: 'искра-побратим', desc: 'к хороводу твоему пристаёт новый спирит', apply: r => r.spirits++ },
+  { id: 'round', ab: 'spirits',   name: 'широкий хоровод',    desc: 'орбита спиритов делается на треть просторней', apply: r => r.orbitR *= 1.3 },
+  { id: 'spin', ab: 'spirits',    name: 'неистовый хоровод',  desc: 'искры кружатся с вящей быстротою', apply: r => r.spinMul *= 1.4 },
   { id: 'tea',     name: 'настой полуночи',    desc: 'предел бодрости возрастает на 25, да и глоток тотчас', apply: r => { r.wakeMax += 25; r.wake = Math.min(r.wakeMax, r.wake + 20); } },
   { id: 'calm',    name: 'тихое горение',    desc: 'бодрость тает пятою долей медленней', apply: r => r.drainMul *= 0.8 },
   { id: 'dawn',    name: 'тёплое зарево',       desc: 'всякая мысль целит на 2 сильнее', apply: r => r.healBonus += 2 },
-  { id: 'thread',  name: 'нить за горизонт',      desc: 'к кораблю возможно привязаться издалече', apply: r => r.tetherR *= 1.45 },
-  { id: 'chain',   name: 'неразрывная связь',       desc: 'доколе держишься за корабль — бодрость тает вчетверо медленней', once: true, apply: r => r.chain = true },
+  { id: 'thread', ab: 'tether',  name: 'нить за горизонт',      desc: 'к кораблю возможно привязаться издалече', apply: r => r.tetherR *= 1.45 },
+  { id: 'chain', ab: 'tether',   name: 'неразрывная связь',       desc: 'доколе держишься за корабль — бодрость тает вчетверо медленней', once: true, apply: r => r.chain = true },
   { id: 'light',   name: 'попутный свет',          desc: 'свет летит пятою долей быстрее', apply: r => r.speed *= 1.2 },
-  { id: 'breath',  name: 'зов мерцания',     desc: 'мерцание возвращается двумя секундами ранее', apply: r => r.relocCd = Math.max(3, r.relocCd - 2) },
-  { id: 'echo',    name: 'эхо света',         desc: 'мерцание вспыхивает и разгоняет кошмаров окрест', once: true, apply: r => r.echo = true },
+  { id: 'breath', ab: 'blink',  name: 'зов мерцания',     desc: 'мерцание возвращается двумя секундами ранее', apply: r => r.relocCd = Math.max(3, r.relocCd - 2) },
+  { id: 'echo', ab: 'blink',    name: 'эхо света',         desc: 'мерцание вспыхивает и разгоняет кошмаров окрест', once: true, apply: r => r.echo = true },
   { id: 'coolfl',  name: 'холодное пламя',    desc: 'свет терпит скорость дольше — перегрев наступает позже', apply: r => r.hotMul *= 1.35 },
   { id: 'flow',    name: 'узда ветров', desc: 'теченья несут тебя туда, куда сам изволишь лететь', once: true, apply: r => r.flow = true },
   { id: 'riftg',   name: 'милость разлома',      desc: 'мысли подле разломов целят вдвое', once: true, apply: r => r.riftGift = true },
@@ -1632,12 +1793,12 @@ const UPGRADES = [
   { id: 'stormh',  name: 'сердце бури',       desc: 'в ночи бурные урон тебе вдвое меньше', once: true, apply: r => r.stormHeart = true },
   { id: 'wind2',   name: 'второе дыхание',    desc: 'единожды за бессонницу смертный удар тебя не гасит', rare: true, once: true, apply: r => r.secondWind = true },
   { id: 'starf',   name: 'звёздный час',      desc: 'павшие звёзды сыплются с неба приметно чаще', apply: r => r.starRateMul *= 0.62 },
-  { id: 'keen',    name: 'неугасимый рой',      desc: 'погасшая искра возгорается на треть скорее', apply: r => r.sparkCdMul *= 0.7 },
+  { id: 'keen', ab: 'spirits',    name: 'неугасимый рой',      desc: 'погасшая искра возгорается на треть скорее', apply: r => r.sparkCdMul *= 0.7 },
   { id: 'dew',     name: 'роса рассветная',   desc: 'всякий рассвет омывает тебя дюжиной бодрости', apply: r => r.dawnDew += 12 },
   { id: 'chreda',  name: 'долгая чреда',      desc: 'чреда мыслей держится вдвое дольше', apply: r => r.comboMul *= 1.8 },
   { id: 'zharcz',  name: 'жар чреды',         desc: 'при чреде от пяти всякая мысль дарит лишнее очко опыта', once: true, apply: r => r.comboXp = true },
   { id: 'rod',     name: 'громоотвод',        desc: 'молния тебя не ранит — напротив, бодрит', rare: true, once: true, apply: r => r.boltRod = true },
-  { id: 'veil',    name: 'вуаль мерцания',    desc: 'после мерцания ночь не смеет тронуть тебя две с половиной секунды', once: true, apply: r => r.relocVeil = true },
+  { id: 'veil', ab: 'blink',    name: 'вуаль мерцания',    desc: 'после мерцания ночь не смеет тронуть тебя две с половиной секунды', once: true, apply: r => r.relocVeil = true },
   { id: 'zhatva',  name: 'жатва бури',        desc: 'в ночи бурные всякая мысль дарит лишнее очко опыта', once: true, apply: r => r.stormXp = true },
   { id: 'skoro',   name: 'небесный скороход', desc: 'предел скорости твоей отодвигается ввысь', apply: r => r.maxSpd += 140 },
 ];
@@ -1817,7 +1978,7 @@ function resetWorld(attract) {
   });
   io.x = 0; io.y = 0; io.vx = 0; io.vy = 0; io.trail = [];
   io.reloc = { phase: 'idle', timer: 0, cd: 0, rx: 0, ry: 0 };
-  io.tether = null; io.oc = false;
+  io.tether = null; io.oc = false; io.ocT = 0; io.ocCd = 0; io.spin = 0;
   cam.x = 0; cam.y = 0;
   syncSpirits();
   pointer.x = W * 0.5; pointer.y = H * 0.45;
@@ -1839,17 +2000,17 @@ function freeMote(m) { if (motePool.length < 500) motePool.push(m); }
 
 const enemyPool = [];
 function allocEnemy() { return enemyPool.length ? enemyPool.pop() : {}; }
-function freeEnemy(e) { if (enemyPool.length < 500) enemyPool.push(e); }
+function freeEnemy(e) { e.burnE = 0; if (enemyPool.length < 500) enemyPool.push(e); }
 
 function spawnMote(closeOk) {
   const p = closeOk ? spawnRing(80, viewR() * 0.8) : spawnRing(140, viewR() * 1.05);
   const m = allocMote();
-  Object.assign(m, { x: p.x, y: p.y, vx: rand(-12, 12), vy: rand(-8, 8), r: rand(5, 8), seed: rand(TAU), life: 30, born: 0 });
+  Object.assign(m, { x: p.x, y: p.y, vx: rand(-12, 12), vy: rand(-8, 8), r: rand(4, 6.2), seed: rand(TAU), life: 30, born: 0 });
   motes.push(m);
 }
 function spawnMoteAt(x, y, life) {
   const m = allocMote();
-  Object.assign(m, { x, y, vx: rand(-20, 20), vy: rand(-20, 20), r: rand(5, 7), seed: rand(TAU), life: life || 14, born: 0 });
+  Object.assign(m, { x, y, vx: rand(-20, 20), vy: rand(-20, 20), r: rand(4, 5.6), seed: rand(TAU), life: life || 14, born: 0 });
   motes.push(m);
 }
 function spawnShip() {
@@ -2320,24 +2481,37 @@ window.addEventListener('keydown', e => {
   }
   if (e.key === 'Escape') {
     if (!setPanel.classList.contains('hidden')) { closeSettings(); return; }
+    if (S.mode === 'title') { titleScreen.classList.remove('open'); return; }
     if (S.mode === 'play') togglePause();
   }
+  // Enter на титуле зажигает сразу, минуя меню — как в osu
+  if (e.key === 'Enter' && S.mode === 'title' && titleScreen &&
+      !titleScreen.classList.contains('hidden') &&
+      skyScreen.classList.contains('hidden') && metaScreen.classList.contains('hidden') &&
+      skinScreen.classList.contains('hidden')) startRun();
   if ((e.key === ' ' || e.code === 'Space') && S.mode === 'play' && !S.paused) { e.preventDefault(); tryRelocate(); }
-  if (e.key === 'Shift') io.oc = true;
+  if (e.key === 'Shift') startOvercharge();
 });
 window.addEventListener('keyup', e => {
   keys[e.key] = false;
-  if (e.key === 'Shift') io.oc = false;
 });
 const ocBtn = document.getElementById('ocBtn');
 const btnTether = document.getElementById('btnTether');
 const btnBlink = document.getElementById('btnBlink');
+// заряд более не держится пальцем: нажал — и свет горит своё время сам
+function startOvercharge() {
+  if (abLvl('charge') < 1 || S.mode !== 'play' || S.paused) return;
+  if (io.oc || io.ocCd > 0) return;
+  io.oc = true;
+  io.ocT = RUN.ocDur;
+  ocBtn.classList.add('held');
+  burst(io.x, io.y, [1, 0.72, 0.35], 18, 240);
+  sfxChoice();
+}
 ocBtn.addEventListener('pointerdown', e => {
   e.preventDefault(); e.stopPropagation();
-  audioUnlock(); io.oc = true; ocBtn.classList.add('held');
+  audioUnlock(); startOvercharge();
 });
-for (const ev of ['pointerup', 'pointercancel', 'pointerleave'])
-  ocBtn.addEventListener(ev, () => { io.oc = false; ocBtn.classList.remove('held'); });
 btnTether.addEventListener('pointerdown', e => {
   e.preventDefault(); e.stopPropagation();
   audioUnlock();
@@ -2376,6 +2550,7 @@ function shipInReach() {
   return best;
 }
 function toggleTether() {
+  if (abLvl('tether') < 1) return; // нить ещё не изучена
   if (io.tether) { releaseTether(); return; }
   const best = S.reachShip || shipInReach();
   if (best) {
@@ -2421,6 +2596,20 @@ function echoBlast(x, y) {
 }
 
 function tryRelocate() {
+  if (abLvl('blink') < 1) return; // мерцание ещё не изучено
+  // вторым нажатием — назад к отголоску (по воле, не по принуждению)
+  if (io.reloc.phase === 'echo' && !BOT.on) {
+    shakeOffMoths();
+    burst(io.x, io.y, IO_COL, 14, 200);
+    io.x = io.reloc.rx; io.y = io.reloc.ry;
+    io.vx = 0; io.vy = 0; io.trail = [];
+    io.reloc.phase = 'idle';
+    S.hurtT = Math.max(S.hurtT, relocGuard());
+    burst(io.x, io.y, IO_COL, 14, 200);
+    if (RUN.echo) echoBlast(io.x, io.y);
+    sfxReloc(true);
+    return;
+  }
   if (io.reloc.cd > 0 || io.reloc.phase !== 'idle') return;
   io.reloc.rx = io.x; io.reloc.ry = io.y;
   shakeOffMoths();
@@ -2430,7 +2619,8 @@ function tryRelocate() {
   io.y = pw.ty !== undefined ? pw.ty : pw.y;
   io.vx = 0; io.vy = 0;
   io.trail = [];
-  io.reloc.phase = 'out'; io.reloc.timer = 2.5; io.reloc.cd = RUN.relocCd;
+  // позади тлеет отголосок-приманка: кошмары летят на него, не на тебя
+  io.reloc.phase = 'echo'; io.reloc.timer = RUN.echoLife; io.reloc.cd = RUN.relocCd;
   S.hurtT = Math.max(S.hurtT, relocGuard());
   burst(io.x, io.y, IO_COL, 16, 220);
   if (RUN.echo) echoBlast(io.x, io.y);
@@ -2555,25 +2745,15 @@ function update(dt) {
 
   // --- Ио ---
   if (playing) {
-    // бодрость тает всегда
-    // неразрывная связь более не гасит таяние вовсе — с нынешней нитью это
-    // была бы вечная жизнь у борта; теперь она лишь вчетверо его замедляет
+    // бодрость тает всегда — полного стопа нет нигде, лишь замедления,
+    // зато сама трата чуть мягче прежней: у игрока больше времени
     const chainMul = (RUN.chain && io.tether) ? 0.25 : 1;
-    RUN.wake -= (1.05 + 0.42 * Math.min(D, 11)) * RUN.drainMul * chainMul * dt;
+    const ocSlow = io.oc ? 0.55 : 1; // заряд бережёт свет, но не гасит трату
+    RUN.wake -= (0.92 + 0.38 * Math.min(D, 11)) * RUN.drainMul * chainMul * ocSlow * dt;
 
-    if (io.reloc.phase === 'out') {
+    if (io.reloc.phase === 'echo') {
       io.reloc.timer -= dt;
-      if (io.reloc.timer <= 0) {
-        shakeOffMoths();
-        burst(io.x, io.y, IO_COL, 14, 200);
-        io.x = io.reloc.rx; io.y = io.reloc.ry;
-        io.vx = 0; io.vy = 0; io.trail = [];
-        io.reloc.phase = 'idle';
-        S.hurtT = Math.max(S.hurtT, relocGuard());
-        burst(io.x, io.y, IO_COL, 14, 200);
-        if (RUN.echo) echoBlast(io.x, io.y);
-        sfxReloc(true);
-      }
+      if (io.reloc.timer <= 0) io.reloc.phase = 'idle'; // отголосок дотлел
     }
     io.reloc.cd = Math.max(0, io.reloc.cd - dt);
 
@@ -2635,9 +2815,10 @@ function update(dt) {
     let spd = hyp(io.vx, io.vy);
     if (spd > RUN.maxSpd) { io.vx *= RUN.maxSpd / spd; io.vy *= RUN.maxSpd / spd; spd = RUN.maxSpd; }
     const HOT = 430 * RUN.hotMul;
-    if (spd > HOT) io.heat = Math.min(1, io.heat + (spd / HOT - 1) * 2 * dt);
+    if (io.oc) io.heat = Math.max(0, io.heat - dt * 2); // заряд глушит перегрев
+    else if (spd > HOT) io.heat = Math.min(1, io.heat + (spd / HOT - 1) * 2 * dt);
     else io.heat = Math.max(0, io.heat - dt * 1.2);
-    if (io.heat > 0.5) {
+    if (!io.oc && io.heat > 0.5) {
       RUN.wake -= (io.heat - 0.5) * 5 * dt;
       if (Math.random() < dt * 14)
         newPart(io.x - io.vx * 0.06 + rand(-8, 8), io.y - io.vy * 0.06 + rand(-8, 8),
@@ -2674,23 +2855,36 @@ function update(dt) {
     RUN.dist += spd * dt;
     io.trail.unshift({ x: io.x, y: io.y });
     if (io.trail.length > 22) io.trail.pop();
+    // звёздная пыль: в полёте с огонька осыпаются золотые искорки
+    if (SET.visuals.dust && spd > 110 && Math.random() < dt * 13)
+      newPart(io.x - io.vx * 0.05 + rand(-7, 7), io.y - io.vy * 0.05 + rand(-7, 7),
+        rand(-14, 14), rand(-10, 16), rand(0.35, 0.8), DUST_GOLD, rand(0.5, 1.1));
 
     if (io.oc) {
-      RUN.wake -= 3.5 * dt;
-      if (RUN.wake <= 0) { RUN.wake = 1; io.oc = false; ocBtn.classList.remove('held'); }
+      io.ocT -= dt;
+      if (io.ocT <= 0) { io.oc = false; io.ocCd = RUN.ocCd; ocBtn.classList.remove('held'); }
     }
+    io.ocCd = Math.max(0, io.ocCd - dt);
     checkDissolve();
     if (S.mode !== 'play') return; // растворился прямо сейчас
 
-    const spinMul = (io.oc ? 2.2 : 1) * RUN.spinMul;
-    for (const sp of io.spirits) {
-      sp.ang += dt * 1.7 * spinMul;
+    // хоровод как в доте: искры на равных промежутках круга; новая искра
+    // встраивается плавно — все раздвигаются, уступая ей место
+    const spinMul = (io.oc ? 2 : 1) * RUN.spinMul;
+    io.spin = (io.spin || 0) + dt * 1.7 * spinMul;
+    const nSp = io.spirits.length;
+    for (let si = 0; si < nSp; si++) {
+      const sp = io.spirits[si];
+      const want = io.spin + si * TAU / nSp;
+      let dAng = (want - sp.ang) % TAU;
+      if (dAng > Math.PI) dAng -= TAU; else if (dAng < -Math.PI) dAng += TAU;
+      sp.ang += dAng * Math.min(1, dt * 5);
       sp.cd = Math.max(0, sp.cd - dt);
     }
   }
 
   if (playing) { // корабль в досягаемости — подсказать единожды за бессонницу
-    S.reachShip = io.tether ? null : shipInReach();
+    S.reachShip = (io.tether || abLvl('tether') < 1) ? null : shipInReach();
     if (S.reachShip && !S.tetherHinted && S.playT > 4) {
       S.tetherHinted = true;
       spawnText(S.reachShip.x, S.reachShip.y - 80 * S.reachShip.scl, tr('hintTether'), true);
@@ -2847,7 +3041,7 @@ function update(dt) {
       if (Math.random() < dt * 12)
         newPart(e.x + rand(-e.r, e.r), e.y + rand(-e.r, e.r),
           rand(-40, 40), rand(-60, -10), rand(0.2, 0.5), IO_COL, rand(0.6, 1.6));
-      if (e.threadT >= TETHER_BURN) {
+      if (e.threadT >= TETHER_BURN * RUN.threadBurnMul) {
         e.threadT = 0;
         if (e.hp > 1) { e.hp--; e.flashT = 0.22; burst(e.x, e.y, IO_COL, 10, 200); sfxKill(e.x); }
         else { killEnemy(i); continue; }
@@ -2863,7 +3057,7 @@ function update(dt) {
         const slow = Math.pow(0.35, dt);
         e.vx *= slow; e.vy *= slow;
         e.threadT = (e.threadT || 0) + dt;
-        if (e.threadT >= TETHER_BURN * 2) {
+        if (e.threadT >= TETHER_BURN * 2 * RUN.threadBurnMul) {
           e.threadT = 0; e.hp--; e.flashT = 0.25;
           burst(e.x, e.y, IO_COL, 12, 220); sfxKill(e.x);
           if (e.hp <= 0) {
@@ -3035,7 +3229,13 @@ function update(dt) {
         lm.t -= dt;
         if (lm.t <= 0) lm.state = 'done';
         else {
-          if (hyp(io.x - lm.x, io.y - lm.y) < 250) RUN.wake += (1.0 + 0.30 * Math.min(D, 8)) * RUN.drainMul * dt; // компенсирует таяние
+          // возвращает половину траты — таяние вдвое медленней, но не стоп:
+          // полного стопа бодрости в игре нет нигде
+          if (hyp(io.x - lm.x, io.y - lm.y) < 250) {
+            const lch = (RUN.chain && io.tether) ? 0.25 : 1;
+            const loc = io.oc ? 0.55 : 1;
+            RUN.wake += (0.92 + 0.38 * Math.min(D, 11)) * RUN.drainMul * lch * loc * 0.5 * dt;
+          }
           // отпугивает врагов
           for (const e of enemies) {
             const d = hyp(e.x - lm.x, e.y - lm.y);
@@ -3319,7 +3519,19 @@ function update(dt) {
 }
 
 function updateEnemy(e, dt) {
-  const dx = io.x - e.x, dy = io.y - e.y, d = hyp(dx, dy) || 1;
+  // отголосок мерцания манит: кошмары окрест летят на него, не на свет
+  let tgx = io.x, tgy = io.y;
+  if (io.reloc.phase === 'echo') {
+    const ed = hyp(io.reloc.rx - e.x, io.reloc.ry - e.y);
+    if (ed < 560) {
+      tgx = io.reloc.rx; tgy = io.reloc.ry;
+      if (RUN.echoBurn && ed < 80) { // III степень: приманка ещё и жжёт
+        e.burnE = (e.burnE || 0) + dt;
+        if (e.burnE > 0.6) e.dead = true;
+      }
+    }
+  }
+  const dx = tgx - e.x, dy = tgy - e.y, d = hyp(dx, dy) || 1;
   if (e.sleeping) {
     if (d < viewR() * 0.95) e.sleeping = false; // просыпается, лишь войдя в поле зрения
     else return;
@@ -3764,9 +3976,26 @@ function draw() {
   }
   sc.globalAlpha = 1;
 
-  if (S.mode === 'play' && pointer.active && !io.tether && !touchSteer) {
+  // точка-курсор живёт и под нитью — на ПК прицел не смеет пропадать
+  if (S.mode === 'play' && pointer.active && !touchSteer) {
     sc.fillStyle = 'rgba(235,232,225,.35)';
     sc.beginPath(); sc.arc(pointer.x, pointer.y, 2, 0, TAU); sc.fill();
+  }
+  // курсор-спутник на касании: живёт подле Ио с той стороны, куда правим
+  if (S.mode === 'play' && touchSteer) {
+    let nx = 0, ny = 0;
+    if (joy.on && joy.mag > 0.15) { nx = joy.nx; ny = joy.ny; }
+    else { const l = hyp(io.vx, io.vy); if (l > 30) { nx = io.vx / l; ny = io.vy / l; } }
+    if (nx || ny) {
+      const P0 = proj(io.x, io.y);
+      const cx2 = P0.x + nx * 46, cy2 = P0.y + ny * 46 * view.tilt;
+      const a = Math.atan2(ny * view.tilt, nx);
+      sc.save(); sc.translate(cx2, cy2); sc.rotate(a);
+      sc.strokeStyle = 'rgba(235,232,225,.5)';
+      sc.lineWidth = 1.6; sc.lineCap = 'round';
+      sc.beginPath(); sc.moveTo(-4, -4.5); sc.lineTo(3.5, 0); sc.lineTo(-4, 4.5); sc.stroke();
+      sc.restore();
+    }
   }
   // джойстик невидим, покуда его не попросят показать
   if (S.mode === 'play' && joy.on && SET.joyShow) {
@@ -3894,9 +4123,9 @@ function drawZone(z, pal, tm) {
 function drawStar(st, P, pal, tm) {
   const fade = Math.min(1, st.t * 2, (st.life - st.t) / 1.5);
   const pulse = 1 + 0.2 * Math.sin(tm * 4 + st.seed);
-  const R = 7 * P.k * pulse;
+  const R = 5 * P.k * pulse;
   sc.globalCompositeOperation = 'lighter';
-  tintGlow(P.x, P.y, R * 4, [1, 0.95, 0.8], 0.5 * fade);
+  tintGlow(P.x, P.y, R * 3, [1, 0.95, 0.8], 0.5 * fade);
   sc.fillStyle = css3([1, 1, 1], 0.95 * fade);
   sc.save();
   sc.translate(P.x, P.y);
@@ -3918,13 +4147,13 @@ function drawMote(m, P, pal, tm) {
   sc.globalAlpha = fa;
   // тёмный ободок под свечением отсекает мысль от любого светлого фона
   sc.fillStyle = 'rgba(5,6,10,.55)';
-  sc.beginPath(); sc.arc(P.x, P.y, (m.r * 0.9 + 2.5) * P.k, 0, TAU); sc.fill();
+  sc.beginPath(); sc.arc(P.x, P.y, (m.r * 0.8 + 2) * P.k, 0, TAU); sc.fill();
   sc.globalCompositeOperation = 'lighter';
-  tintGlow(P.x, P.y, m.r * 4 * pulse * P.k, pal.mote, 0.55 * fa);
+  tintGlow(P.x, P.y, m.r * 3.2 * pulse * P.k, pal.mote, 0.55 * fa);
   sc.fillStyle = css3([1, 1, 1], 0.97 * fa);
-  sc.beginPath(); sc.arc(P.x, P.y, (m.r * 0.5 * pulse + 1.3) * P.k, 0, TAU); sc.fill();
-  // блик-крестик
-  const gl2 = m.r * 3.1 * pulse * P.k;
+  sc.beginPath(); sc.arc(P.x, P.y, (m.r * 0.45 * pulse + 1.1) * P.k, 0, TAU); sc.fill();
+  // блик-крестик — короткий, лишь намёк на грань
+  const gl2 = m.r * 1.9 * pulse * P.k;
   sc.strokeStyle = css3([1, 1, 1], 0.5 * fa * pulse);
   sc.lineWidth = 0.9;
   sc.beginPath();
@@ -4426,16 +4655,19 @@ function drawIo(P, pal, tm) {
   drawTetherLine(P, tm);
   const blink = S.hurtT > 0.5 && Math.sin(tm * 30) > 0;
   const col = ioCol(), fiery = SET.visuals.trail === 'tether_trail';
+  const auroraTr = SET.visuals.trail === 'aurora_trail';
   if (io.trail.length > 3) {
     sc.globalCompositeOperation = 'lighter';
     let prev = proj(io.trail[0].x, io.trail[0].y);
     for (let i = 1; i < io.trail.length; i++) {
       const cur = proj(io.trail[i].x, io.trail[i].y);
       const a = 1 - i / io.trail.length;
-      // огненный след: у самой искры бел, к хвосту сходит в уголь
+      // огненный след: у самой искры бел, к хвосту сходит в уголь;
+      // полярный — кольцо готовых цветов севера медленно плывёт вдоль хвоста
       sc.strokeStyle = fiery ? css3(FIRE_RAMP[((1 - a) * 7) | 0], a * 0.42)
+        : auroraTr ? css3(AUR_RAMP[(i + (tm * 6 | 0)) % 12], a * 0.4)
         : css3(col, a * 0.3);
-      sc.lineWidth = a * (fiery ? 9 : 7) + 1;
+      sc.lineWidth = a * (fiery ? 9 : auroraTr ? 8 : 7) + 1;
       sc.lineCap = 'round';
       sc.beginPath(); sc.moveTo(prev.x, prev.y); sc.lineTo(cur.x, cur.y); sc.stroke();
       prev = cur;
@@ -4444,10 +4676,15 @@ function drawIo(P, pal, tm) {
   }
   if (blink) return;
   const k = P.k;
-  const ocMul = (io.oc ? 1.35 : 1) * k;
+  // заряд более не раздувает свет — он его разжигает: тёплое сияние поверх
+  const ocMul = k;
+  if (io.oc) {
+    const br = 0.6 + 0.2 * Math.sin(tm * 9);
+    tintGlow(P.x, P.y, 56 * k, [1, 0.62, 0.3], br);
+  }
   sc.globalCompositeOperation = 'lighter';
   if (io.heat > 0.4) { // раскалился от скорости
-    tintGlow(P.x, P.y, 46 * ocMul, [1, 0.55, 0.25], (io.heat - 0.4) * 0.9);
+    tintGlow(P.x, P.y, 46 * ocMul, [1, 0.24, 0.18], (io.heat - 0.4) * 0.9); // перегрев ал
   }
   tintGlow(P.x, P.y, 36 * ocMul, col, 0.5);
   sc.fillStyle = 'rgba(255,255,255,.97)';
@@ -4482,26 +4719,51 @@ function drawIo(P, pal, tm) {
       sc.beginPath(); sc.arc(fx, fy, 1.4 + bl, 0, TAU); sc.fill();
     }
   }
+  // кольцо орбиты — тонкий обруч с бегущей искрой, поверх прочих ореолов
+  if (SET.visuals.ring) {
+    const rr2 = 40 * k;
+    sc.strokeStyle = css3(col, 0.28);
+    sc.lineWidth = 1;
+    sc.beginPath(); sc.ellipse(P.x, P.y, rr2, rr2 * 0.82, 0, 0, TAU); sc.stroke();
+    const ra = tm * 1.3;
+    const rx = P.x + Math.cos(ra) * rr2, ry = P.y + Math.sin(ra) * rr2 * 0.82;
+    tintGlow(rx, ry, 6, col, 0.5);
+    sc.fillStyle = 'rgba(255,255,255,.9)';
+    sc.beginPath(); sc.arc(rx, ry, 1.5, 0, TAU); sc.fill();
+  }
   // спириты — позиции в мире, проекция сама их кладёт в наклон плоскости
   const orbR = RUN.orbitR * (io.oc ? 1.6 : 1);
   const comets = SET.visuals.spirits === 'ship_spirits';
+  const starSp = SET.visuals.spirits === 'star_spirits';
+  const spCol = SET.visuals.emberSp ? EMBER_SP : col; // жар хоровода красит искры
   for (const sp of io.spirits) {
     const SP = proj(io.x + Math.cos(sp.ang) * orbR, io.y + Math.sin(sp.ang) * orbR * 0.82);
     if (sp.cd > 0) {
-      sc.fillStyle = css3(col, 0.18);
+      sc.fillStyle = css3(spCol, 0.18);
       sc.beginPath(); sc.arc(SP.x, SP.y, 1.6, 0, TAU); sc.fill();
     } else {
       // кометы: за всякой искрою тянется короткий хвост по ходу хоровода
       if (comets) {
         const back = sp.ang - 0.42;
         const T = proj(io.x + Math.cos(back) * orbR, io.y + Math.sin(back) * orbR * 0.82);
-        sc.strokeStyle = css3(col, 0.4);
+        sc.strokeStyle = css3(spCol, 0.4);
         sc.lineWidth = 2.2 * SP.k; sc.lineCap = 'round';
         sc.beginPath(); sc.moveTo(T.x, T.y); sc.lineTo(SP.x, SP.y); sc.stroke();
       }
-      tintGlow(SP.x, SP.y, 10 * SP.k, col, 0.55);
+      tintGlow(SP.x, SP.y, 10 * SP.k, spCol, 0.55);
       sc.fillStyle = 'rgba(255,255,255,.95)';
-      sc.beginPath(); sc.arc(SP.x, SP.y, 2.4 * SP.k, 0, TAU); sc.fill();
+      if (starSp) { // огранка павшей звезды: ромб, вращающийся с хороводом
+        const R3 = 3.4 * SP.k;
+        sc.save();
+        sc.translate(SP.x, SP.y);
+        sc.rotate(sp.ang * 2);
+        sc.beginPath();
+        sc.moveTo(0, -R3); sc.lineTo(R3 * 0.62, 0); sc.lineTo(0, R3); sc.lineTo(-R3 * 0.62, 0);
+        sc.closePath(); sc.fill();
+        sc.restore();
+      } else {
+        sc.beginPath(); sc.arc(SP.x, SP.y, 2.4 * SP.k, 0, TAU); sc.fill();
+      }
     }
   }
   sc.globalCompositeOperation = 'source-over';
@@ -4513,13 +4775,21 @@ function drawIo(P, pal, tm) {
     sc.arc(P.x, P.y, 18 * k, -Math.PI / 2, -Math.PI / 2 + frac * TAU);
     sc.stroke();
   }
-  if (io.reloc.phase === 'out') {
+  if (io.reloc.phase === 'echo') {
+    // отголосок-приманка: призрак света, тлеющий и манящий кошмаров
     const R2 = proj(io.reloc.rx, io.reloc.ry);
-    sc.strokeStyle = css3(IO_COL, 0.5 + 0.2 * Math.sin(tm * 8));
+    const fade = Math.min(1, io.reloc.timer / 0.6);
+    const pl = 0.5 + 0.5 * Math.sin(tm * 6);
+    sc.globalCompositeOperation = 'lighter';
+    tintGlow(R2.x, R2.y, 24 * R2.k, RUN.echoBurn ? [1, 0.6, 0.4] : IO_COL, (0.3 + pl * 0.25) * fade);
+    sc.strokeStyle = css3(IO_COL, (0.45 + 0.2 * pl) * fade);
     sc.lineWidth = 1.2;
     sc.setLineDash([4, 6]);
-    sc.beginPath(); sc.arc(R2.x, R2.y, 12 * R2.k, 0, TAU); sc.stroke();
+    sc.beginPath(); sc.arc(R2.x, R2.y, (12 + pl * 3) * R2.k, 0, TAU); sc.stroke();
     sc.setLineDash([]);
+    sc.fillStyle = css3([1, 1, 1], 0.6 * fade);
+    sc.beginPath(); sc.arc(R2.x, R2.y, 2.5 * R2.k, 0, TAU); sc.fill();
+    sc.globalCompositeOperation = 'source-over';
   }
 }
 
@@ -4596,6 +4866,7 @@ const skTether = document.getElementById('skTether');
 const skBlink = document.getElementById('skBlink');
 const skBlinkKey = document.getElementById('skBlinkKey');
 const skCharge = document.getElementById('skCharge');
+const skChargeKey = document.getElementById('skChargeKey');
 const bossHud = document.getElementById('bossHud');
 const elFps = document.getElementById('fpsHud');
 const elBossFill = document.getElementById('bossFill');
@@ -4617,17 +4888,30 @@ function updateHud() {
   elMeter.style.boxShadow = frac > 0.5 ? 'none' : '0 0 12px ' + col;
   elXp.style.width = (clamp(RUN.xp / RUN.xpNext, 0, 1) * 100).toFixed(1) + '%';
   if (boss) elBossFill.style.width = (clamp(boss.hp / boss.hpMax, 0, 1) * 100).toFixed(1) + '%';
-  // полоса способностей: видно, что чем нажать и что уже готово
-  const blinkOk = io.reloc.cd <= 0 && io.reloc.phase === 'idle';
+  // полоса способностей: видно, что чем нажать и что уже готово;
+  // неизученное не кажет себя вовсе — способности надобно изучить в шкатулке
+  const abT = abLvl('tether') > 0, abB = abLvl('blink') > 0, abC = abLvl('charge') > 0;
+  skTether.classList.toggle('locked', !abT);
+  skBlink.classList.toggle('locked', !abB);
+  skCharge.classList.toggle('locked', !abC);
+  const blinkOk = io.reloc.phase === 'echo' || (io.reloc.cd <= 0 && io.reloc.phase === 'idle');
+  const chargeOk = !io.oc && io.ocCd <= 0;
   const reach = !!S.reachShip;
   skTether.classList.toggle('on', !!io.tether);
   skTether.classList.toggle('ready', !io.tether && reach);
   skBlink.classList.toggle('ready', blinkOk);
   skBlink.classList.toggle('cool', !blinkOk);
-  skBlinkKey.textContent = io.reloc.cd > 0
+  skBlinkKey.textContent = (io.reloc.cd > 0 && io.reloc.phase !== 'echo')
     ? io.reloc.cd.toFixed(1) + tr('secShort') : tr('keySpace');
   skCharge.classList.toggle('on', io.oc);
+  skCharge.classList.toggle('ready', chargeOk);
+  skCharge.classList.toggle('cool', !io.oc && !chargeOk);
+  skChargeKey.textContent = io.ocCd > 0
+    ? io.ocCd.toFixed(1) + tr('secShort') : tr('keyShift');
   if (TOUCH) { // кнопки под пальцем показывают, что готово, а что ещё стынет
+    btnBlink.classList.toggle('locked', !abB);
+    btnTether.classList.toggle('locked', !abT);
+    ocBtn.classList.toggle('locked', !abC);
     btnBlink.classList.toggle('cool', !blinkOk);
     btnBlink.classList.toggle('ready', blinkOk);
     btnTether.classList.toggle('on', !!io.tether);
@@ -4675,7 +4959,7 @@ function recordRun(stats) {
 }
 function showBestLine() {
   const c = skyCaught();
-  document.getElementById('skyBtn').textContent = c ? tr('skyBtn', c, skyTotal()) : tr('skyBtnEmpty');
+  document.getElementById('skyBtnTxt').textContent = c ? tr('mSkyN', c, skyTotal()) : tr('mSky');
   const b = loadBest();
   const el = document.getElementById('bestLine');
   if (b) {
@@ -4808,6 +5092,113 @@ document.getElementById('skyBack').addEventListener('pointerdown', e => {
   skyScreen.classList.add('hidden');
 });
 
+// ---------- гардероб обликов ----------
+// Всякий облик — чистая краса, силы не даёт вовсе. Гнёзда-выборы (оболочка,
+// след, спириты, ореол) и слои-переключатели (пыль, жар, кольцо) складываются
+// друг с другом: надеть можно всё разом, и каждый слой рисует своё.
+const WARDROBE = [
+  { grp: 'shell', slot: 'shell', id: 'storm_shell', theme: 'storm', dot: '#ffb85c',
+    name: { ru: 'штормовая оболочка', en: 'storm shell' },
+    desc: { ru: 'свет Ио отливает янтарём бури', en: 'Io’s light turns storm-amber' } },
+  { grp: 'shell', slot: 'shell', id: 'night_shell', theme: 'night', dot: '#a88aff',
+    name: { ru: 'полуночная оболочка', en: 'midnight shell' },
+    desc: { ru: 'сирень и тишь самой глубокой ночи', en: 'lilac and hush of the deepest night' } },
+  { grp: 'shell', slot: 'shell', id: 'dawn_shell', themes: 2, dot: '#ff9eb8',
+    name: { ru: 'оболочка зари', en: 'dawn shell' },
+    desc: { ru: 'розовый свет утра, что так и не пришло', en: 'rose light of a morning that never came' } },
+  { grp: 'shell', slot: 'shell', id: 'aurora_shell', themes: 5, dot: '#8cffbf',
+    name: { ru: 'оболочка сияния', en: 'aurora shell' },
+    desc: { ru: 'зелёный огонь северного неба', en: 'green fire of the northern sky' } },
+  { grp: 'trail', slot: 'trail', id: 'tether_trail', theme: 'tether', dot: '#ff8a5c',
+    name: { ru: 'огненный след', en: 'fiery trail' },
+    desc: { ru: 'за Ио тянется пламя, белое у сердца', en: 'a flame trails behind, white at the heart' } },
+  { grp: 'trail', slot: 'trail', id: 'aurora_trail', themes: 4, dot: '#7de8ff',
+    name: { ru: 'полярный след', en: 'polar trail' },
+    desc: { ru: 'след переливается всеми огнями севера', en: 'the trail shimmers with every northern light' } },
+  { grp: 'trail', key: 'dust', id: 'star_dust', phr: 0.25, dot: '#ffe6a0',
+    name: { ru: 'звёздная пыль', en: 'star dust' },
+    desc: { ru: 'в полёте с Ио осыпаются золотые искорки', en: 'golden sparks shake loose as Io flies' } },
+  { grp: 'spirits', slot: 'spirits', id: 'ship_spirits', theme: 'ships', dot: '#8fd0ff',
+    name: { ru: 'спириты-кометы', en: 'comet spirits' },
+    desc: { ru: 'за всякой искрой хоровода — хвост', en: 'every spark of the round drags a tail' } },
+  { grp: 'spirits', slot: 'spirits', id: 'star_spirits', phr: 0.55, dot: '#fff3c8',
+    name: { ru: 'спириты-звёзды', en: 'star spirits' },
+    desc: { ru: 'искры огранены, как павшие звёзды', en: 'sparks cut like fallen stars' } },
+  { grp: 'spirits', key: 'emberSp', id: 'ember_spirits', phr: 0.75, dot: '#ffb866',
+    name: { ru: 'жар хоровода', en: 'ember round' },
+    desc: { ru: 'спириты горят тёплым углём', en: 'the spirits burn warm as embers' } },
+  { grp: 'halo', slot: 'halo', id: 'folk_halo', theme: 'folk', dot: '#ffd98a',
+    name: { ru: 'ореол светлячков', en: 'firefly halo' },
+    desc: { ru: 'тёплые огоньки Жителей блуждают подле', en: 'warm lights of the Folk wander close' } },
+  { grp: 'halo', key: 'ring', id: 'ring_halo', phr: 0.4, dot: '#bfe4ff',
+    name: { ru: 'кольцо орбиты', en: 'orbit ring' },
+    desc: { ru: 'тонкое кольцо с бегущей искрой', en: 'a thin ring with a running spark' } },
+];
+const WD_GROUPS = ['shell', 'trail', 'spirits', 'halo'];
+
+function themesDone() {
+  let n = 0;
+  for (const k in C_THEMES) if (checkThemeCompleted(k)) n++;
+  return n;
+}
+function skinUnlocked(s) {
+  if (s.theme) return checkThemeCompleted(s.theme);
+  if (s.themes) return themesDone() >= s.themes;
+  if (s.phr) return skyCaught() >= Math.ceil(skyTotal() * s.phr);
+  return true;
+}
+function skinLockText(s) {
+  if (s.theme) return tr('wd_lock_theme', nm(C_THEMES[s.theme].name));
+  if (s.themes) return tr('wd_lock_themes', s.themes);
+  return tr('wd_lock_phr', Math.ceil(skyTotal() * s.phr));
+}
+function skinWorn(s) { return s.slot ? SET.visuals[s.slot] === s.id : !!SET.visuals[s.key]; }
+function toggleSkin(s) {
+  if (s.slot) SET.visuals[s.slot] = skinWorn(s) ? 'default' : s.id;
+  else SET.visuals[s.key] = !SET.visuals[s.key];
+  saveSettings();
+}
+
+const skinScreen = document.getElementById('skinScreen');
+const wdList = document.getElementById('wdList');
+function renderWardrobe() {
+  const have = WARDROBE.filter(skinUnlocked).length;
+  document.getElementById('wdCount').textContent = tr('wd_count', have, WARDROBE.length);
+  wdList.innerHTML = '';
+  for (const grp of WD_GROUPS) {
+    const head = document.createElement('div');
+    head.className = 'wd-grp';
+    head.textContent = tr('wd_grp_' + grp);
+    wdList.appendChild(head);
+    const row = document.createElement('div');
+    row.className = 'wd-row';
+    for (const s of WARDROBE) {
+      if (s.grp !== grp) continue;
+      const open = skinUnlocked(s), worn = open && skinWorn(s);
+      const card = document.createElement('div');
+      card.className = 'wd-card' + (open ? ' have' : '') + (worn ? ' worn' : '');
+      card.innerHTML = '<b><span class="wd-dot" style="background:' + s.dot + '"></span>' + nm(s.name) + '</b>' +
+        '<span>' + nm(s.desc) + '</span>' +
+        '<i>' + (open ? tr(worn ? 'wd_worn' : 'wd_have') : skinLockText(s)) + '</i>';
+      if (open) card.addEventListener('pointerdown', e => {
+        e.stopPropagation();
+        toggleSkin(s); sfxChoice(); renderWardrobe();
+      });
+      row.appendChild(card);
+    }
+    wdList.appendChild(row);
+  }
+}
+document.getElementById('skinBtn').addEventListener('pointerdown', e => {
+  e.stopPropagation();
+  renderWardrobe();
+  skinScreen.classList.remove('hidden');
+});
+document.getElementById('wdBack').addEventListener('pointerdown', e => {
+  e.stopPropagation();
+  skinScreen.classList.add('hidden');
+});
+
 // ---------- состояния ----------
 const titleScreen = document.getElementById('titleScreen');
 const restScreen = document.getElementById('restScreen');
@@ -4825,9 +5216,11 @@ function startRun() {
   resetWorld(false);
   S.mode = 'play';
   titleScreen.classList.add('hidden');
+  titleScreen.classList.remove('open'); // вернувшись, застанем меню сложенным
   deathScreen.classList.add('hidden');
   restScreen.classList.add('hidden');
   skyScreen.classList.add('hidden');
+  skinScreen.classList.add('hidden');
   hud.classList.add('on');
   document.body.classList.add('playing');
   updateHud(); updateClock();
@@ -4851,7 +5244,8 @@ function levelUp() {
     const banned = new Set();
     for (let i = drop; i < RUN.offerHist.length; i++)
       for (const id of RUN.offerHist[i]) banned.add(id);
-    const pool = UPGRADES.filter(u => !(u.once && RUN.taken.includes(u.id)) && !banned.has(u.id));
+    // дары, привязанные к способности, приходят лишь когда способность изучена
+    const pool = UPGRADES.filter(u => !(u.once && RUN.taken.includes(u.id)) && !banned.has(u.id) && (!u.ab || abLvl(u.ab) > 0));
     if (pool.length < 3 && drop < RUN.offerHist.length) continue; // отпустить старейший бросок
     opts = [];
     while (opts.length < 3 && pool.length) {
@@ -5035,7 +5429,24 @@ deathScreen.addEventListener('pointerdown', e => {
   endFinish();
 });
 
-titleScreen.addEventListener('pointerdown', startRun);
+// ---------- меню-огонёк на титуле ----------
+// нажал огонёк — веер кнопок раскрылся; нажал в пустоту — сложился обратно
+const menuOrb = document.getElementById('menuOrb');
+menuOrb.addEventListener('pointerdown', e => {
+  e.stopPropagation();
+  audioUnlock();
+  titleScreen.classList.toggle('open');
+  sfxChoice();
+});
+document.getElementById('playBtn').addEventListener('pointerdown', e => {
+  e.stopPropagation();
+  startRun();
+});
+document.getElementById('menuSetBtn').addEventListener('pointerdown', e => {
+  e.stopPropagation();
+  openSettings();
+});
+titleScreen.addEventListener('pointerdown', () => titleScreen.classList.remove('open'));
 document.getElementById('againBtn').addEventListener('click', e => {
   e.stopPropagation();
   startRun();
@@ -5192,7 +5603,7 @@ const WLOG = { on: false, n: 0 };
 // Отладочный лётчик для замеров баланса: держится подальше от кошмаров,
 // подбирает ближнюю мысль, мерцает, когда прижали. Играет он хуже человека,
 // оттого его смерть — нижняя граница живучести, не средняя.
-const BOT = { on: false, tx: 0, ty: 0 };
+// (сам объект BOT объявлен выше, до первого newRun — abLvl глядит в него)
 function botTarget() {
   let bx = io.x, by = io.y, fear = 0, fx = 0, fy = 0;
   for (const e of enemies) {
@@ -5320,6 +5731,12 @@ requestAnimationFrame(frame);
       if (q.get('again')) setInterval(() => { if (S.mode === 'death') startRun(); }, 1500);
     }, 400);
   }
+  if (q.get('ab')) { // отладка способностей: ?ab=1,1,1,2 → нить,мерцание,заряд,спириты
+    const v = q.get('ab').split(',');
+    ['tether', 'blink', 'charge', 'spirits'].forEach((k2, i2) => {
+      META.ab[k2] = parseInt(v[i2] || '0', 10) || 0;
+    });
+  }
   if (q.get('lm')) setTimeout(() => { // отладка жителей: ?lm=lighthouse|graveyard|whale|lamplighter
     const t2 = q.get('lm');
     if (t2 === 'whale' || t2 === 'lamplighter') {
@@ -5329,11 +5746,20 @@ requestAnimationFrame(frame);
     else if (t2 === 'nest') landmarks.push({ type: t2, x: io.x + 230, y: io.y + 40, state: 'alive', prog: 0, t: 3, cried: false });
     else landmarks.push({ type: t2, x: io.x + 230, y: io.y + 40, state: 'dark', t: 0, r: 250 });
   }, 900);
-  if (q.get('look')) { // отладка обликов: ?look=storm_shell,tether_trail,ship_spirits
+  if (q.get('look')) { // отладка обликов: ?look=storm_shell,star_dust,ring_halo — по id из гардероба
     for (const id of q.get('look').split(',')) {
-      for (const k in C_THEMES) if (C_THEMES[k].rewardId === id) SET.visuals[C_THEMES[k].rewardType] = id;
+      for (const s of WARDROBE) {
+        if (s.id !== id) continue;
+        if (s.slot) SET.visuals[s.slot] = s.id; else SET.visuals[s.key] = true;
+      }
     }
   }
+  if (q.get('menu')) setTimeout(() => titleScreen.classList.add('open'), 300); // отладка: меню титула раскрыто
+  if (q.get('wdall')) { // отладка гардероба: всё добыто, но лишь в памяти — без записи
+    STARS_DATA.completed = CHALLENGES.map(c2 => c2.id);
+    skyGroups().forEach((tier, gi) => tier.forEach((p2, pi) => SKY.add(phraseKey(gi, pi))));
+  }
+  if (q.get('wd')) setTimeout(() => { renderWardrobe(); skinScreen.classList.remove('hidden'); }, 300);
   if (q.get('tlog')) setInterval(() => {   // отладка нити: видно ли движение под нею
     if (!io.tether) { console.log('нити нет'); return; }
     const sh = io.tether;
