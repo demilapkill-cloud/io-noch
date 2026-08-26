@@ -105,6 +105,10 @@ const TXT = {
     lm_nest_hint: 'задержись подле — и выжги его',
     lm_nest_cry: 'гнездо кричит',
     lm_nest_done: 'гнездо погасло',
+    hint_intro: 'ночь бесконечна, и ты в ней — огонёк',
+    hint_motes: 'лови мысли — они одни держат наяву',
+    hint_wake: 'бодрость тает; иссякнет — растворишься',
+    hint_foe: 'кошмары чуют свет — уводи его прочь',
     // — HUD —
     thoughts: n => 'мыслей · ' + n,
     tierN: n => 'степень ' + n,
@@ -231,6 +235,10 @@ const TXT = {
     lm_nest_hint: 'linger close — and burn it out',
     lm_nest_cry: 'the nest cries out',
     lm_nest_done: 'the nest is put out',
+    hint_intro: 'the night is endless, and you are a wisp within it',
+    hint_motes: 'catch thoughts — they alone keep you awake',
+    hint_wake: 'wakefulness fades; run dry — and you dissolve',
+    hint_foe: 'nightmares smell the light — lead it away',
     thoughts: n => 'thoughts · ' + n,
     tierN: n => 'tier ' + n,
     chain: n => 'chain ×' + n,
@@ -1533,6 +1541,19 @@ function loadMeta() {
 }
 function saveMeta() {
   try { localStorage.setItem('io-noch-meta', JSON.stringify(META)); } catch (_) {}
+}
+
+// подсказки первой ночи: каждая является единожды за всю жизнь сохранения,
+// в прозе мира и без стрелок — ночь сама учит, ей лишь дать слово
+let HINTS = (() => {
+  try { return JSON.parse(localStorage.getItem('io-noch-hints')) || {}; }
+  catch (_) { return {}; }
+})();
+function onceHint(key) {
+  if (HINTS[key]) return;
+  HINTS[key] = 1;
+  try { localStorage.setItem('io-noch-hints', JSON.stringify(HINTS)); } catch (_) {}
+  spawnText(io.x, io.y - 90, tr(key), true);
 }
 skyBounty(); // разом, при первом запуске новой поры — SKY и META уже на месте
 function metaCost(id, lvl) {
@@ -3260,6 +3281,18 @@ function update(dt) {
   S.comboT -= dt;
   S.phraseT = Math.max(0, (S.phraseT || 0) - dt);
   if (S.comboT <= 0 && S.combo > 0) { S.combo = 0; updateHud(); }
+
+  // первая ночь учит сама — по фразе на урок, и только раз за всю пору
+  if (S.mode === 'play' && RUN.night === 1) {
+    if (!HINTS.hint_intro && S.playT > 2) onceHint('hint_intro');
+    else if (!HINTS.hint_motes && S.playT > 7) onceHint('hint_motes');
+    else if (!HINTS.hint_wake && S.playT > 12 && RUN.wake < 55) onceHint('hint_wake');
+    else if (!HINTS.hint_foe && S.playT > 5) {
+      for (const e of enemies) {
+        if (!e.sleeping && hyp(e.x - io.x, e.y - io.y) < 420) { onceHint('hint_foe'); break; }
+      }
+    }
+  }
 
   if (A.started) {
     const now = A.ctx.currentTime;
