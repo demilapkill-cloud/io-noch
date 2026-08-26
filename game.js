@@ -42,7 +42,7 @@ function css3(c, a = 1) {
 const DEFAULT_SET = {
   lang: 'ru', vol: 85, music: 100, sfx: 100,
   quality: 'auto', shake: 100, fx: 100, hud: 'full', fps: false,
-  touchSide: 'right', joyR: 78, joyShow: false, visuals: { trail: 'default', shell: 'default', spirits: 'default' },
+  touchSide: 'right', joyR: 78, joyShow: false, visuals: { trail: 'default', shell: 'default', spirits: 'default', halo: 'default' },
 };
 let SET = loadSettings();
 let LANG = SET.lang;
@@ -1124,6 +1124,7 @@ const IO_COL = [0.56, 0.815, 1];
 // облики, добытые полными созвездиями. Цвета готовы заранее: в кадре ни один
 // из них не рождается заново, оттого краса эта не стоит ни доли миллисекунды.
 const SHELL_AMBER = [1, 0.72, 0.36];
+const FIREFLY_COL = [1, 0.85, 0.5]; // тёплые огоньки ореола Жителей
 const SHELL_NIGHT = [0.66, 0.54, 1];
 const FIRE_RAMP = [];
 for (let i = 0; i < 8; i++) FIRE_RAMP.push(mix3([1, 0.95, 0.82], [0.95, 0.3, 0.1], i / 7));
@@ -1413,7 +1414,8 @@ const C_THEMES = {
   storm: { name: { ru: 'Буря', en: 'The Storm' }, rewardType: 'shell', rewardId: 'storm_shell', rewardName: { ru: 'Штормовая оболочка (янтарная)', en: 'Storm Shell (Amber)' } },
   ships: { name: { ru: 'Корабли', en: 'Ships' }, rewardType: 'spirits', rewardId: 'ship_spirits', rewardName: { ru: 'Спириты-кометы', en: 'Comet Spirits' } },
   tether: { name: { ru: 'Нить', en: 'The Thread' }, rewardType: 'trail', rewardId: 'tether_trail', rewardName: { ru: 'Огненный след', en: 'Fiery Trail' } },
-  night: { name: { ru: 'Глубокие ночи', en: 'Deep Nights' }, rewardType: 'shell', rewardId: 'night_shell', rewardName: { ru: 'Полуночная оболочка', en: 'Midnight Shell' } }
+  night: { name: { ru: 'Глубокие ночи', en: 'Deep Nights' }, rewardType: 'shell', rewardId: 'night_shell', rewardName: { ru: 'Полуночная оболочка', en: 'Midnight Shell' } },
+  folk: { name: { ru: 'Жители', en: 'The Folk' }, rewardType: 'halo', rewardId: 'folk_halo', rewardName: { ru: 'Ореол светлячков', en: 'Firefly Halo' } }
 };
 
 // имена и описания испытаний живут парами {ru, en} — берём по нынешнему языку
@@ -1439,7 +1441,12 @@ const CHALLENGES = [
   { id: 'c_night_1', theme: 'night', desc: { ru: 'Дожить до 4-й ночи', en: 'Reach the 4th night' } },
   { id: 'c_night_2', theme: 'night', desc: { ru: 'Дожить до 8-й ночи', en: 'Reach the 8th night' } },
   { id: 'c_night_3', theme: 'night', desc: { ru: 'Дожить до 12-й ночи', en: 'Reach the 12th night' } },
-  { id: 'c_night_4', theme: 'night', desc: { ru: 'Собрать 100 мыслей за забег', en: 'Catch 100 thoughts in one run' } }
+  { id: 'c_night_4', theme: 'night', desc: { ru: 'Собрать 100 мыслей за забег', en: 'Catch 100 thoughts in one run' } },
+  // Жители
+  { id: 'c_folk_1', theme: 'folk', desc: { ru: 'Разжечь уснувший фонарь', en: 'Kindle the sleeping lantern' } },
+  { id: 'c_folk_2', theme: 'folk', desc: { ru: 'Разбудить уснувшую звезду', en: 'Wake the sleeping star' } },
+  { id: 'c_folk_3', theme: 'folk', desc: { ru: 'Сторговаться с менялой', en: 'Strike a deal with the pedlar' } },
+  { id: 'c_folk_4', theme: 'folk', desc: { ru: 'Выжечь гнездо кошмаров', en: 'Burn out a nightmare nest' } }
 ];
 
 let STARS_DATA = loadStars();
@@ -3022,6 +3029,7 @@ function update(dt) {
         lm.state = 'lit'; lm.t = 30;
         spawnText(lm.x, lm.y - 120, tr('lm_lighthouse_lit'), true);
         burst(lm.x, lm.y, [1, 0.9, 0.6], 30, 400);
+        unlockChallenge('c_folk_1');
       }
       if (lm.state === 'lit') {
         lm.t -= dt;
@@ -3097,6 +3105,7 @@ function update(dt) {
           S.shake = Math.max(S.shake, Math.min(0.25, lm.prog * 0.1));
           if (lm.prog >= 2.5) {
             lm.state = 'awake'; lm.t = 0;
+            unlockChallenge('c_folk_2');
             spawnText(lm.x, lm.y - 120, tr('lm_star_wake'), true);
             burst(lm.x, lm.y, [1, 0.95, 0.7], 40, 500);
             sfxZap(lm.x);
@@ -3146,6 +3155,7 @@ function update(dt) {
               spawnText(lm.x, lm.y - 110, tr('lm_pedlar_done'), true);
               burst(ax, vy2, [1, 0.8, 0.45], 16, 200);
               sfxChoice();
+              unlockChallenge('c_folk_3');
             } else { lm.cd = 3; spawnText(lm.x, lm.y - 110, tr('lm_pedlar_poor')); }
           } else if (hyp(io.x - vx2, io.y - vy2) < 60) {
             if (RUN.wake > 40) {
@@ -3157,6 +3167,7 @@ function update(dt) {
               spawnText(lm.x, lm.y - 110, tr('lm_pedlar_done'), true);
               burst(vx2, vy2, [0.7, 0.55, 1], 16, 200);
               sfxChoice();
+              unlockChallenge('c_folk_3');
             } else { lm.cd = 3; spawnText(lm.x, lm.y - 110, tr('lm_pedlar_poor')); }
           }
         }
@@ -3201,6 +3212,7 @@ function update(dt) {
         }
         if (lm.prog >= 2) {
           lm.state = 'done';
+          unlockChallenge('c_folk_4');
           spawnText(lm.x, lm.y - 110, tr('lm_nest_done'), true);
           burst(lm.x, lm.y, [1, 0.5, 0.6], 30, 350);
           sfxKill(lm.x);
@@ -4457,6 +4469,18 @@ function drawIo(P, pal, tm) {
     sc.beginPath();
     sc.arc(P.x + Math.cos(a) * rr, P.y + Math.sin(a) * rr * 0.9, 1.3, 0, TAU);
     sc.fill();
+  }
+  // ореол светлячков — дар созвездия Жителей: тёплые огоньки блуждают поодаль
+  if (SET.visuals.halo === 'folk_halo') {
+    for (let i = 0; i < 6; i++) {
+      const a = tm * 0.45 * (i % 2 ? 1 : -1) + i * TAU / 6;
+      const rr = (30 + Math.sin(tm * 0.9 + i * 2.3) * 8) * k;
+      const bl = 0.35 + 0.65 * Math.max(0, Math.sin(tm * 1.4 + i * 2.9));
+      const fx = P.x + Math.cos(a) * rr, fy = P.y + Math.sin(a) * rr * 0.85;
+      tintGlow(fx, fy, 7, FIREFLY_COL, 0.4 * bl);
+      sc.fillStyle = css3(FIREFLY_COL, 0.85 * bl);
+      sc.beginPath(); sc.arc(fx, fy, 1.4 + bl, 0, TAU); sc.fill();
+    }
   }
   // спириты — позиции в мире, проекция сама их кладёт в наклон плоскости
   const orbR = RUN.orbitR * (io.oc ? 1.6 : 1);
