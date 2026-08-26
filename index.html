@@ -678,6 +678,13 @@
   <button class="end-btn" id="setClose" data-i18n="sClose"></button>
 </div>
 
-<script src="game.js?v=109"></script>
+<script src="game.js?v=110"></script>
+<script>
+// Служебный работник нужен лишь странице в сети: настольная обёртка и так
+// держит игру при себе, а на file:// он и вовсе не заводится.
+if ('serviceWorker' in navigator && location.protocol.startsWith('http')) {
+  addEventListener('load', () => navigator.serviceWorker.register('sw.js').catch(() => {}));
+}
+</script>
 </body>
 </html>

@@ -1,0 +1,50 @@
+{
+  "$schema": "../node_modules/@tauri-apps/cli/config.schema.json",
+  "productName": "beskonechnaya-noch",
+  "version": "10.22.0",
+  "identifier": "io.noch.game",
+  "build": {
+    "frontendDist": "../dist",
+    "devUrl": "http://localhost:8137",
+    "beforeBuildCommand": "node build-dist.mjs",
+    "beforeDevCommand": "node build-dist.mjs"
+  },
+  "app": {
+    "windows": [
+      {
+        "title": "бесконечная ночь",
+        "width": 1280,
+        "height": 800,
+        "minWidth": 640,
+        "minHeight": 400,
+        "resizable": true,
+        "fullscreen": false,
+        "center": true,
+        "decorations": true,
+        "backgroundColor": "#07090c",
+        "dragDropEnabled": false
+      }
+    ],
+    "security": {
+      "csp": "default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self' data:; media-src 'self' data: blob:; connect-src 'self' https: http://localhost:* ipc: http://ipc.localhost"
+    }
+  },
+  "bundle": {
+    "active": true,
+    "targets": "all",
+    "icon": [
+      "icons/32x32.png",
+      "icons/128x128.png",
+      "icons/128x128@2x.png",
+      "icons/icon.icns",
+      "icons/icon.ico"
+    ],
+    "android": {
+      "debugApplicationIdSuffix": ".debug"
+    },
+    "category": "Game",
+    "shortDescription": "роглайк о шарике света, коему не спится",
+    "longDescription": "Бесконечная ночь — роглайк о блуждающем огоньке Ио: лови мысли, вяжи нить к небесным кораблям, переживи бурю и левиафана. Ночь бесконечна.",
+    "copyright": "killu, 2026"
+  }
+}

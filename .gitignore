@@ -5,3 +5,9 @@ site-status.sh
 
 # рабочее техзадание для агента — не для публичного сайта
 ПРОМТ-v10.md
+
+# сборка настольного приложения
+node_modules/
+dist/
+src-tauri/target/
+src-tauri/gen/

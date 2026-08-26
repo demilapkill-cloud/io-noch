@@ -1,0 +1,79 @@
+# Сборка настольной «бесконечной ночи» на три системы разом.
+#
+# Своей машины под каждую систему не надобно: раннеры GitHub дают и macOS, и
+# Windows, и Linux. Для macOS собираются обе стрелки — Apple silicon и Intel.
+#
+# Запускается либо тегом (`git tag v10.22.0 && git push --tags`), либо руками
+# из вкладки Actions. Готовые свёртки вешаются в черновик выпуска: погляди и
+# нажми «опубликовать».
+name: сборка выпуска
+
+on:
+  push:
+    tags: ['v*']
+  workflow_dispatch:
+
+jobs:
+  build:
+    permissions:
+      contents: write
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - platform: macos-latest       # Apple silicon (M1 и новее)
+            args: '--target aarch64-apple-darwin'
+          - platform: macos-latest       # Intel-маки
+            args: '--target x86_64-apple-darwin'
+          - platform: ubuntu-22.04       # берём старую Ubuntu нарочно:
+            args: ''                     # свёртка пойдёт и на новых системах
+          - platform: windows-latest
+            args: ''
+
+    runs-on: ${{ matrix.platform }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: узлы
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: ржавчина
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.platform == 'macos-latest' && 'aarch64-apple-darwin,x86_64-apple-darwin' || '' }}
+
+      - name: запас сборки
+        uses: swatinem/rust-cache@v2
+        with:
+          workspaces: './src-tauri -> target'
+
+      - name: хозяйство Linux
+        if: matrix.platform == 'ubuntu-22.04'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libwebkit2gtk-4.1-dev libappindicator3-dev \
+            librsvg2-dev patchelf libgtk-3-dev
+
+      - name: npm ci
+        run: npm ci
+
+      - name: собрать и повесить в выпуск
+        uses: tauri-apps/tauri-action@v0
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          tagName: ${{ github.ref_type == 'tag' && github.ref_name || 'v__VERSION__' }}
+          releaseName: 'бесконечная ночь __VERSION__'
+          releaseBody: |
+            Настольная «бесконечная ночь».
+
+            - **Windows** — `.msi` либо `.exe`
+            - **macOS** — `.dmg` (aarch64 для M1 и новее, x64 для Intel)
+            - **Linux** — `.AppImage` либо `.deb`
+
+            Играть в браузере, как и прежде: https://demilapkill-cloud.github.io/io-noch/
+          releaseDraft: true
+          prerelease: false
+          args: ${{ matrix.args }}

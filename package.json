@@ -1,0 +1,25 @@
+{
+  "name": "io-noch",
+  "version": "10.22.0",
+  "description": "бесконечная ночь — роглайк о шарике света, коему не спится",
+  "scripts": {
+    "dist": "node build-dist.mjs",
+    "site": "python3 -m http.server 8137",
+    "dev": "tauri dev",
+    "build": "tauri build",
+    "tauri": "tauri"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/demilapkill-cloud/io-noch.git"
+  },
+  "keywords": [],
+  "bugs": {
+    "url": "https://github.com/demilapkill-cloud/io-noch/issues"
+  },
+  "homepage": "https://github.com/demilapkill-cloud/io-noch#readme",
+  "devDependencies": {
+    "@tauri-apps/cli": "^2.11.4"
+  },
+  "private": true
+}

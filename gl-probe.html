@@ -1,0 +1,33 @@
+<!doctype html><meta charset="utf-8"><title>проба</title>
+<body style="background:#07090c;color:#ebe8e1;font:14px monospace;padding:20px">
+<div id="out">проба…</div>
+<script>
+const r = {};
+try {
+  const c = document.createElement('canvas');
+  const gl = c.getContext('webgl', { antialias: false, alpha: false });
+  r.webgl = !!gl;
+  if (gl) {
+    r.version = gl.getParameter(gl.VERSION);
+    r.vendor = gl.getParameter(gl.VENDOR);
+    r.renderer = gl.getParameter(gl.RENDERER);
+    const dbg = gl.getExtension('WEBGL_debug_renderer_info');
+    if (dbg) r.realRenderer = gl.getParameter(dbg.UNMASKED_RENDERER_WEBGL);
+    r.maxTex = gl.getParameter(gl.MAX_TEXTURE_SIZE);
+    const hp = gl.getShaderPrecisionFormat(gl.FRAGMENT_SHADER, gl.HIGH_FLOAT);
+    r.highpFrag = hp ? hp.precision : 0;   // 23 — настоящий fp32
+    const sh = gl.createShader(gl.FRAGMENT_SHADER);
+    gl.shaderSource(sh, 'precision highp float;\nvoid main(){gl_FragColor=vec4(mod(gl_FragCoord.x,120.)/120.);}');
+    gl.compileShader(sh);
+    r.highpCompiles = gl.getShaderParameter(sh, gl.COMPILE_STATUS);
+  }
+  r.audio = typeof AudioContext !== 'undefined' || typeof webkitAudioContext !== 'undefined';
+  r.ua = navigator.userAgent.slice(0, 130);
+  r.dpr = window.devicePixelRatio;
+  r.size = innerWidth + 'x' + innerHeight;
+  r.ls = (() => { try { localStorage.setItem('t', '1'); return true; } catch (_) { return false; } })();
+} catch (e) { r.error = e.message; }
+document.getElementById('out').textContent = JSON.stringify(r, null, 1);
+fetch('http://localhost:8799/report', { method: 'POST', body: JSON.stringify(r) })
+  .catch(e => { document.getElementById('out').textContent += '\nне отослалось: ' + e.message; });
+</script>
