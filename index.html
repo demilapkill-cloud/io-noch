@@ -49,7 +49,7 @@
   /* бодрость + опыт */
   #meter{position:fixed;left:0;right:0;bottom:0;height:4px;background:rgba(235,232,225,.05);
     background-image:repeating-linear-gradient(90deg, transparent 0, transparent calc(25% - 1px), rgba(235,232,225,.14) calc(25% - 1px), rgba(235,232,225,.14) 25%)}
-  #meterFill{height:100%;width:100%;background:linear-gradient(90deg, var(--io), #c9e8ff);box-shadow:0 0 14px var(--io);transition:background .8s}
+  #meterFill{height:100%;width:100%;background:rgba(143,208,255,.55);transition:background .8s}
   #xpbar{position:fixed;left:0;right:0;bottom:6px;height:2px;background:rgba(235,232,225,.04)}
   #xpFill{height:100%;width:0%;background:var(--ember);box-shadow:0 0 10px var(--ember);opacity:.9;transition:width .25s var(--ease)}
   #meterLabel{position:fixed;bottom:calc(16px + env(safe-area-inset-bottom));left:calc(66px + env(safe-area-inset-left));font-size:10px;letter-spacing:.22em;text-transform:uppercase;color:var(--ink-4);font-family:var(--font-mono)}
@@ -103,8 +103,13 @@
 
   /* ---------- overlays ---------- */
   .veil{position:fixed;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;
-    text-align:center;z-index:10;transition:opacity 1.2s var(--ease);padding:24px}
-  .veil.hidden{opacity:0;pointer-events:none}
+    text-align:center;z-index:10;transition:opacity 1.2s var(--ease),visibility 0s linear 0s;padding:24px}
+  /* visibility, а не одни pointer-events: кнопки и холст созвездия просят
+     pointer-events:auto, и это пробивает погашенный экран насквозь — оттого
+     невидимая «возгореться сызнова» ловила касания посреди игры, а невидимый
+     холст созвездия накрывал собою шкатулку мыслей */
+  .veil.hidden{opacity:0;pointer-events:none;visibility:hidden;
+    transition:opacity 1.2s var(--ease),visibility 0s linear 1.2s}
   #titleScreen{background:radial-gradient(120% 90% at 50% 110%, rgba(143,208,255,.06), transparent 60%)}
   .title-big{font-family:var(--font-display);font-weight:300;
     font-size:clamp(44px,11vw,132px);line-height:.95;letter-spacing:-.02em;color:var(--ink);
@@ -260,7 +265,7 @@
     box-shadow:0 0 18px rgba(143,208,255,.25)}
   .playing #setBtn{opacity:.22}
   .playing #setBtn:hover{opacity:1}
-  #setPanel{position:fixed;left:0;top:0;bottom:0;z-index:31;width:min(372px,88vw);
+  #setPanel{position:fixed;left:0;top:0;bottom:0;z-index:31;width:min(372px,88vw);cursor:default;
     padding-left:calc(24px + env(safe-area-inset-left));
     background:rgba(6,8,12,.965);border-right:1px solid var(--line);
     padding:26px 24px 34px;overflow-y:auto;display:flex;flex-direction:column;
@@ -490,6 +495,6 @@
   <button class="end-btn" id="setClose" data-i18n="sClose"></button>
 </div>
 
-<script src="game.js?v=96"></script>
+<script src="game.js?v=97"></script>
 </body>
 </html>

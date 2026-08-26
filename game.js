@@ -83,18 +83,15 @@ const TXT = {
     twinDown: 'тёмный двойник угас',
     rod: 'громоотвод',
     nightText: (n, storm) => (storm ? 'буря · ночь ' : 'ночь ') + n,
-    // — ландмарки —
-    lm_lighthouse: 'Спящий маяк',
-    lm_graveyard: 'Кладбище кораблей',
-    lm_whale: 'Небесный кит',
-    lm_lamplighter: 'Фонарщик',
-    lm_starfall: 'Звездопад',
+    // — жители ночи —
+    lm_lighthouse: 'уснувший фонарь',
+    lm_lighthouse_lit: 'фонарь разгорелся — в свете его бодрость не тает',
+    lm_graveyard: 'кладбище кораблей',
+    lm_graveyard_hint: 'мысли меж рёбер сытнее вдвое',
+    lm_whale: 'небесный кит',
+    lm_lamplighter: 'фонарщик',
+    lm_starfall: 'звездопад',
     // — HUD —
-    lm_lighthouse: 'Sleeping Lighthouse',
-    lm_graveyard: 'Ship Graveyard',
-    lm_whale: 'Sky Whale',
-    lm_lamplighter: 'Lamplighter',
-    lm_starfall: 'Starfall',
     thoughts: n => 'мыслей · ' + n,
     tierN: n => 'степень ' + n,
     chain: n => 'чреда ×' + n,
@@ -198,6 +195,13 @@ const TXT = {
     twinDown: 'the dark twin has gone out',
     rod: 'lightning rod',
     nightText: (n, storm) => (storm ? 'storm · night ' : 'night ') + n,
+    lm_lighthouse: 'the sleeping lantern',
+    lm_lighthouse_lit: 'the lantern flares — wakefulness does not fade in its light',
+    lm_graveyard: 'the ship graveyard',
+    lm_graveyard_hint: 'thoughts among the ribs heal twice as much',
+    lm_whale: 'the sky whale',
+    lm_lamplighter: 'the lamplighter',
+    lm_starfall: 'starfall',
     thoughts: n => 'thoughts · ' + n,
     tierN: n => 'tier ' + n,
     chain: n => 'chain ×' + n,
@@ -874,7 +878,7 @@ float starLayer(vec2 uv, float n, float t){
   vec2 sp=vec2(fract(h*13.7), fract(h*7.31))*.8+.1;
   float d=length(f-sp);
   float tw=.55+.45*sin(t*(1.+h*3.5)+h*40.);
-  return smoothstep(.09,.0,d)*step(.7,h)*tw;
+  return smoothstep(.09,.0,d)*step(.82,h)*tw;
 }
 void main(){
   float aspect = uRes.x/uRes.y;
@@ -912,8 +916,8 @@ void main(){
 
   // звёзды
   vec2 sUV = uv*vec2(aspect,1.);
-  float st = starLayer(sUV + par*6.,28.,uTime) + starLayer(sUV+7.7 + par*3.,64.,uTime*1.3)*.6;
-  sky += vec3(.9,.93,1.)*st*uStars*(uv.y*.75+.25)*(1.-disc)*(1.-uDawn);
+  float st = starLayer(sUV + par*6.,28.,uTime) + starLayer(sUV+7.7 + par*3.,64.,uTime*1.3)*.45;
+  sky += vec3(.9,.93,1.)*st*uStars*.8*(uv.y*.75+.25)*(1.-disc)*(1.-uDawn);
 
   // --- сцена с аберрацией (premultiplied composite) ---
   vec2 dir = suv-.5;
@@ -1170,8 +1174,9 @@ function populateCell(gx, gy, factor, visit) {
   }
   const cx = (gx + 0.5) * CELL, cy = (gy + 0.5) * CELL;
   
-  // Landmarks — рождаются лишь однажды: второму маяку в той же клетке не быть
-  if (visit === 0 && rnd() < 0.12) {
+  // Жители ночи — редкие гости: не чаще одного на два десятка клеток,
+  // и не больше двух живых разом, иначе чудо делается обыденностью
+  if (visit === 0 && rnd() < 0.05 && landmarks.length < 2) {
     const types = ['lighthouse', 'graveyard', 'whale', 'lamplighter', 'starfall'];
     const type = types[Math.floor(rnd(0, types.length))];
     const lx = cx + rnd(-CELL/2.5, CELL/2.5), ly = cy + rnd(-CELL/2.5, CELL/2.5);
@@ -1973,8 +1978,13 @@ function spawnText(x, y, str, big) {
   const mg = mc.getContext('2d');
   mc.width = tw + pad * 2; mc.height = fs * TEXT_SS + pad * 2;
   mg.font = font; mg.textAlign = 'center'; mg.textBaseline = 'middle';
-  mg.shadowColor = css3(S.pal.tint, 0.8); mg.shadowBlur = 18 * TEXT_SS;
-  mg.fillStyle = big ? css3(S.pal.mote, 1) : 'rgba(235,232,225,.95)';
+  // тёмная ножка под строкой: прежде тень была светлой, в тон палитры, и
+  // поверх свечений мыслей строка растворялась в кашу
+  mg.shadowColor = 'rgba(5,6,10,.9)'; mg.shadowBlur = 7 * TEXT_SS;
+  mg.fillStyle = 'rgba(5,6,10,.85)';
+  mg.fillText(str, mc.width / 2, mc.height / 2 + 1.5 * TEXT_SS);
+  mg.shadowBlur = 14 * TEXT_SS;
+  mg.fillStyle = big ? css3(S.pal.mote, 1) : 'rgba(240,238,232,.98)';
   mg.fillText(str, mc.width / 2, mc.height / 2);
   texts.push({ x, y, str, a: 0, t: 0, big: !!big, vy: rand(-14, -8), spr: mc });
   if (texts.length > 6) texts.shift();
@@ -2866,9 +2876,13 @@ function update(dt) {
     if (!playing) continue;
     
     if (lm.type === 'lighthouse') {
+      if (!lm.seen && lm.state === 'dark' && hyp(io.x - lm.x, io.y - lm.y) < 340) {
+        lm.seen = true;
+        spawnText(lm.x, lm.y - 110, tr('lm_lighthouse'), true);
+      }
       if (lm.state === 'dark' && hyp(io.x - lm.x, io.y - lm.y) < 120) {
         lm.state = 'lit'; lm.t = 30;
-        spawnText(lm.x, lm.y - 120, tr('lm_lighthouse'), true);
+        spawnText(lm.x, lm.y - 120, tr('lm_lighthouse_lit'), true);
         burst(lm.x, lm.y, [1, 0.9, 0.6], 30, 400);
       }
       if (lm.state === 'lit') {
@@ -2884,9 +2898,10 @@ function update(dt) {
         }
       }
     } else if (lm.type === 'graveyard') {
-      if (!lm.seen && hyp(io.x - lm.x, io.y - lm.y) < 260) {
+      if (!lm.seen && hyp(io.x - lm.x, io.y - lm.y) < 300) {
         lm.seen = true;
         spawnText(lm.x, lm.y - 120, tr('lm_graveyard'), true);
+        spawnText(lm.x, lm.y - 70, tr('lm_graveyard_hint'));
       }
     } else if (lm.type === 'whale') {
       if (!lm.seen && hyp(io.x - lm.x, io.y - lm.y) < 300) { lm.seen = true; spawnText(lm.x, lm.y - 120, tr('lm_whale'), true); }
@@ -2997,6 +3012,7 @@ function update(dt) {
   S.shake = Math.max(0, S.shake - dt * 1.8);
   S.glitch = Math.max(0, S.glitch - dt * 1.4);
   S.comboT -= dt;
+  S.phraseT = Math.max(0, (S.phraseT || 0) - dt);
   if (S.comboT <= 0 && S.combo > 0) { S.combo = 0; updateHud(); }
 
   if (A.started) {
@@ -3160,8 +3176,11 @@ function collectMote(m) {
   if (S.combo > RUN.comboBest) RUN.comboBest = S.combo;
   sfxCollect(S.combo - 1, m.x);
   burst(m.x, m.y, S.pal.mote, 12, 200);
+  // Фразам положена передышка: мысли ныне лежат россыпями, и без неё
+  // подобранная горсть рожала месиво из наслоённых строк.
   const tier = phraseTier(S.t);
-  if (RUN.thoughts === 1 || Math.random() < 0.35) {
+  if (RUN.thoughts === 1 || (S.phraseT <= 0 && Math.random() < 0.5)) {
+    S.phraseT = 2.6;
     const list = phrases()[tier];
     const pi = (Math.random() * list.length) | 0;
     if (catchKey(phraseKey(tier, pi))) { // впервые пойманная фраза зажигает звезду навсегда
@@ -3188,35 +3207,90 @@ function shakeOffMoths() { // мерцание сбрасывает прицеп
 }
 
 
+// Жители ночи рисуются языком игры: тонкий штрих и мягкое свечение,
+// ни единой сплошной заливки. Точки кита лежат константой — в кадре ничего
+// не рождается.
+const WHALE_PTS = [ // созвездие кита: спина, брюхо, хвост — узлы-звёзды
+  [-70, -6], [-38, -22], [0, -28], [36, -20], [64, -4],   // спина
+  [46, 10], [8, 16], [-30, 12],                            // брюхо
+  [78, -14], [86, 8],                                      // хвост двумя перьями
+];
+const WHALE_EDGES = [[0,1],[1,2],[2,3],[3,4],[4,8],[4,9],[4,5],[5,6],[6,7],[7,0]];
 function drawLandmark(lm, p, pal, tm) {
   sc.save(); sc.translate(p.x, p.y); sc.scale(p.k, p.k);
+  sc.globalCompositeOperation = 'lighter';
   if (lm.type === 'lighthouse') {
-    sc.fillStyle = css3(pal.tint, 0.4);
-    sc.beginPath(); sc.moveTo(-20, 0); sc.lineTo(-10, -120); sc.lineTo(10, -120); sc.lineTo(20, 0); sc.fill();
-    sc.fillStyle = lm.state === 'lit' ? css3([1,0.9,0.5], 0.8) : css3([0.1,0.1,0.2], 0.8);
-    sc.beginPath(); sc.arc(0, -130, 15, 0, TAU); sc.fill();
-    if (lm.state === 'lit') {
-      sc.fillStyle = css3([1,0.9,0.5], 0.15 + 0.05 * Math.sin(tm * 4));
-      sc.beginPath(); sc.arc(0, -130, 250, 0, TAU); sc.fill();
+    // небесный фонарь: штриховой купол с рёбрами, тлеющее сердце
+    const lit = lm.state === 'lit';
+    const breath = 0.5 + 0.5 * Math.sin(tm * (lit ? 4 : 1.2) + lm.x);
+    const warm = [1, 0.82, 0.5];
+    sc.strokeStyle = css3(lit ? warm : pal.tint, lit ? 0.75 : 0.4);
+    sc.lineWidth = 1.4;
+    sc.beginPath(); sc.ellipse(0, -46, 30, 40, 0, 0, TAU); sc.stroke();
+    sc.lineWidth = 1;
+    sc.beginPath(); sc.ellipse(0, -46, 14, 40, 0, 0, TAU); sc.stroke();
+    sc.beginPath(); sc.moveTo(-30, -46); sc.lineTo(30, -46); sc.stroke();
+    sc.beginPath(); sc.moveTo(-12, -6); sc.lineTo(12, -6); sc.stroke();     // горловина
+    sc.beginPath(); sc.moveTo(-9, -86); sc.lineTo(9, -86); sc.stroke();     // макушка
+    // кисточка под фонарём — по ней видно, что он висит, а не стоит
+    sc.beginPath(); sc.moveTo(0, -6); sc.lineTo(0, 10 + breath * 3); sc.stroke();
+    tintGlow(0, -46, lit ? 70 : 34, warm, lit ? 0.6 : 0.14 + breath * 0.1);
+    if (lit) {
+      tintGlow(0, -46, 250, warm, 0.10 + breath * 0.05);
+      // дышащий круг его милости — той же чертой, что круг нити
+      sc.strokeStyle = css3(warm, 0.22);
+      sc.setLineDash([3, 14]);
+      sc.beginPath(); sc.arc(0, -46, 250, tm * 0.25, tm * 0.25 + TAU); sc.stroke();
+      sc.setLineDash([]);
     }
   } else if (lm.type === 'graveyard') {
-    sc.strokeStyle = css3(pal.tint, 0.3); sc.lineWidth = 4;
+    // рёбра остовов: дуги разной высоты и наклона, будто вмёрзшие в ночь
+    sc.strokeStyle = css3(pal.tint, 0.3);
+    sc.lineWidth = 1.6;
     for (let i = 0; i < 5; i++) {
-      sc.beginPath(); sc.arc(0 + (i-2)*30, 0, 40, Math.PI, 0); sc.stroke();
+      const hx = (i - 2) * 44, tilt = Math.sin(lm.x + i * 2.7) * 0.35;
+      const rr = 34 + ((i * 37) % 3) * 14;
+      sc.beginPath(); sc.ellipse(hx, 6, rr * 0.55, rr, tilt, Math.PI * 1.05, Math.PI * 1.95); sc.stroke();
     }
+    // одинокая мачта с обрывком — тонкой чертой
+    sc.lineWidth = 1.1;
+    sc.beginPath(); sc.moveTo(52, 8); sc.lineTo(52, -74); sc.stroke();
+    sc.beginPath(); sc.moveTo(52, -70); sc.quadraticCurveTo(72, -58 + Math.sin(tm * 1.6) * 4, 66, -40); sc.stroke();
+    tintGlow(0, 0, 60, pal.tint, 0.08);
   } else if (lm.type === 'whale') {
-    sc.fillStyle = css3([0.3,0.4,0.6], 0.5);
-    sc.beginPath(); sc.ellipse(0, 0, 90, 40, 0, 0, TAU); sc.fill();
-    sc.fillStyle = css3(pal.tint, 0.6);
-    sc.beginPath(); sc.arc(-60, -10, 5, 0, TAU); sc.fill();
+    // кит-созвездие: узлы-звёзды и тонкие линии меж ними, как на небе фраз
+    const dir = lm.vx < 0 ? -1 : 1;
+    sc.strokeStyle = css3(pal.tint, 0.35);
+    sc.lineWidth = 1;
+    for (const e of WHALE_EDGES) {
+      sc.beginPath();
+      sc.moveTo(WHALE_PTS[e[0]][0] * dir, WHALE_PTS[e[0]][1]);
+      sc.lineTo(WHALE_PTS[e[1]][0] * dir, WHALE_PTS[e[1]][1]);
+      sc.stroke();
+    }
+    sc.fillStyle = 'rgba(255,255,255,.9)';
+    for (let i = 0; i < WHALE_PTS.length; i++) {
+      const tw = 0.6 + 0.4 * Math.sin(tm * 2 + i * 1.9);
+      sc.beginPath();
+      sc.arc(WHALE_PTS[i][0] * dir, WHALE_PTS[i][1], 1.5 + tw, 0, TAU);
+      sc.fill();
+    }
+    // глаз — тёплая звезда чуть ярче прочих
+    tintGlow(-52 * dir, -12, 16, [1, 0.9, 0.6], 0.5);
+    tintGlow(0, 0, 90, pal.tint, 0.08);
   } else if (lm.type === 'lamplighter') {
-    sc.fillStyle = css3(pal.tint, 0.8);
-    sc.beginPath(); sc.arc(0, -10, 10, 0, TAU); sc.fill();
-    sc.fillStyle = css3([1,0.8,0.4], 0.9);
-    sc.beginPath(); sc.arc(12, -5, 4, 0, TAU); sc.fill();
-  } else if (lm.type === 'starfall') {
-    // only drawn via stars array when active
+    // странник: тёплый огонёк на посохе и шлейф тепла за ним
+    const sway = Math.sin(tm * 2.2) * 3;
+    sc.strokeStyle = css3(pal.tint, 0.5);
+    sc.lineWidth = 1.2;
+    sc.beginPath(); sc.moveTo(0, 14); sc.lineTo(0, -26); sc.stroke();        // посох
+    sc.beginPath(); sc.moveTo(0, -26); sc.quadraticCurveTo(8, -34, 14, -30 + sway * 0.4); sc.stroke();
+    tintGlow(14, -30 + sway * 0.4, 22, [1, 0.8, 0.45], 0.65);
+    sc.fillStyle = 'rgba(255,244,220,.95)';
+    sc.beginPath(); sc.arc(14, -30 + sway * 0.4, 2.2, 0, TAU); sc.fill();
+    tintGlow(-8, 0, 30, pal.tint, 0.12); // само дыхание странника — едва видное
   }
+  sc.globalCompositeOperation = 'source-over';
   sc.restore();
 }
 
@@ -3478,17 +3552,24 @@ function drawStar(st, P, pal, tm) {
 }
 
 function drawMote(m, P, pal, tm) {
-  const pulse = 0.8 + 0.25 * Math.sin(tm * 2.4 + m.seed);
+  // Мысль обязана отличаться от пыли и светлячков с одного взгляда: у неё
+  // одной есть тёмная обводка-ободок, крупное белое ядро и медленное биение —
+  // фон мерцает быстро и мелко, еда бьётся редко и крупно.
+  const pulse = 0.75 + 0.35 * Math.sin(tm * 1.6 + m.seed);
   const fade = Math.min(1, m.born * 2, (m.life - m.born));
-  sc.globalAlpha = Math.max(0, 0.85 * fade);
+  const fa = Math.max(0, fade);
+  sc.globalAlpha = fa;
+  // тёмный ободок под свечением отсекает мысль от любого светлого фона
+  sc.fillStyle = 'rgba(5,6,10,.55)';
+  sc.beginPath(); sc.arc(P.x, P.y, (m.r * 0.9 + 2.5) * P.k, 0, TAU); sc.fill();
   sc.globalCompositeOperation = 'lighter';
-  tintGlow(P.x, P.y, m.r * 3.2 * pulse * P.k, pal.mote, 0.42 * Math.max(0, fade));
-  sc.fillStyle = css3([1, 1, 1], 0.85 * Math.max(0, fade));
-  sc.beginPath(); sc.arc(P.x, P.y, (m.r * 0.32 * pulse + 0.8) * P.k, 0, TAU); sc.fill();
+  tintGlow(P.x, P.y, m.r * 4 * pulse * P.k, pal.mote, 0.55 * fa);
+  sc.fillStyle = css3([1, 1, 1], 0.97 * fa);
+  sc.beginPath(); sc.arc(P.x, P.y, (m.r * 0.5 * pulse + 1.3) * P.k, 0, TAU); sc.fill();
   // блик-крестик
-  const gl2 = m.r * 2.6 * pulse * P.k;
-  sc.strokeStyle = css3([1, 1, 1], 0.35 * Math.max(0, fade) * pulse);
-  sc.lineWidth = 0.7;
+  const gl2 = m.r * 3.1 * pulse * P.k;
+  sc.strokeStyle = css3([1, 1, 1], 0.5 * fa * pulse);
+  sc.lineWidth = 0.9;
   sc.beginPath();
   sc.moveTo(P.x - gl2, P.y); sc.lineTo(P.x + gl2, P.y);
   sc.moveTo(P.x, P.y - gl2); sc.lineTo(P.x, P.y + gl2);
@@ -4107,9 +4188,11 @@ function updateHud() {
   } else elCombo.classList.remove('hot');
   const frac = clamp(RUN.wake / RUN.wakeMax, 0, 1);
   elMeter.style.width = (frac * 100).toFixed(1) + '%';
-  const col = frac > 0.5 ? '#8fd0ff' : frac > 0.25 ? '#e8a54a' : '#d8695a';
+  // покуда бодрости вдоволь, полоса тиха и не тянет глаз; голос она подаёт,
+  // лишь когда впрямь есть о чём — на четверти и ниже
+  const col = frac > 0.5 ? 'rgba(143,208,255,.55)' : frac > 0.25 ? '#e8a54a' : '#d8695a';
   elMeter.style.background = col;
-  elMeter.style.boxShadow = '0 0 12px ' + col;
+  elMeter.style.boxShadow = frac > 0.5 ? 'none' : '0 0 12px ' + col;
   elXp.style.width = (clamp(RUN.xp / RUN.xpNext, 0, 1) * 100).toFixed(1) + '%';
   if (boss) elBossFill.style.width = (clamp(boss.hp / boss.hpMax, 0, 1) * 100).toFixed(1) + '%';
   // полоса способностей: видно, что чем нажать и что уже готово
@@ -4799,6 +4882,14 @@ requestAnimationFrame(frame);
   }
   if (q.get('perf')) PERF.on = true;
   if (q.get('wlog')) WLOG.on = true;
+  if (q.get('hit')) setTimeout(() => { // отладка: что лежит под пальцем посреди экрана
+    const pts = [[0.5, 0.5], [0.5, 0.62], [0.5, 0.78], [0.3, 0.5], [0.7, 0.4]];
+    const out = pts.map(p => {
+      const el = document.elementFromPoint(W * p[0], H * p[1]);
+      return p[0] + ',' + p[1] + ' → ' + (el ? (el.id || el.className || el.tagName) : 'ничего');
+    });
+    console.log('ПОД ПАЛЬЦЕМ · ' + out.join(' · '));
+  }, 1500);
   if (q.get('bot')) { // замер живучести: лётчик играет сам, исход пишется в консоль
     BOT.on = true;
     if (q.get('gift')) BOT.gift = q.get('gift');
@@ -4807,6 +4898,12 @@ requestAnimationFrame(frame);
       if (q.get('again')) setInterval(() => { if (S.mode === 'death') startRun(); }, 1500);
     }, 400);
   }
+  if (q.get('lm')) setTimeout(() => { // отладка жителей: ?lm=lighthouse|graveyard|whale|lamplighter
+    const t2 = q.get('lm');
+    if (t2 === 'whale' || t2 === 'lamplighter') {
+      landmarks.push({ type: t2, x: io.x + 200, y: io.y - 60, vx: t2 === 'whale' ? 25 : 40, vy: 0, t: 1 });
+    } else landmarks.push({ type: t2, x: io.x + 230, y: io.y + 40, state: 'dark', t: 0, r: 250 });
+  }, 900);
   if (q.get('look')) { // отладка обликов: ?look=storm_shell,tether_trail,ship_spirits
     for (const id of q.get('look').split(',')) {
       for (const k in C_THEMES) if (C_THEMES[k].rewardId === id) SET.visuals[C_THEMES[k].rewardType] = id;
@@ -4854,6 +4951,20 @@ requestAnimationFrame(frame);
     applyLang(); syncSetUI();
   }
   if (q.get('set')) setTimeout(openSettings, 300);
+  if (q.get('meta')) setTimeout(() => { // отладка шкатулки: открыть с деньгами
+    META.thoughts = Math.max(META.thoughts, parseInt(q.get('meta')) || 0);
+    renderMeta();
+    metaScreen.classList.remove('hidden');
+    setTimeout(() => { // и сразу пощупать: что лежит на месте первой кнопки
+      const btn = metaList.querySelector('button');
+      if (btn) {
+        const r = btn.getBoundingClientRect();
+        const el = document.elementFromPoint(r.left + r.width / 2, r.top + r.height / 2);
+        console.log('ШКАТУЛКА: на кнопке лежит ' + (el ? (el.id || el.className || el.tagName) : 'ничего') +
+          (el === btn ? ' — она сама, клики дойдут' : ' — ЧУЖОЕ, клики не дойдут'));
+      }
+    }, 600);
+  }, 400);
   if (q.get('sky')) { // отладка созвездия: зажечь часть звёзд, памяти не трогая
     skyGroups().forEach((tier, gi) => tier.forEach((p, pi) => { if ((pi + gi) % 2 === 0) SKY.add(phraseKey(gi, pi)); }));
     setTimeout(openSky, 300);
