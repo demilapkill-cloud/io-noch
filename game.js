@@ -1544,7 +1544,7 @@ function spawnShip() {
   const scl = near ? rand(0.85, 1.15) : rand(0.4, 0.6);
   const speed = (near ? rand(38, 66) : rand(16, 30)) * (0.7 + S.energy * 0.8);
   const p = spawnRing(viewR() + 150, viewR() + 320);
-  ships.push({ x: p.x, y: p.y, vx: speed * dir, scl, near, dir, bob: rand(TAU) });
+  ships.push({ x: p.x, y: p.y, vx: speed * dir, scl, near, dir, bob: rand(TAU), life: rand(60, 180) });
 }
 function spawnEnemy(type, ax, ay, sleeping) {
   const D = difficulty();
@@ -2358,7 +2358,27 @@ function update(dt) {
   for (let i = ships.length - 1; i >= 0; i--) {
     const sh = ships[i];
     sh.x += sh.vx * dt; sh.bob += dt * 0.9;
-    if (hyp(sh.x - cam.x, sh.y - cam.y) > viewR() * 2.4 && io.tether !== sh) { ships.splice(i, 1); continue; }
+    if (hyp(sh.x - cam.x, sh.y - cam.y) > viewR() * 2.4 && io.tether !== sh && sh.bh === undefined) { ships.splice(i, 1); continue; }
+    if (playing) {
+      sh.life -= dt;
+      if (sh.life <= 10 && sh.bh === undefined) {
+        sh.bh = 10; sh.bhX = sh.x - sh.dir * 160 * sh.scl; sh.bhY = sh.y;
+        sfxCrash();
+      }
+      if (sh.bh !== undefined) {
+        sh.bh -= dt;
+        sh.x += (sh.bhX - sh.x) * dt * 0.5;
+        sh.y += (sh.bhY - sh.y) * dt * 0.5;
+        if (sh.bh <= 3 && Math.random() < dt * 4) spawnMoteAt(sh.x + rand(-30, 30), sh.y + rand(-30, 30), 10);
+        if (sh.bh <= 0) {
+          if (io.tether === sh) die('blackhole');
+          ships.splice(i, 1);
+          burst(sh.x, sh.y, [0.1, 0.1, 0.2], 40, 500);
+          sfxCrash();
+          continue;
+        }
+      }
+    }
     if (Math.random() < 0.35)
       newPart(sh.x - sh.dir * 90 * sh.scl + rand(-10, 10), sh.y + rand(-6, 18) * sh.scl,
         rand(-10, 10), rand(4, 22), rand(0.6, 1.4), S.pal.tint, rand(0.6, 1.8));
@@ -3185,6 +3205,12 @@ function drawMote(m, P, pal, tm) {
 
 function drawShip(sh, P, pal, tm) {
   const s = sh.scl * P.k, d = sh.dir;
+  if (sh.bh !== undefined) {
+    const br = (10 - sh.bh) * 15 * s;
+    sc.beginPath(); sc.arc(P.x - d * 160 * s, P.y, br, 0, TAU);
+    sc.fillStyle = 'black'; sc.fill();
+    sc.lineWidth = 3; sc.strokeStyle = css3([0.6, 0.2, 0.8], 0.6 + 0.4 * Math.sin(tm * 8)); sc.stroke();
+  }
   sc.save();
   sc.translate(P.x, P.y);
   sc.scale(d * s, s);
@@ -3570,11 +3596,18 @@ function drawBolt(b, pal, tm) {
 function drawTetherLine(P, tm) {
   const sh = io.tether;
   if (!sh || !ships.includes(sh)) return;
-  const B = proj(sh.x - sh.dir * 60 * sh.scl, sh.y - 30 * sh.scl);
+  let ax = sh.x - sh.dir * 60 * sh.scl;
+  let ay = sh.y - 30 * sh.scl;
+  if (sh.bh !== undefined) {
+    const r = Math.random() * 8;
+    ax += r; ay -= r;
+  }
+  const B = proj(ax, ay);
   // круг воли: докуда пускает поводок — чтобы правило читалось глазами;
   // натянешь нить — круг и сама нить наливаются жаром
   const strain = S.strain || 0;
-  const tcol = strain > 0 ? mix3(IO_COL, [1, 0.5, 0.3], strain) : IO_COL;
+  const isBh = sh.bh !== undefined;
+  const tcol = isBh ? [1, 0.2, 0.1] : (strain > 0 ? mix3(IO_COL, [1, 0.5, 0.3], strain) : IO_COL);
   sc.strokeStyle = css3(tcol, 0.13 + strain * 0.35);
   sc.lineWidth = 1;
   sc.setLineDash([7, 11]);
@@ -4022,7 +4055,7 @@ function levelUp() {
   updateHud();
 }
 
-function die() {
+function die(cause) {
   S.mode = 'death';
   io.oc = false; ocBtn.classList.remove('held');
   document.body.classList.remove('playing');
@@ -4037,7 +4070,9 @@ function die() {
     sg.textContent = tr('skyGain', RUN.newStars, starWord(RUN.newStars));
     sg.classList.remove('hidden');
   } else sg.classList.add('hidden');
-  document.getElementById('deathQuote').textContent = pick(DEATH_QUOTES[LANG] || DEATH_QUOTES.ru);
+  document.getElementById('deathQuote').textContent = cause === 'blackhole' 
+    ? (LANG === 'en' ? 'the void took both the ship and its tether.' : 'бездна забрала и корабль, и привязь.')
+    : pick(DEATH_QUOTES[LANG] || DEATH_QUOTES.ru);
   sfxCrash();
   S.shake = 1; S.glitch = 1;
   burst(io.x, io.y, IO_COL, 60, 500);
