@@ -138,9 +138,6 @@ const TXT = {
     // — экраны —
     titleBig: 'бесконечная\u00a0ночь',
     titleSub: 'роглайк о шарике света, которому не спится',
-    help1: (mv, h, t, b, c) => mv + ' — движение · ' + h + ' — остановиться · ' + t + ' — трос · ' + b + ' — рывок · ' + c + ' — ускорение',
-    help1t: 'коснитесь экрана — под пальцем появится джойстик',
-    help2t: 'кнопки под большим пальцем: трос · рывок · ускорение',
     btnTether: 'трос',
     btnBlink: 'рывок',
     sTouch: 'палец',
@@ -148,9 +145,6 @@ const TXT = {
     sideRight: 'справа', sideLeft: 'слева',
     sJoyR: 'размер джойстика',
     sJoyShow: 'показывать джойстик',
-    help2: 'силы тают всё время — восполняют их только мысли',
-    help3: 'на лугах много мыслей · в разломах опасно · течения сносят · скорость перегревает',
-    help4: 'каждая пятая ночь — корабль-кошмар: бейте, пока открыт фонарь',
     titleHint: 'нажмите на огонёк',
     mPlay: 'играть',
     mSky: 'созвездие',
@@ -320,9 +314,6 @@ const TXT = {
     distK: 'k',
     titleBig: 'endless\u00a0night',
     titleSub: 'a roguelike about a wisp that cannot sleep',
-    help1: (mv, h, t, b, c) => mv + ' — move · ' + h + ' — hold still · ' + t + ' — thread · ' + b + ' — blink · ' + c + ' — charge',
-    help1t: 'touch anywhere — a joystick is born under your finger',
-    help2t: 'buttons under your thumb: thread · blink · charge',
     btnTether: 'thread',
     btnBlink: 'blink',
     sTouch: 'finger',
@@ -330,9 +321,6 @@ const TXT = {
     sideRight: 'right', sideLeft: 'left',
     sJoyR: 'joystick size',
     sJoyShow: 'show the joystick',
-    help2: 'wakefulness always drains — only thoughts hold it',
-    help3: 'meadows are generous · rifts are deadly · currents carry · speed burns',
-    help4: 'every fifth night brings the nightmare ship — strike while its lantern is open',
     titleHint: 'touch the wisp',
     mPlay: 'kindle',
     mSky: 'constellation',
@@ -504,9 +492,6 @@ const TXT = {
     // — bildschirme —
     titleBig: 'endlose\u00a0nacht',
     titleSub: 'ein roguelike um ein lichtlein, das keinen schlaf findet',
-    help1: (mv, h, t, b, c) => mv + ' — bewegung · ' + h + ' — stillstehen · ' + t + ' — faden · ' + b + ' — flackern · ' + c + ' — ladung',
-    help1t: 'berühre den schirm — unter dem finger erwacht ein steuerkreis',
-    help2t: 'tasten unterm daumen: faden · flackern · ladung',
     btnTether: 'faden',
     btnBlink: 'flackern',
     sTouch: 'finger',
@@ -514,9 +499,6 @@ const TXT = {
     sideRight: 'rechts', sideLeft: 'links',
     sJoyR: 'steuerkreis',
     sJoyShow: 'steuerkreis zeigen',
-    help2: 'wachheit schwindet stets — nur gedanken bewahren sie',
-    help3: 'auen sind mild · klüfte tödlich · ströme tragen · eile brennt',
-    help4: 'jede fünfte nacht bringt das albtraumschiff — triff, solange die laterne offen steht',
     titleHint: 'berühre das lichtlein',
     mPlay: 'entflammen',
     mSky: 'sternbild',
@@ -2708,7 +2690,10 @@ function spawnBolt() {
   bolts.push({ x, t: 0, warn: 1.35, strike: 0.22, hitDone: false });
 }
 const TEXT_SS = 2; // спрайт фразы в 2× — чёткость при глубинном масштабе
-const GAME_FONT = '"SAO UI", "Trebuchet MS", sans-serif'; // единый шрифт игры
+const GAME_FONT = '"SAO UI", "Trebuchet MS", sans-serif'; // узорный: летучие фразы мира
+// Таблички сада — не украшение, а учебник: их читают внимательно и целиком,
+// оттого набраны они тем же обычным шрифтом, что и весь интерфейс.
+const UI_FONT = 'system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif';
 const _measC = document.createElement('canvas');
 const _measG = _measC.getContext('2d');
 function spawnText(x, y, str, big) {
@@ -5537,6 +5522,10 @@ function showBestLine() {
   const c = skyCaught();
   document.getElementById('skyBtnTxt').textContent = c ? tr('mSkyN', c, skyTotal()) : tr('mSky');
   const b = loadBest();
+  // Титул ничего не объясняет — объясняет сад. Оттого тому, кто ещё ни разу
+  // не играл, «обучение» в меню светится углями: с него и начинать.
+  const tb = document.getElementById('tutorBtn');
+  if (tb) tb.classList.toggle('first', !b);
   const el = document.getElementById('bestLine');
   if (b) {
     el.textContent = tr('bestLine', b.nights, b.thoughts, plural(b.nights));
@@ -5834,6 +5823,22 @@ const TUTOR_GAP = 1500; // шаг между станами; шире клетк
 const TU_FOES = ['shade', 'nm', 'dasher', 'eye', 'siren', 'eater', 'moth', 'weaver'];
 
 const TUTOR_STOPS = [
+  // Первый стан стоит там же, где рождается свет: управление надобно знать
+  // прежде, чем куда-то лететь. Оттого и раскладка в тексте — нынешняя,
+  // метки {up} и прочие подменяются живыми клавишами.
+  { id: 'move', kind: 'hint',
+    t: { ru: 'как лететь', en: 'how to fly', de: 'wie man fliegt' },
+    d: { ru: 'Свет летит, пока держишь клавишу: {up} {left} {down} {right} (стрелки тоже годятся). {halt} — замереть на месте. Прицел ходит за мышью: рывок переносит ровно туда, куда он смотрит. Всякую клавишу можно поменять в настройках.',
+         en: 'The light flies while you hold a key: {up} {left} {down} {right} (arrows work too). {halt} — hold still. The aim follows your mouse: a blink takes you exactly where it points. Every key can be changed in the settings.',
+         de: 'Das licht fliegt, solange du eine taste hältst: {up} {left} {down} {right} (pfeile gehen auch). {halt} — stillstehen. Das ziel folgt der maus: ein flackern bringt dich genau dorthin. Jede taste lässt sich in den einstellungen ändern.' },
+    dTouch: { ru: 'Коснись экрана — под пальцем родится джойстик: наклоняй его в ту сторону, куда хочешь лететь, а сила наклона — это скорость. Тянуть палец через весь экран не нужно. Способности живут кнопками под большим пальцем.',
+              en: 'Touch the screen — a joystick is born under your finger: tilt it where you want to fly, and how far you tilt is your speed. No need to drag across the screen. The abilities live as buttons under your thumb.',
+              de: 'Berühre den schirm — unter dem finger erwacht ein steuerkreis: neige ihn dorthin, wohin du fliegen willst, die neigung ist deine geschwindigkeit. Du musst den finger nicht über den schirm ziehen. Die fähigkeiten sitzen als tasten unter dem daumen.' } },
+  { id: 'wake', kind: 'hint',
+    t: { ru: 'силы', en: 'your strength', de: 'deine kraft' },
+    d: { ru: 'Полоска внизу — твои силы. Они тают всё время и тем быстрее, чем дольше длится ночь. Мысли — единственное, что их возвращает. Опустела полоска — ты растворишься в ночи. В саду этого не случится: здесь силы стоят на месте.',
+         en: 'The bar at the bottom is your strength. It drains all the time, and faster the longer the night lasts. Thoughts are the only thing that gives it back. Empty the bar and you dissolve into the night. Not here, though: in the garden it stands still.',
+         de: 'Der balken unten ist deine kraft. Sie schwindet stets, und schneller, je länger die nacht währt. Gedanken sind das einzige, was sie zurückgibt. Ist der balken leer, löst du dich in der nacht auf. Nicht hier: im garten steht sie still.' } },
   { id: 'mote', kind: 'mote',
     t: { ru: 'мысль', en: 'a thought', de: 'ein gedanke' },
     d: { ru: 'Твоя еда. Каждая пойманная мысль возвращает немного бодрости и даёт опыт. Просто лети сквозь них — они притянутся сами.',
@@ -5859,6 +5864,11 @@ const TUTOR_STOPS = [
     d: { ru: 'Корабли идут по небу сами по себе. Подлети ближе и нажми {tether} — бросишь трос. Она тянет тебя следом, жжёт всё, что её пересекает, и с палубы сыплются мысли. Нажми ещё раз, чтобы отвязаться.',
          en: 'Ships sail the sky on their own. Fly close and press {tether} to cast the thread. It pulls you along, burns anything that crosses it, and thoughts spill from the deck. Press again to let go.',
          de: 'Schiffe segeln von selbst über den himmel. Flieg näher und drück {tether}, um die spur zu werfen. Sie zieht dich mit, versengt alles, was sie kreuzt, und vom deck rieseln gedanken. Noch ein druck, und du bist frei.' } },
+  { id: 'night', kind: 'hint',
+    t: { ru: 'ночь за ночью', en: 'night after night', de: 'nacht um nacht' },
+    d: { ru: 'Ночи текут одна за другой, каждые полторы минуты, и с каждой ночь становится злее. Всякая третья — шторм, всякая пятая приводит корабль-кошмар: бить его можно только по фонарю и только пока фонарь открыт. И помни: долгий разгон перегревает свет.',
+         en: 'Nights flow one into another every minute and a half, and each one turns meaner. Every third is a storm; every fifth brings the nightmare ship — it can only be struck by the lantern, and only while the lantern is open. And remember: a long dash overheats the light.',
+         de: 'Nächte fließen alle anderthalb minuten ineinander, und jede wird böser. Jede dritte ist ein sturm, jede fünfte bringt das albtraumschiff — treffen kann man es nur an der laterne und nur, solange sie offen ist. Und denk daran: langer lauf überhitzt das licht.' } },
   { id: 'shade', kind: 'shade',
     t: { ru: 'тени', en: 'shades', de: 'schatten' },
     d: { ru: 'Летают стайкой и жмутся к свету. Поодиночке слабы, но толпой быстро объедают бодрость. Бей их спиритами — искрами, что кружат вокруг тебя.',
@@ -5978,7 +5988,7 @@ function startTutor() {
   zoneForce.clear();
   TUTOR.stops = TUTOR_STOPS.map((s, i) => ({
     def: s, id: s.id, kind: s.kind, on: false, t: 0, cd: 0,
-    x: (i + 1) * TUTOR_GAP, y: Math.sin(i * 0.85) * 210,
+    x: i * TUTOR_GAP, y: Math.sin(i * 0.85) * 210, // первый — под самым светом
     lines: null, lang: null, lw: 0, wrap: 0,
   }));
   for (const st of TUTOR.stops) if (st.kind === 'meadow' || st.kind === 'rift' || st.kind === 'current') tutorForceZone(st);
@@ -6094,22 +6104,24 @@ function updateTutor(dt) {
 
 // Пояснение разбивается на строки единожды на язык: мерить его всякий кадр
 // незачем, а языки на ходу меняются.
+// У иных станов свой сказ для пальца: джойстик и клавиши — вещи разные.
+function stopDesc(st) { return (TOUCH && st.def.dTouch) || st.def.d; }
 function tutorLines(st) {
   const maxW = Math.min(430, W - 64); // на телефоне табличка ужимается по экрану
   if (st.lines && st.lang === LANG && st.wrap === maxW) return st.lines;
   st.wrap = maxW;
-  _measG.font = '500 17px ' + GAME_FONT;
+  _measG.font = '500 17px ' + UI_FONT;
   const out = [];
   let line = '';
-  for (const word of nm(st.def.d).split(' ')) {
+  for (const word of nm(stopDesc(st)).split(' ')) {
     const probe = line ? line + ' ' + word : word;
     if (_measG.measureText(probe).width > maxW && line) { out.push(line); line = word; }
     else line = probe;
   }
   if (line) out.push(line);
-  _measG.font = '600 21px ' + GAME_FONT;
+  _measG.font = '600 21px ' + UI_FONT;
   let w = _measG.measureText(nm(st.def.t)).width;
-  _measG.font = '500 17px ' + GAME_FONT;
+  _measG.font = '500 17px ' + UI_FONT;
   for (const l of out) w = Math.max(w, _measG.measureText(l).width);
   st.lines = out; st.lang = LANG; st.lw = w;
   return out;
@@ -6164,9 +6176,9 @@ function drawTutor() {
     sc.stroke();
     sc.textAlign = 'left'; sc.textBaseline = 'top';
     sc.fillStyle = css3(IO_COL, st.on ? 1 : 0.6);
-    sc.font = '600 21px ' + GAME_FONT;
+    sc.font = '600 21px ' + UI_FONT;
     sc.fillText(nm(st.def.t), bx + padX, by + padY);
-    sc.font = '500 17px ' + GAME_FONT;
+    sc.font = '500 17px ' + UI_FONT;
     sc.fillStyle = 'rgba(238,242,248,' + (st.on ? 0.97 : 0.58) + ')';
     for (let l = 0; l < lines.length; l++)
       sc.fillText(lines[l], bx + padX, by + padY + 30 + l * lh);
@@ -6632,11 +6644,6 @@ let pausedBySettings = false, resetArmed = false;
 function applyLang() {
   document.documentElement.lang = LANG;
   for (const el of document.querySelectorAll('[data-i18n]')) el.textContent = tr(el.dataset.i18n);
-  for (const el of document.querySelectorAll('[data-i18n-lines]')) {
-    const keys = (TOUCH && el.dataset.i18nLinesTouch) || el.dataset.i18nLines;
-    // help1 перечисляет клавиши, а они правятся: подпись собирается из раскладки
-    el.innerHTML = keys.split(',').map(k => k === 'help1' ? tr(k, ...helpKeys()) : tr(k)).join('<br>');
-  }
   for (const [id, key] of [['btnTether', 'btnTether'], ['btnBlink', 'btnBlink'], ['ocBtn', 'ocBtn']]) {
     const el = document.getElementById(id);
     if (el) { el.setAttribute('aria-label', tr(key)); el.setAttribute('title', tr(key)); }
@@ -6692,12 +6699,6 @@ function applyHudMode() {
 // начинают ночь, — отдавать их под правку нельзя.
 const KEY_RESERVED = ['Escape', 'Enter', 'NumpadEnter', 'Digit1', 'Digit2', 'Digit3'];
 const KEY_ORDER = ['up', 'down', 'left', 'right', 'halt', 'tether', 'blink', 'charge'];
-// Подпись под заглавием перечисляет клавиши: движение одною строкою, прочее — порознь.
-function helpKeys() {
-  const mv = ['up', 'left', 'down', 'right'].map(a => keyName(SET.keys[a])).join('');
-  return [mv, keyName(SET.keys.halt), keyName(SET.keys.tether),
-    keyName(SET.keys.blink), keyName(SET.keys.charge)];
-}
 const keyList = document.getElementById('keyList');
 const keyNote = document.getElementById('keyNote');
 let keyWaiting = null; // какое дело ждёт новой клавиши

@@ -125,14 +125,12 @@
   .title-big{font-family:var(--font-display);font-weight:300;
     font-size:clamp(44px,11vw,132px);line-height:.95;letter-spacing:-.02em;color:var(--ink);
     text-shadow:0 0 60px rgba(143,208,255,.3)}
-  .title-sub{margin-top:26px;font-size:15px;letter-spacing:.01em;color:var(--ink-3);font-family:var(--font-mono)}
-  .title-help{margin-top:34px;font-size:15px;line-height:2.2;letter-spacing:.01em;color:var(--ink-3);font-family:var(--font-mono)}
-  .title-hint{margin-top:40px;font-size:15px;letter-spacing:.01em;color:var(--ink-2);font-family:var(--font-mono);animation:pulse 2.6s var(--ease) infinite}
+  .title-sub{margin-top:22px;font-size:15px;letter-spacing:.06em;color:var(--ink-3);font-family:var(--font-mono)}
+  .title-hint{margin-top:30px;font-size:14px;letter-spacing:.06em;color:var(--ink-3);font-family:var(--font-mono);animation:pulse 2.6s var(--ease) infinite}
   @keyframes pulse{50%{opacity:.3}}
   @keyframes fadeUp{from{opacity:0;transform:translateY(14px)}to{opacity:1;transform:none}}
   #titleScreen .title-big{animation:fadeUp 1.1s var(--ease) both}
   #titleScreen .title-sub{animation:fadeUp 1.1s var(--ease) .25s both}
-  #titleScreen .title-help{animation:fadeUp 1.1s var(--ease) .45s both}
   #titleScreen .title-best{animation:fadeUp 1.1s var(--ease) .6s both}
   #titleScreen .title-hint{animation:fadeUp 1.1s var(--ease) .7s both, pulse 2.6s var(--ease) 1.8s infinite}
   #deathScreen .death-quote{animation:fadeUp 1s var(--ease) .5s both}
@@ -140,8 +138,8 @@
   #restScreen .dream:nth-child(2){animation-delay:.12s}
   #restScreen .dream:nth-child(3){animation-delay:.24s}
   @media (prefers-reduced-motion: reduce){*{animation-duration:.01ms !important}}
-  .title-ver{position:fixed;bottom:18px;left:0;right:0;font-size:14px;letter-spacing:.01em;color:var(--ink-4);font-family:var(--font-mono)}
-  .title-best{margin-top:14px;font-size:14px;letter-spacing:.01em;color:var(--ember);font-family:var(--font-mono)}
+  .title-ver{position:fixed;bottom:18px;left:0;right:0;font-size:13px;letter-spacing:.06em;color:var(--ink-4);font-family:var(--font-mono)}
+  .title-best{margin-top:34px;font-size:14px;letter-spacing:.06em;color:var(--ember);font-family:var(--font-mono)}
 
   /* ---------- меню-огонёк (в духе osu!lazer, но голосом этой ночи) ---------- */
   .menu-wrap{margin-top:34px;display:flex;align-items:center;justify-content:center;
@@ -179,11 +177,13 @@
   .mbtn:hover,.mbtn:focus-visible{color:var(--io);border-color:rgba(143,208,255,.55);
     box-shadow:0 0 22px rgba(143,208,255,.2);background:rgba(143,208,255,.08)}
   .mbtn.play{color:var(--io);border-color:rgba(143,208,255,.4)}
+  /* первому гостю указываем на обучение: титул сам ничему не учит */
+  .mbtn.first{color:var(--ember);border-color:rgba(232,165,74,.45)}
+  .mbtn.first:hover,.mbtn.first:focus-visible{color:var(--night-0);background:var(--ember);
+    border-color:var(--ember);box-shadow:0 0 34px rgba(232,165,74,.45)}
   .mbtn.play:hover,.mbtn.play:focus-visible{color:var(--night-0);background:var(--io);border-color:var(--io);
     box-shadow:0 0 34px rgba(143,208,255,.5)}
   #titleScreen.open .title-hint{opacity:0;animation:none}
-  #titleScreen.open .title-help{opacity:.35}
-  .title-help{transition:opacity .4s var(--ease)}
   .title-hint{transition:opacity .4s var(--ease)}
 
   /* ---------- гардероб обликов ---------- */
@@ -443,7 +443,6 @@
     .d-ic{width:36px;height:36px}
     .d-desc{font-size:14.5px}
     .dream::after{right:14px}
-    .title-help{font-size:12.5px;line-height:1.9;letter-spacing:.01em;margin-top:22px;padding:0 10px}
     .sky-sparks{gap:8px}
     .spark{min-width:132px;padding:7px 9px}
     .spark span{font-size:15px}
@@ -537,7 +536,6 @@
       </button>
     </nav>
   </div>
-  <div class="title-help" data-i18n-lines="help1,help2,help3,help4" data-i18n-lines-touch="help1t,help2t,help3,help4"></div>
   <div class="title-best hidden" id="bestLine"></div>
   <div class="title-hint" data-i18n="titleHint"></div>
   <div class="title-ver" data-i18n="titleVer"></div>
@@ -709,7 +707,7 @@
   <button class="end-btn" id="setClose" data-i18n="sClose"></button>
 </div>
 
-<script src="game.js?v=111"></script>
+<script src="game.js?v=113"></script>
 <script>
 // Служебный работник нужен лишь странице в сети: настольная обёртка и так
 // держит игру при себе, а на file:// он и вовсе не заводится.
