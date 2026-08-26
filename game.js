@@ -36,7 +36,7 @@ function css3(c, a = 1) {
 
 // ============================================================
 // ЯЗЫК И НАСТРОЙКИ
-// Русский — родной голос игры, английский идёт вторым; всё видимое
+// Русский — родной голос игры, английский и немецкий идут следом; всё видимое
 // проходит через tr(), а настройки живут в localStorage.
 // ============================================================
 const DEFAULT_SET = {
@@ -55,7 +55,7 @@ function loadSettings() {
   try { s = JSON.parse(localStorage.getItem('io-noch-set')) || {}; } catch (_) {}
   const out = Object.assign({}, DEFAULT_SET, s);
   out.visuals = Object.assign({}, DEFAULT_SET.visuals, s.visuals); // облики — гнездом
-  if (out.lang !== 'ru' && out.lang !== 'en') out.lang = 'ru';
+  if (!['ru', 'en', 'de'].includes(out.lang)) out.lang = 'ru';
   return out;
 }
 function saveSettings() {
@@ -144,6 +144,7 @@ const TXT = {
     mSkyN: (c, t) => 'созвездие · ' + c + '/' + t,
     mMeta: 'шкатулка',
     mSkins: 'облики',
+    mTutor: 'обучение',
     wd_head: 'облики ночи',
     wd_sub: 'краса, добытая созвездиями · на силу не влияет ничуть',
     wd_count: (n, t) => 'добыто ' + n + ' из ' + t,
@@ -290,6 +291,7 @@ const TXT = {
     mSkyN: (c, t) => 'constellation · ' + c + '/' + t,
     mMeta: 'casket',
     mSkins: 'guises',
+    mTutor: 'how to play',
     wd_head: 'guises of the night',
     wd_sub: 'beauty earned by constellations · never touches your strength',
     wd_count: (n, t) => n + ' of ' + t + ' earned',
@@ -363,11 +365,163 @@ const TXT = {
     sClose: 'close',
     sHintPause: 'the night waits while settings are open',
   },
+  de: {
+    // — inschriften der welt —
+    bossComes: 'das albtraumschiff zieht über den himmel',
+    bossWhale: 'der leviathan der schlaflosigkeit steigt aus der tiefe',
+    bossWhaleEat: 'der leviathan verschlingt gedanken',
+    bossFled: 'der morgen vertrieb das albtraumschiff',
+    tether: 'der faden ist fest gespannt',
+    hintTether: 'ein schiff ist nah — wirf den faden: er bindet und versengt die nacht',
+    sling: 'schwung',
+    snap: 'der faden riss',
+    secondWind: 'zweiter atem',
+    dew: 'morgentau',
+    dawnLine: 'morgenrot — und der tag huscht vorüber',
+    star: 'ein gefallener stern',
+    waveIn: n => 'woge ' + n + ' — die nacht steigt',
+    waveOut: 'die woge wich — atme',
+    twinDown: 'der dunkle zwilling erlosch',
+    rod: 'blitzableiter',
+    nightText: (n, storm) => (storm ? 'sturm · nacht ' : 'nacht ') + n,
+    // — bewohner der nacht —
+    lm_lighthouse: 'die schlafende laterne',
+    lm_lighthouse_lit: 'die laterne flammt auf — in ihrem schein schwindet wachheit halb so rasch',
+    lm_graveyard: 'der schiffsfriedhof',
+    lm_graveyard_hint: 'gedanken zwischen den rippen laben doppelt',
+    lm_whale: 'der himmelswal',
+    lm_lamplighter: 'der laternenanzünder',
+    lm_starfall: 'sternfall',
+    lm_star: 'ein schlafender stern',
+    lm_star_hint: 'weile nahebei — wecke ihn, wenn du dich getraust',
+    lm_star_wake: 'der stern erwacht — und die nacht schaut euch an',
+    lm_pedlar: 'der schläfrige krämer',
+    lm_pedlar_amber: n => n + ' gedanken — für einen schluck wachheit',
+    lm_pedlar_violet: n => n + ' wachheit — für eine handvoll gedanken',
+    lm_pedlar_done: 'der krämer verneigt sich und zieht davon',
+    lm_pedlar_poor: 'der krämer schüttelt den kopf — du hast nichts zum zahlen',
+    lm_nest: 'ein albtraumnest',
+    lm_nest_hint: 'weile nahebei — und brenne es aus',
+    lm_nest_cry: 'das nest schreit auf',
+    lm_nest_done: 'das nest ist erloschen',
+    hint_intro: 'die nacht ist endlos, und du darin — ein lichtlein',
+    hint_motes: 'fange gedanken — sie allein halten dich wach',
+    hint_wake: 'wachheit schwindet; versiegt sie, so zerrinnst du',
+    hint_foe: 'albträume wittern licht — führe es fort',
+    // — HUD —
+    thoughts: n => 'gedanken · ' + n,
+    tierN: n => 'stufe ' + n,
+    chain: n => 'folge ×' + n,
+    keyMouse: 'LMT', keySpace: 'leertaste', keyShift: 'shift', secShort: 's',
+    wakeLabel: 'wachheit',
+    ocBtn: 'ladung',
+    bossName: 'das albtraumschiff',
+    bossNameWhale: 'der leviathan',
+    distK: 'k',
+    // — bildschirme —
+    titleBig: 'endlose\u00a0nacht',
+    titleSub: 'ein roguelike um ein lichtlein, das keinen schlaf findet',
+    help1: 'maus — fliegen · klick nahe dem schiff — faden · leertaste — flackern',
+    help1t: 'berühre den schirm — unter dem finger erwacht ein steuerkreis',
+    help2t: 'tasten unterm daumen: faden · flackern · ladung',
+    btnTether: 'faden',
+    btnBlink: 'flackern',
+    sTouch: 'finger',
+    sTouchSide: 'tastenseite',
+    sideRight: 'rechts', sideLeft: 'links',
+    sJoyR: 'steuerkreis',
+    sJoyShow: 'steuerkreis zeigen',
+    help2: 'shift — laden · wachheit schwindet stets — nur gedanken bewahren sie',
+    help3: 'auen sind mild · klüfte tödlich · ströme tragen · eile brennt',
+    help4: 'jede fünfte nacht bringt das albtraumschiff — triff, solange die laterne offen steht',
+    titleHint: 'berühre das lichtlein',
+    mPlay: 'entflammen',
+    mSky: 'sternbild',
+    mSkyN: (c, t) => 'sternbild · ' + c + '/' + t,
+    mMeta: 'schatulle',
+    mSkins: 'gewänder',
+    mTutor: 'anleitung',
+    wd_head: 'gewänder der nacht',
+    wd_sub: 'zier aus sternbildern · an deiner kraft ändert sie nichts',
+    wd_count: (n, t) => n + ' von ' + t + ' errungen',
+    wd_grp_shell: 'hülle — farbe des lichts',
+    wd_grp_trail: 'spur',
+    wd_grp_spirits: 'geister',
+    wd_grp_halo: 'lichthöfe',
+    wd_worn: 'getragen · ablegen',
+    wd_have: 'errungen · anlegen',
+    wd_new: n2 => 'die garderobe wächst — „' + n2 + '“',
+    wd_lock_theme: n2 => 'das sternbild „' + n2 + '“ ist noch nicht voll',
+    wd_lock_themes: n2 => 'vollende so viele prüfungsbilder: ' + n2,
+    wd_lock_phr: n2 => 'fange so viele sätze fürs sternbild: ' + n2,
+    titleVer: 'killu × fable · ein roguelike-seitenzweig der „dritten nacht“ · kopfhörer sind vonnöten',
+    bestLine: (n, t) => 'trefflichste schlaflosigkeit · ' + n + (n === 1 ? ' nacht · ' : ' nächte · ') + t + ' gedanken',
+    restHead: (lvl, w, mx) => 'stufe ' + lvl + ' · wachheit ' + w + ' von ' + mx,
+    restBig: 'gabe der schlaflosigkeit',
+    restSub: 'die nacht wartet — wähle eine · tasten 1 · 2 · 3',
+    deathBig: 'du zerrannst in der nacht',
+    deathNight: n => 'deine schlaflosigkeit währte ' + n + (n === 1 ? ' nacht' : ' nächte'),
+    stNights: 'nächte bestanden',
+    stThoughts: 'gedanken gefangen',
+    stKills: 'albträume zerstreut',
+    stDist: 'himmel durchmessen',
+    stTime: 'die nacht währte',
+    stWaves: 'wogen abgewehrt',
+    stShips: 'schiffe versenkt',
+    stStars: 'sterne entfacht',
+    stLevel: 'stufe des lichts',
+    stBest: 'rekord',
+    starLit: 'ein neuer stern flammt im sternbild auf',
+    themeDone: r => 'das sternbild ist voll · ' + r + ' ist dein',
+    skyEquip: 'anlegen',
+    skyWorn: 'getragen',
+    purseHead: 'gedanken rieseln in die schatulle',
+    deathSkip: 'drücke zum überspringen',
+    deathVoid: 'die leere nahm schiff und faden zugleich.',
+    titleBtn: 'zum titel',
+    againBtn: 'aufs neue entflammen',
+    pauseTxt: 'pause',
+    pauseSub: 'esc — zurück in die nacht',
+    // — sternbild —
+    skyHead: 'sternbild gefangener sätze',
+    skyBtn: (c, t) => 'sternbild · ' + c + ' von ' + t + ' sätzen',
+    skyBtnEmpty: 'sternbild gefangener sätze',
+    skyCount: (c, t) => c + ' von ' + t,
+    skyHint: 'weise auf einen stern — er erinnert sich seines satzes',
+    skyDark: 'dieser stern ist noch nicht entfacht',
+    sparkLocked: n => 'entflammt beim ' + n + '. satz',
+    skyGain: (n, w) => 'das sternbild wuchs · ' + n + ' ' + w,
+    skyBack: 'zurück in die nacht',
+    // — einstellungen —
+    settings: 'einstellungen',
+    sLang: 'sprache',
+    sSound: 'klang',
+    sVol: 'lautstärke',
+    sMusic: 'musik',
+    sSfx: 'geräusche',
+    sPicture: 'bild',
+    sQuality: 'güte',
+    qAuto: 'auto', qHigh: 'hoch', qLow: 'niedrig',
+    sShake: 'bildzittern',
+    sFx: 'flimmern und korn',
+    sHud: 'anzeigen',
+    sFps: 'bildzähler',
+    sOn: 'an', sOff: 'aus',
+    hFull: 'alles', hLite: 'nur balken', hOff: 'verborgen',
+    sMemory: 'erinnerung',
+    sReset: 'sternbild löschen',
+    sResetHint: 'tilgt alle gefangenen sätze und erinnerungsfunken — für immer',
+    sResetSure: 'gewiss? drücke noch einmal',
+    sResetDone: 'das sternbild ist wieder dunkel',
+    sClose: 'schließen',
+    sHintPause: 'die nacht wartet, solange die einstellungen offen sind',
+  },
 };
 
-// звёзды-слова во множественном числе — по-русски трояко, по-английски двояко
+// звёзды-слова во множественном числе — по-русски трояко, в прочих языках двояко
 function starWord(n) {
   if (LANG === 'en') return n === 1 ? 'new star' : 'new stars';
+  if (LANG === 'de') return n === 1 ? 'neuer stern' : 'neue sterne';
   const m = n % 10, h = n % 100;
   if (m === 1 && h !== 11) return 'новая звезда';
   if (m >= 2 && m <= 4 && (h < 12 || h > 14)) return 'новые звёзды';
@@ -516,11 +670,62 @@ const PH = {
       'you are permitted to close your eyes',
     ],
   ],
+  de: [
+    [
+      'die milch kochte vor drei tagen über',
+      'das licht im flur brennt ganz umsonst',
+      'morgen — das ist schon heute',
+      'das kissen ist auf beiden seiten kalt',
+      'der schlaf steht an der haltestelle und steigt doch nicht ein',
+      'im haus gegenüber schläft man ebenfalls nicht',
+      'der kessel ward kalt, und ich bemerkte es nicht',
+      'die stille klingt ein wenig',
+    ],
+    [
+      'schiffe fahren über den himmel',
+      'die decke atmet — dies ist ganz gewöhnlich',
+      'vier uhr morgens ist ein ort, keine zeit',
+      'die sterne sind nichts als nadellöcher',
+      'alle städte treiben heute nacht',
+      'die augen schließen sich verkehrt herum',
+      'der akku steht bei neun prozent, und ich desgleichen',
+      'gedanken drehen sich wie ein ventilator',
+      'ich bin ein kleines kügelchen licht',
+      'der faden zittert, doch er hält',
+    ],
+    [
+      'MEIN HERZ KLOPFT WIE DER BASS',
+      'lauter. noch lauter, mein herr',
+      'ich trank das licht aus dem kühlschrank',
+      'meine haut erinnert sich jedes liedes',
+      'die zeit zieht in wellen',
+      'ich bin eine antenne für fremde signale',
+      'die nacht riecht nach erdbeerbrause',
+      'SCHLAF NICHT SCHLAF NICHT SCHLAF NICHT',
+      'die funken kennen den heimweg',
+      'ich leuchte — mithin bin ich',
+    ],
+    [
+      'ALLES LEUCHTET VON INNEN',
+      'ICH BIN NICHT MÜDE, ICH BIN ENDLOS',
+      'DER HIMMEL BIRST AN ALLEN NÄHTEN',
+      'HALT DICH ANS LICHT',
+      'NUR NOCH EIN WEILCHEN, MEIN HERR',
+      'WIR SIND BEINAHE DA',
+    ],
+    [
+      'still. gleich ist es so weit',
+      'die schiffe liegen an ihren kais',
+      'das licht vergibt einem jeden',
+      'du darfst die augen schließen',
+    ],
+  ],
 };
 // фраза, что мыслями не ловится вовсе, — её добывают делом
 const DEEDS = {
   ru: ['КОРАБЛЬ-КОШМАР ПОШЁЛ КО ДНУ', 'ЛЕВИАФАН УСНУЛ НАВЕКИ'],
   en: ['THE NIGHTMARE SHIP HAS GONE DOWN', 'THE LEVIATHAN SLEEPS FOREVER'],
+  de: ['DAS ALBTRAUMSCHIFF IST GESUNKEN', 'DER LEVIATHAN SCHLÄFT AUF EWIG'],
 };
 function phrases() { return PH[LANG] || PH.ru; }
 function deeds() { return DEEDS[LANG] || DEEDS.ru; }
@@ -1206,6 +1411,13 @@ function wrapCoord(v, span) { return ((v % span) + span) % span; }
 // ---------- системы бесконечной карты: луга, разломы, течения ----------
 const CELL = 1400;
 const zoneCache = new Map();
+// Обучение объявлено загодя: способности спрашивают о нём ещё при заводе
+// первого забега, а зоны — с первого же кадра. Само устройство сада — ниже.
+const TUTOR = { on: false, stops: [] };
+// Зона, поставленная рукою: обычные родятся по хешу клетки, а станам сада
+// надобно лечь ровно под себя. Кладём их особо — общий кэш зон подчищается
+// на ходу, а сад стоять должен, покуда идёт урок.
+const zoneForce = new Map();
 function hash2(i, j) { const s = Math.sin(i * 127.1 + j * 311.7) * 43758.5453; return s - Math.floor(s); }
 
 function hash3(x, y, z) {
@@ -1302,8 +1514,10 @@ function populateCell(gx, gy, factor, visit) {
   // Потолок непременен: мысли — единственное лекарство, и коли их число
   // растёт вместе с облётанным простором, то быстрый полёт кормит без предела
   // и бодрость перестаёт быть угрозою вовсе (замер: 94 из 100 через две ночи).
-  let moteCount = Math.floor(rnd(2, 5) * factor / RUN.moteRateMul);
-  const cap = 26 + Math.floor(RUN.moteRateMul < 1 ? 8 : 0);
+  // Впрочем, скупость вышла чрезмерной — небо казалось пустым; засев и потолок
+  // подняты на треть: мыслей приметно гуще, а потолок всё так же держит меру.
+  let moteCount = Math.floor(rnd(3, 6.5) * factor / RUN.moteRateMul);
+  const cap = 34 + Math.floor(RUN.moteRateMul < 1 ? 10 : 0);
   moteCount = Math.max(0, Math.min(moteCount, cap - motes.length));
   const z = zoneOfCell(gx, gy);
   if (z && z.type === 'meadow') moteCount = Math.floor(moteCount * 2.5);
@@ -1345,6 +1559,8 @@ function populateCell(gx, gy, factor, visit) {
 
 function zoneOfCell(gx, gy) {
   const key = gx + ',' + gy;
+  const forced = zoneForce.get(key); // сад обучения кладёт свои зоны сам
+  if (forced !== undefined) return forced;
   if (zoneCache.has(key)) return zoneCache.get(key);
   if (zoneCache.size > 200) zoneCache.clear();
   const h = hash2(gx, gy);
@@ -1399,6 +1615,13 @@ const DEATH_QUOTES = {
     'the night is long, but sparks are stubborn.',
     'to dissolve is not yet to vanish.',
   ],
+  de: [
+    'auch dem lichte widerfährt bisweilen ein blinzeln.',
+    'auch albträume fürchten sich vor irgendetwas.',
+    'erlisch, ruhe aus — und entflamme aufs neue.',
+    'die nacht ist lang, doch funken sind eigensinnig.',
+    'zerfließen heißt noch nicht verschwinden.',
+  ],
 };
 
 
@@ -1424,7 +1647,7 @@ function renderMeta() {
 
   // — способности: их изучают и возвышают прежде даров —
   const abHead = document.createElement('div');
-  abHead.style.cssText = 'font-family:var(--font-mono);font-size:11px;letter-spacing:.3em;text-transform:uppercase;color:var(--ink-3);margin:4px 0 2px;text-align:left';
+  abHead.style.cssText = 'font-family:var(--font-mono);font-size:12px;letter-spacing:.22em;text-transform:uppercase;color:var(--ink-3);margin:4px 0 2px;text-align:left';
   abHead.textContent = tr('ab_head');
   metaList.appendChild(abHead);
   ABILITIES.forEach(a => {
@@ -1435,10 +1658,10 @@ function renderMeta() {
     div.style.cssText = 'background:rgba(143,208,255,0.06);padding:15px;border-radius:8px;display:flex;justify-content:space-between;align-items:center;gap:12px;';
     const info = document.createElement('div');
     info.style.textAlign = 'left';
-    const state = lvl === 0 ? `<span style="color:#aaa;font-size:15px;">· ${tr('ab_locked')}</span>`
+    const state = lvl === 0 ? `<span style="color:#c6cfda;font-size:15px;">· ${tr('ab_locked')}</span>`
       : `<span style="color:#8fd0ff;font-size:15px;">· ${tr('ab_lvl', lvl)}${isMax ? '' : ' / ' + a.max}</span>`;
     info.innerHTML = `<div style="color:#cfe6ff;font-size:20px;margin-bottom:6px">${tr('ab_' + a.id)} ${state}</div>
-                      <div style="color:#9fb4c7;font-size:15px;">${tr('ab_' + a.id + '_desc')}</div>`;
+                      <div style="color:#bcd0e0;font-size:15px;">${tr('ab_' + a.id + '_desc')}</div>`;
     div.appendChild(info);
     const btn = document.createElement('button');
     btn.className = 'sky-link';
@@ -1485,8 +1708,8 @@ function renderMeta() {
     
     const info = document.createElement('div');
     info.style.textAlign = 'left';
-    info.innerHTML = `<div style="color:#ffd9a0;font-size:20px;margin-bottom:6px">${tr('meta_' + u.id)} ${isMax ? '' : `<span style="color:#aaa;font-size:16px;">(${lvl}/${u.max})</span>` }</div>
-                      <div style="color:#9fb4c7;font-size:16px;">${tr('meta_' + u.id + '_desc')}</div>`;
+    info.innerHTML = `<div style="color:#ffd9a0;font-size:20px;margin-bottom:6px">${tr('meta_' + u.id)} ${isMax ? '' : `<span style="color:#c6cfda;font-size:16px;">(${lvl}/${u.max})</span>` }</div>
+                      <div style="color:#bcd0e0;font-size:16px;">${tr('meta_' + u.id + '_desc')}</div>`;
     div.appendChild(info);
     
     const btn = document.createElement('button');
@@ -1519,42 +1742,42 @@ function renderMeta() {
 
 // ---------- Созвездия (Испытания и Визуал) ----------
 const C_THEMES = {
-  storm: { name: { ru: 'Буря', en: 'The Storm' }, rewardType: 'shell', rewardId: 'storm_shell', rewardName: { ru: 'Штормовая оболочка (янтарная)', en: 'Storm Shell (Amber)' } },
-  ships: { name: { ru: 'Корабли', en: 'Ships' }, rewardType: 'spirits', rewardId: 'ship_spirits', rewardName: { ru: 'Спириты-кометы', en: 'Comet Spirits' } },
-  tether: { name: { ru: 'Нить', en: 'The Thread' }, rewardType: 'trail', rewardId: 'tether_trail', rewardName: { ru: 'Огненный след', en: 'Fiery Trail' } },
-  night: { name: { ru: 'Глубокие ночи', en: 'Deep Nights' }, rewardType: 'shell', rewardId: 'night_shell', rewardName: { ru: 'Полуночная оболочка', en: 'Midnight Shell' } },
-  folk: { name: { ru: 'Жители', en: 'The Folk' }, rewardType: 'halo', rewardId: 'folk_halo', rewardName: { ru: 'Ореол светлячков', en: 'Firefly Halo' } }
+  storm: { name: { ru: 'Буря', en: 'The Storm', de: 'der sturm' }, rewardType: 'shell', rewardId: 'storm_shell', rewardName: { ru: 'Штормовая оболочка (янтарная)', en: 'Storm Shell (Amber)', de: 'sturmhülle (bernstein)' } },
+  ships: { name: { ru: 'Корабли', en: 'Ships', de: 'schiffe' }, rewardType: 'spirits', rewardId: 'ship_spirits', rewardName: { ru: 'Спириты-кометы', en: 'Comet Spirits', de: 'kometengeister' } },
+  tether: { name: { ru: 'Нить', en: 'The Thread', de: 'der faden' }, rewardType: 'trail', rewardId: 'tether_trail', rewardName: { ru: 'Огненный след', en: 'Fiery Trail', de: 'feuerspur' } },
+  night: { name: { ru: 'Глубокие ночи', en: 'Deep Nights', de: 'tiefe nächte' }, rewardType: 'shell', rewardId: 'night_shell', rewardName: { ru: 'Полуночная оболочка', en: 'Midnight Shell', de: 'nachthülle' } },
+  folk: { name: { ru: 'Жители', en: 'The Folk', de: 'die bewohner' }, rewardType: 'halo', rewardId: 'folk_halo', rewardName: { ru: 'Ореол светлячков', en: 'Firefly Halo', de: 'glühwurmkranz' } }
 };
 
-// имена и описания испытаний живут парами {ru, en} — берём по нынешнему языку
+// имена и описания испытаний живут языковыми парами — берём по нынешнему языку
 function nm(pair) { return (pair && pair[LANG]) || (pair && pair.ru) || ''; }
 
 const CHALLENGES = [
   // Буря
-  { id: 'c_storm_1', theme: 'storm', desc: { ru: 'Пережить первый шторм', en: 'Survive the first storm' } },
-  { id: 'c_storm_2', theme: 'storm', desc: { ru: 'Пережить шторм без урона', en: 'Survive a storm unharmed' } },
-  { id: 'c_storm_3', theme: 'storm', desc: { ru: 'Собрать 20 мыслей в шторм', en: 'Catch 20 thoughts in a storm' } },
-  { id: 'c_storm_4', theme: 'storm', desc: { ru: 'Рассеять 10 врагов в шторм', en: 'Scatter 10 enemies in a storm' } },
+  { id: 'c_storm_1', theme: 'storm', desc: { ru: 'Пережить первый шторм', en: 'Survive the first storm', de: 'den ersten sturm überstehen' } },
+  { id: 'c_storm_2', theme: 'storm', desc: { ru: 'Пережить шторм без урона', en: 'Survive a storm unharmed', de: 'einen sturm unversehrt überstehen' } },
+  { id: 'c_storm_3', theme: 'storm', desc: { ru: 'Собрать 20 мыслей в шторм', en: 'Catch 20 thoughts in a storm', de: 'im sturm 20 gedanken fangen' } },
+  { id: 'c_storm_4', theme: 'storm', desc: { ru: 'Рассеять 10 врагов в шторм', en: 'Scatter 10 enemies in a storm', de: 'im sturm 10 feinde zerstreuen' } },
   // Корабли
-  { id: 'c_ships_1', theme: 'ships', desc: { ru: 'Потопить корабль-кошмар', en: 'Sink the nightmare ship' } },
-  { id: 'c_ships_2', theme: 'ships', desc: { ru: 'Отвязаться за секунду до дыры', en: 'Release a second before the void' } },
-  { id: 'c_ships_3', theme: 'ships', desc: { ru: 'Привязаться к 5 кораблям за ночь', en: 'Tether to 5 ships in one night' } },
-  { id: 'c_ships_4', theme: 'ships', desc: { ru: 'Уклониться от залпа якорей', en: 'Dodge an anchor volley' } },
+  { id: 'c_ships_1', theme: 'ships', desc: { ru: 'Потопить корабль-кошмар', en: 'Sink the nightmare ship', de: 'das albtraumschiff versenken' } },
+  { id: 'c_ships_2', theme: 'ships', desc: { ru: 'Отвязаться за секунду до дыры', en: 'Release a second before the void', de: 'den faden eine sekunde vor der leere lösen' } },
+  { id: 'c_ships_3', theme: 'ships', desc: { ru: 'Привязаться к 5 кораблям за ночь', en: 'Tether to 5 ships in one night', de: 'sich in einer nacht an 5 schiffe binden' } },
+  { id: 'c_ships_4', theme: 'ships', desc: { ru: 'Уклониться от залпа якорей', en: 'Dodge an anchor volley', de: 'einem ankerhagel ausweichen' } },
   // Нить
-  { id: 'c_tether_1', theme: 'tether', desc: { ru: 'Сжечь нитью 5 врагов разом', en: 'Burn 5 enemies at once with thread' } },
-  { id: 'c_tether_2', theme: 'tether', desc: { ru: 'Сжечь 20 врагов нитью за ночь', en: 'Burn 20 enemies with thread in one night' } },
-  { id: 'c_tether_3', theme: 'tether', desc: { ru: 'Порвать нить (до упора)', en: 'Snap the thread by force' } },
-  { id: 'c_tether_4', theme: 'tether', desc: { ru: 'Убить тёмного двойника нитью', en: 'Slay the dark twin with thread' } },
+  { id: 'c_tether_1', theme: 'tether', desc: { ru: 'Сжечь нитью 5 врагов разом', en: 'Burn 5 enemies at once with thread', de: '5 feinde zugleich mit dem faden verbrennen' } },
+  { id: 'c_tether_2', theme: 'tether', desc: { ru: 'Сжечь 20 врагов нитью за ночь', en: 'Burn 20 enemies with thread in one night', de: 'in einer nacht 20 feinde mit dem faden verbrennen' } },
+  { id: 'c_tether_3', theme: 'tether', desc: { ru: 'Порвать нить (до упора)', en: 'Snap the thread by force', de: 'den faden mit gewalt zerreißen' } },
+  { id: 'c_tether_4', theme: 'tether', desc: { ru: 'Убить тёмного двойника нитью', en: 'Slay the dark twin with thread', de: 'den dunklen zwilling mit dem faden erschlagen' } },
   // Ночи
-  { id: 'c_night_1', theme: 'night', desc: { ru: 'Дожить до 4-й ночи', en: 'Reach the 4th night' } },
-  { id: 'c_night_2', theme: 'night', desc: { ru: 'Дожить до 8-й ночи', en: 'Reach the 8th night' } },
-  { id: 'c_night_3', theme: 'night', desc: { ru: 'Дожить до 12-й ночи', en: 'Reach the 12th night' } },
-  { id: 'c_night_4', theme: 'night', desc: { ru: 'Собрать 100 мыслей за забег', en: 'Catch 100 thoughts in one run' } },
+  { id: 'c_night_1', theme: 'night', desc: { ru: 'Дожить до 4-й ночи', en: 'Reach the 4th night', de: 'die 4. nacht erreichen' } },
+  { id: 'c_night_2', theme: 'night', desc: { ru: 'Дожить до 8-й ночи', en: 'Reach the 8th night', de: 'die 8. nacht erreichen' } },
+  { id: 'c_night_3', theme: 'night', desc: { ru: 'Дожить до 12-й ночи', en: 'Reach the 12th night', de: 'die 12. nacht erreichen' } },
+  { id: 'c_night_4', theme: 'night', desc: { ru: 'Собрать 100 мыслей за забег', en: 'Catch 100 thoughts in one run', de: 'in einem lauf 100 gedanken fangen' } },
   // Жители
-  { id: 'c_folk_1', theme: 'folk', desc: { ru: 'Разжечь уснувший фонарь', en: 'Kindle the sleeping lantern' } },
-  { id: 'c_folk_2', theme: 'folk', desc: { ru: 'Разбудить уснувшую звезду', en: 'Wake the sleeping star' } },
-  { id: 'c_folk_3', theme: 'folk', desc: { ru: 'Сторговаться с менялой', en: 'Strike a deal with the pedlar' } },
-  { id: 'c_folk_4', theme: 'folk', desc: { ru: 'Выжечь гнездо кошмаров', en: 'Burn out a nightmare nest' } }
+  { id: 'c_folk_1', theme: 'folk', desc: { ru: 'Разжечь уснувший фонарь', en: 'Kindle the sleeping lantern', de: 'die schlafende laterne entfachen' } },
+  { id: 'c_folk_2', theme: 'folk', desc: { ru: 'Разбудить уснувшую звезду', en: 'Wake the sleeping star', de: 'den schlafenden stern wecken' } },
+  { id: 'c_folk_3', theme: 'folk', desc: { ru: 'Сторговаться с менялой', en: 'Strike a deal with the pedlar', de: 'mit dem krämer handelseinig werden' } },
+  { id: 'c_folk_4', theme: 'folk', desc: { ru: 'Выжечь гнездо кошмаров', en: 'Burn out a nightmare nest', de: 'ein albtraumnest ausbrennen' } }
 ];
 
 let STARS_DATA = loadStars();
@@ -1615,6 +1838,7 @@ let CH_STATS = {
 const SKY_NAMES = {
   ru: ['тихая ночь', 'вторая ночь', 'третья ночь', 'буря', 'рассвет', 'добыча'],
   en: ['quiet night', 'second night', 'third night', 'the storm', 'dawn', 'deeds'],
+  de: ['stille nacht', 'zweite nacht', 'dritte nacht', 'der sturm', 'morgenrot', 'taten'],
 };
 function skyGroups() { return phrases().concat([deeds()]); }
 function skyNames() { return SKY_NAMES[LANG] || SKY_NAMES.ru; }
@@ -1679,18 +1903,24 @@ function onceHint(key) {
   spawnText(io.x, io.y - 90, tr(key), true);
 }
 skyBounty(); // разом, при первом запуске новой поры — SKY и META уже на месте
+// Прежний рост в 1,7 за ступень взлетал так круто, что верхние ступени были
+// недосягаемы вовсе; ступеней ныне больше, оттого и рост положе — путь дольше,
+// да каждый шаг по силам.
 function metaCost(id, lvl) {
   const up = META_UP.find(u => u.id === id);
-  return Math.floor(up.baseCost * Math.pow(1.7, lvl));
+  return Math.floor(up.baseCost * Math.pow(1.45, lvl));
 }
+// Ступеней у обычных даров вдвое больше прежнего, да шаг каждой мельче:
+// потолок силы остался тем же (иначе шкатулка съела бы всякую опасность), а
+// дорога к нему сделалась дробной — есть что взять и на десятой ночи.
 const META_UP = [
-  { id: 'startWake', baseCost: 15, max: 10, apply: (r, lvl) => { r.wakeMax += lvl * 5; r.wake += lvl * 5; } },
-  { id: 'drain', baseCost: 20, max: 10, apply: (r, lvl) => { r.drainMul *= Math.pow(0.96, lvl); } },
+  { id: 'startWake', baseCost: 15, max: 14, apply: (r, lvl) => { r.wakeMax += lvl * 4; r.wake += lvl * 4; } },
+  { id: 'drain', baseCost: 20, max: 14, apply: (r, lvl) => { r.drainMul *= Math.pow(0.97, lvl); } },
   { id: 'spirit', baseCost: 350, max: 1, apply: (r, lvl) => { r.spirits += lvl; } },
-  { id: 'blink', baseCost: 25, max: 5, apply: (r, lvl) => { r.relocCd = Math.max(3, r.relocCd - lvl * 0.4); } },
-  { id: 'speed', baseCost: 20, max: 8, apply: (r, lvl) => { r.speed *= Math.pow(1.03, lvl); } },
-  { id: 'tether', baseCost: 20, max: 5, apply: (r, lvl) => { r.tetherR += lvl * 25; } },
-  { id: 'xp', baseCost: 40, max: 5, apply: (r, lvl) => { r.metaXp = (r.metaXp || 0) + lvl * 0.2; } },
+  { id: 'blink', baseCost: 25, max: 8, apply: (r, lvl) => { r.relocCd = Math.max(3, r.relocCd - lvl * 0.3); } },
+  { id: 'speed', baseCost: 20, max: 12, apply: (r, lvl) => { r.speed *= Math.pow(1.02, lvl); } },
+  { id: 'tether', baseCost: 20, max: 10, apply: (r, lvl) => { r.tetherR += lvl * 14; } },
+  { id: 'xp', baseCost: 40, max: 10, apply: (r, lvl) => { r.metaXp = (r.metaXp || 0) + lvl * 0.11; } },
   { id: 'revive', baseCost: 800, max: 1, apply: (r, lvl) => { if (lvl > 0) r.secondWind = true; } },
 ];
 TXT.ru.meta_head = 'Шкатулка мыслей';
@@ -1715,13 +1945,13 @@ const ABILITIES = [
 // отладочный лётчик мерит живучесть при первой степени всего — прежняя база
 const BOT = { on: false, tx: 0, ty: 0 };
 const BOT_AB = { tether: 1, blink: 1, charge: 1, spirits: 1 };
-function abLvl(id) { return BOT.on ? BOT_AB[id] : (META.ab[id] || 0); }
+function abLvl(id) { return BOT.on ? BOT_AB[id] : Math.max(TUTOR.on ? 1 : 0, META.ab[id] || 0); }
 
 TXT.ru.ab_head = 'Способности';
 TXT.ru.ab_tether = 'нить';
 TXT.ru.ab_tether_desc = 'связать себя с кораблём: нить держит в пути и жжёт кошмаров. II — нить длиннее · III — жжёт злее.';
 TXT.ru.ab_blink = 'мерцание';
-TXT.ru.ab_blink_desc = 'перенестись к персту указующему; позади тлеет отголосок-приманка, и вторым нажатием можно вернуться к нему. II — возвращается скорее · III — отголосок жжёт кошмаров.';
+TXT.ru.ab_blink_desc = 'перенестись к персту указующему; позади остаётся след, и вторым нажатием к нему воротишься — хоть с края ночи, покуда не истекла минута. II — возвращается скорее · III — след жжёт кошмаров.';
 TXT.ru.ab_charge = 'заряд';
 TXT.ru.ab_charge_desc = 'свет разгорается: спириты кружат вдвое быстрее, перегрев молчит, бодрость тает вполсилы. Выше степень — дольше горит (3 / 4½ / 6 с).';
 TXT.ru.ab_spirits = 'спириты';
@@ -1732,7 +1962,7 @@ TXT.en.ab_head = 'Abilities';
 TXT.en.ab_tether = 'thread';
 TXT.en.ab_tether_desc = 'bind yourself to a ship: the thread carries you and burns nightmares. II — longer thread · III — burns fiercer.';
 TXT.en.ab_blink = 'blink';
-TXT.en.ab_blink_desc = 'step to where you point; an echo-lure smolders behind, and a second press returns you to it. II — returns sooner · III — the echo burns nightmares.';
+TXT.en.ab_blink_desc = 'step to where you point; a trace stays behind, and a second press returns you to it from any distance, so long as a minute has not passed. II — returns sooner · III — the trace burns nightmares.';
 TXT.en.ab_charge = 'charge';
 TXT.en.ab_charge_desc = 'the light flares up: spirits whirl twice as fast, overheat is silent, wakefulness drains at half strength. Higher tier — burns longer (3 / 4½ / 6 s).';
 TXT.en.ab_spirits = 'spirits';
@@ -1752,6 +1982,30 @@ TXT.en.meta_xp = 'Clarity of Mind'; TXT.en.meta_xp_desc = 'Every thought grants 
 TXT.en.meta_revive = 'One More Night'; TXT.en.meta_revive_desc = 'Once a run, death steps aside.';
 TXT.en.meta_buy = 'Take for ';
 
+TXT.de.meta_head = 'schatulle der gedanken';
+TXT.de.meta_thoughts = n => 'gedanken im vorrat: ' + n;
+TXT.de.meta_startWake = 'kräftereserve'; TXT.de.meta_startWake_desc = 'das licht birgt mehr wachheit.';
+TXT.de.meta_drain = 'glimmende kohle'; TXT.de.meta_drain_desc = 'wachheit schwindet langsamer.';
+TXT.de.meta_spirit = 'gefolge des lichts'; TXT.de.meta_spirit_desc = 'ein zusätzlicher geist von anbeginn.';
+TXT.de.meta_blink = 'leichtes sein'; TXT.de.meta_blink_desc = 'das flackern kehrt eher wieder.';
+TXT.de.meta_speed = 'flinker schritt'; TXT.de.meta_speed_desc = 'das licht fliegt geschwinder.';
+TXT.de.meta_tether = 'fester faden'; TXT.de.meta_tether_desc = 'der faden erreicht schiffe aus größerer ferne.';
+TXT.de.meta_xp = 'klarer sinn'; TXT.de.meta_xp_desc = 'jeder gedanke schenkt mehr erfahrung.';
+TXT.de.meta_revive = 'noch eine nacht'; TXT.de.meta_revive_desc = 'einmal je lauf tritt der tod beiseite.';
+TXT.de.meta_buy = 'nehmen für ';
+
+TXT.de.ab_head = 'fähigkeiten';
+TXT.de.ab_tether = 'faden';
+TXT.de.ab_tether_desc = 'binde dich an ein schiff: der faden trägt dich und versengt albträume. II — längerer faden · III — heißere glut.';
+TXT.de.ab_blink = 'flackern';
+TXT.de.ab_blink_desc = 'tritt dorthin, wohin du weist; zurück bleibt eine spur, und ein zweiter druck bringt dich heim — aus jeder ferne, solange keine minute verstrich. II — eher bereit · III — die spur versengt albträume.';
+TXT.de.ab_charge = 'ladung';
+TXT.de.ab_charge_desc = 'das licht flammt auf: geister kreisen doppelt so rasch, überhitzen schweigt, wachheit schwindet nur halb. höhere stufe — längere glut (3 / 4½ / 6 s).';
+TXT.de.ab_spirits = 'geister';
+TXT.de.ab_spirits_desc = 'ein reigen von funken, der die nacht versengt. II — ein vierter funke · III — ein fünfter.';
+TXT.de.ab_lvl = n => 'stufe ' + n;
+TXT.de.ab_locked = 'nicht erlernt';
+
 function applyMeta(r) {
   applyAbilities(r); // способности кладут основу; дары шкатулки строят поверх
   for (const u of META_UP) {
@@ -1760,6 +2014,12 @@ function applyMeta(r) {
   }
 }
 
+// След мерцания живёт минуту и зовёт назад с любой дали: расстояние ему не
+// указ, указ ему одно лишь время. Приманка же (та, что манит кошмаров и жжёт
+// их на III степени) тлеет по-прежнему считанные секунды — иначе брошенный
+// след обратился бы в вечную ловушку, что выкашивает ночь без хозяина.
+const ECHO_HOLD = 60;
+
 function applyAbilities(r) {
   r.spirits = 2 + Math.max(1, abLvl('spirits'));   // I — три искры, далее гуще
   const tl = abLvl('tether');
@@ -1767,7 +2027,8 @@ function applyAbilities(r) {
   r.threadBurnMul = tl >= 3 ? 0.7 : 1;             // III: нить прожигает скорее
   const bl = abLvl('blink');
   if (bl >= 2) r.relocCd = Math.max(3, r.relocCd - 2);
-  r.echoLife = 2.2 + bl * 0.4;                     // отголосок тлеет дольше со степенью
+  r.echoLife = 2.2 + bl * 0.4;                     // приманка тлеет дольше со степенью
+  r.echoHold = ECHO_HOLD;                          // а сам след держит целую минуту
   r.echoBurn = bl >= 3;
   const cl = abLvl('charge');
   r.ocDur = [0, 3, 4.5, 6][cl];
@@ -1841,8 +2102,43 @@ const UP_EN = {
   zhatva:  ['storm harvest', 'in storm nights every thought grants an extra point'],
   skoro:   ['sky courier', 'the limit of your speed is pushed higher'],
 };
-function upName(u) { const e = UP_EN[u.id]; return LANG === 'en' && e ? e[0] : u.name; }
-function upDesc(u) { const e = UP_EN[u.id]; return LANG === 'en' && e ? e[1] : u.desc; }
+
+// немецкие дары держат тот же порядок и те же id, что русские с английскими
+const UP_DE = {
+  spark:   ['bruderfunke', 'ein weiterer geist gesellt sich zu deinem reigen'],
+  round:   ['weiter reigen', 'die bahn der geister wird um ein drittel weiter'],
+  spin:    ['rasender reigen', 'die funken kreisen mit größerer hast'],
+  tea:     ['mitternachtstrank', 'die wachheit wächst um 25, samt einem schluck sogleich'],
+  calm:    ['stille glut', 'wachheit schwindet um ein fünftel langsamer'],
+  dawn:    ['warmes nachglühen', 'jeder gedanke heilt um 2 mehr'],
+  thread:  ['faden übern horizont', 'ein schiff lässt sich aus größerer ferne binden'],
+  chain:   ['unzerreißbares band', 'solange du am schiffe hältst, schwindet wachheit viermal langsamer'],
+  light:   ['licht im geleit', 'das licht fliegt um ein fünftel geschwinder'],
+  breath:  ['ruf des flackerns', 'das flackern kehrt zwei sekunden eher wieder'],
+  echo:    ['echo des lichts', 'das flackern blitzt auf und zerstreut die albträume ringsum'],
+  coolfl:  ['kalte flamme', 'das licht erträgt eile länger — es überhitzt später'],
+  flow:    ['zügel der winde', 'die ströme tragen dich, wohin zu fliegen dir beliebt'],
+  riftg:   ['gnade der kluft', 'gedanken nahe den klüften heilen doppelt'],
+  magnet:  ['gieriger schein', 'gedanken schmiegen sich an deine wärme'],
+  grav:    ['ferner ruf', 'ferne gedanken treiben gemach zu dir'],
+  horizon: ['freigebiger horizont', 'gedanken werden merklich öfter geboren'],
+  feast:   ['albtraumgelage', 'ein zerstreuter albtraum lässt bisweilen einen gedanken zurück'],
+  blanket: ['gesteppter harnisch', 'aller schaden fällt um ein viertel geringer aus'],
+  stormh:  ['herz des sturms', 'in sturmnächten trifft dich nur halber schaden'],
+  wind2:   ['zweiter atem', 'einmal je schlaflosigkeit löscht dich ein tödlicher schlag nicht aus'],
+  starf:   ['sternenstunde', 'gefallene sterne regnen merklich öfter'],
+  keen:    ['unverlöschlicher schwarm', 'ein erloschener funke flammt ein drittel eher auf'],
+  dew:     ['morgentau', 'jeder morgen wäscht dich mit einem dutzend wachheit'],
+  chreda:  ['lange folge', 'die gedankenfolge hält doppelt so lang'],
+  zharcz:  ['glut der folge', 'ab einer folge von fünf schenkt jeder gedanke einen punkt mehr'],
+  rod:     ['blitzableiter', 'der blitz schadet dir nicht — vielmehr muntert er dich auf'],
+  veil:    ['schleier des flackerns', 'nach dem flackern darf die nacht dich zweieinhalb sekunden nicht anrühren'],
+  zhatva:  ['sturmlese', 'in sturmnächten schenkt jeder gedanke einen punkt mehr'],
+  skoro:   ['himmelsläufer', 'die grenze deiner eile rückt weiter empor'],
+};
+const UP_LANG = { en: UP_EN, de: UP_DE };
+function upName(u) { const e = UP_LANG[LANG] && UP_LANG[LANG][u.id]; return e ? e[0] : u.name; }
+function upDesc(u) { const e = UP_LANG[LANG] && UP_LANG[LANG][u.id]; return e ? e[1] : u.desc; }
 
 
 // иконки даров — тонкий штрих в духе созвездий
@@ -1952,7 +2248,7 @@ const visZones = []; // зоны вокруг камеры, раз в кадр (
 const io = {
   x: 0, y: 0, vx: 0, vy: 0, trail: [], heat: 0,
   spirits: [],
-  reloc: { phase: 'idle', timer: 0, cd: 0, rx: 0, ry: 0 },
+  reloc: { phase: 'idle', timer: 0, hold: 0, cd: 0, rx: 0, ry: 0 },
   oc: false, tether: null,
 };
 const pointer = { x: 0, y: 0, active: false };
@@ -1982,7 +2278,7 @@ function resetWorld(attract) {
     x: rand(W + 600), y: rand(H * 0.1, H * 0.9), s: rand(0.8, 2.2), v: rand(4, 12), a: rand(0.25, 0.6),
   });
   io.x = 0; io.y = 0; io.vx = 0; io.vy = 0; io.trail = [];
-  io.reloc = { phase: 'idle', timer: 0, cd: 0, rx: 0, ry: 0 };
+  io.reloc = { phase: 'idle', timer: 0, hold: 0, cd: 0, rx: 0, ry: 0 };
   io.tether = null; io.oc = false; io.ocT = 0; io.ocCd = 0; io.spin = 0;
   cam.x = 0; cam.y = 0;
   syncSpirits();
@@ -2280,8 +2576,12 @@ const GAME_FONT = '"SAO UI", "Trebuchet MS", sans-serif'; // единый шри
 const _measC = document.createElement('canvas');
 const _measG = _measC.getContext('2d');
 function spawnText(x, y, str, big) {
-  const fs = big ? 30 : 24;
-  const font = '400 ' + fs * TEXT_SS + 'px ' + GAME_FONT;
+  // Строку читают на бегу, поверх свечений и зерна: оттого начертание плотное,
+  // кегль щедрый, а под буквами — двойная тёмная ножка. Цвет крупной строки
+  // берётся из палитры ночи, но непременно осветляется к белому: сама палитра
+  // в разгар ночи уходит в маджентовый, и строка тонула в собственном небе.
+  const fs = big ? 32 : 26;
+  const font = '600 ' + fs * TEXT_SS + 'px ' + GAME_FONT;
   const pad = 30 * TEXT_SS;
   _measG.font = font;
   const tw = Math.ceil(_measG.measureText(str).width);
@@ -2289,13 +2589,12 @@ function spawnText(x, y, str, big) {
   const mg = mc.getContext('2d');
   mc.width = tw + pad * 2; mc.height = fs * TEXT_SS + pad * 2;
   mg.font = font; mg.textAlign = 'center'; mg.textBaseline = 'middle';
-  // тёмная ножка под строкой: прежде тень была светлой, в тон палитры, и
-  // поверх свечений мыслей строка растворялась в кашу
-  mg.shadowColor = 'rgba(5,6,10,.9)'; mg.shadowBlur = 7 * TEXT_SS;
-  mg.fillStyle = 'rgba(5,6,10,.85)';
+  mg.shadowColor = 'rgba(5,6,10,.92)'; mg.shadowBlur = 9 * TEXT_SS;
+  mg.fillStyle = 'rgba(5,6,10,.9)';
+  mg.fillText(str, mc.width / 2, mc.height / 2 + 1.5 * TEXT_SS);
   mg.fillText(str, mc.width / 2, mc.height / 2 + 1.5 * TEXT_SS);
   mg.shadowBlur = 14 * TEXT_SS;
-  mg.fillStyle = big ? css3(S.pal.mote, 1) : 'rgba(240,238,232,.98)';
+  mg.fillStyle = big ? css3(mix3(S.pal.mote, [1, 1, 1], 0.45), 1) : 'rgba(246,244,240,1)';
   mg.fillText(str, mc.width / 2, mc.height / 2);
   texts.push({ x, y, str, a: 0, t: 0, big: !!big, vy: rand(-14, -8), spr: mc });
   if (texts.length > 6) texts.shift();
@@ -2606,8 +2905,11 @@ function tryRelocate() {
   if (io.reloc.phase === 'echo' && !BOT.on) {
     shakeOffMoths();
     burst(io.x, io.y, IO_COL, 14, 200);
+    const far = hyp(io.reloc.rx - io.x, io.reloc.ry - io.y) > viewR();
     io.x = io.reloc.rx; io.y = io.reloc.ry;
     io.vx = 0; io.vy = 0; io.trail = [];
+    // возврат издалека камерою не догоняется — иначе мир промчался бы мимо
+    if (far) { cam.x = io.x; cam.y = io.y; checkCells(); }
     io.reloc.phase = 'idle';
     S.hurtT = Math.max(S.hurtT, relocGuard());
     burst(io.x, io.y, IO_COL, 14, 200);
@@ -2624,8 +2926,10 @@ function tryRelocate() {
   io.y = pw.ty !== undefined ? pw.ty : pw.y;
   io.vx = 0; io.vy = 0;
   io.trail = [];
-  // позади тлеет отголосок-приманка: кошмары летят на него, не на тебя
-  io.reloc.phase = 'echo'; io.reloc.timer = RUN.echoLife; io.reloc.cd = RUN.relocCd;
+  // позади тлеет отголосок-приманка: кошмары летят на него, не на тебя,
+  // а сам след держит минуту — воротиться можно хоть с края ночи
+  io.reloc.phase = 'echo'; io.reloc.timer = RUN.echoLife;
+  io.reloc.hold = RUN.echoHold; io.reloc.cd = RUN.relocCd;
   S.hurtT = Math.max(S.hurtT, relocGuard());
   burst(io.x, io.y, IO_COL, 16, 220);
   if (RUN.echo) echoBlast(io.x, io.y);
@@ -2683,6 +2987,7 @@ function damageIo(dmg, srcX, srcY) {
 }
 function checkDissolve() {
   if (RUN.wake > 0) return;
+  if (TUTOR.on) { RUN.wake = RUN.wakeMax * 0.5; return; } // в саду не растворяются
   if (RUN.secondWind) {
     RUN.secondWind = false;
     RUN.wake = 40;
@@ -2697,7 +3002,7 @@ function update(dt) {
   const playing = S.mode === 'play';
   if (playing) {
     S.playT += dt;
-    S.t += dt / NIGHT_LEN;
+    if (!TUTOR.on) S.t += dt / NIGHT_LEN; // в саду ночь стоит на месте
     if (S.t >= 1) { // ночь перетекает в следующую без остановки
       S.t -= 1;
       RUN.night++;
@@ -2736,7 +3041,7 @@ function update(dt) {
     A.windGain.gain.value = 0.008 + S.energy * 0.028 + io.heat * 0.07;
   updateView();
   zonesNear(cam.x, cam.y, viewR() + 300, visZones);
-  checkCells();
+  if (TUTOR.on) updateTutor(dt); else checkCells(); // сад разложен рукою, не хешем
 
   const ksp = 620 * dt;
   if (!touchSteer && (keys['ArrowLeft'] || keys['ArrowRight'] || keys['ArrowUp'] || keys['ArrowDown'] ||
@@ -2754,11 +3059,12 @@ function update(dt) {
     // зато сама трата чуть мягче прежней: у игрока больше времени
     const chainMul = (RUN.chain && io.tether) ? 0.25 : 1;
     const ocSlow = io.oc ? 0.55 : 1; // заряд бережёт свет, но не гасит трату
-    RUN.wake -= (0.92 + 0.38 * Math.min(D, 11)) * RUN.drainMul * chainMul * ocSlow * dt;
+    if (!TUTOR.on) RUN.wake -= (0.92 + 0.38 * Math.min(D, 11)) * RUN.drainMul * chainMul * ocSlow * dt;
 
     if (io.reloc.phase === 'echo') {
-      io.reloc.timer -= dt;
-      if (io.reloc.timer <= 0) io.reloc.phase = 'idle'; // отголосок дотлел
+      io.reloc.timer = Math.max(0, io.reloc.timer - dt); // приманка дотлевает скоро
+      io.reloc.hold -= dt;
+      if (io.reloc.hold <= 0) io.reloc.phase = 'idle';   // след остыл — дороги назад нет
     }
     io.reloc.cd = Math.max(0, io.reloc.cd - dt);
 
@@ -2918,13 +3224,13 @@ function update(dt) {
     }
   }
   shipTimer -= dt;
-  if (shipTimer <= 0 && ships.length < 3) { spawnShip(); shipTimer = lerp(15, 8, S.energy) * rand(0.8, 1.3); }
+  if (!TUTOR.on && shipTimer <= 0 && ships.length < 3) { spawnShip(); shipTimer = lerp(15, 8, S.energy) * rand(0.8, 1.3); }
   shotTimer -= dt;
   if (shotTimer <= 0) {
     shotTimer = lerp(9, 2.2, S.energy) * rand(0.6, 1.5);
     shots.push({ x: rand(W * 0.2, W), y: rand(H * 0.05, H * 0.35), vx: -rand(500, 900), vy: rand(120, 260), t: 0, life: rand(0.5, 0.9) });
   }
-  if (playing) {
+  if (playing && !TUTOR.on) { // в саду ни волн, ни кораблей-кошмаров
     // --- корабль-кошмар: всякая пятая ночь ---
     if (!boss && !S.bossDone && RUN.night % 5 === 0 && S.t > 0.22 && S.t < 0.8) spawnBoss();
     if (boss && S.t >= 0.9) { // рассвет прогоняет его за край неба
@@ -3524,9 +3830,10 @@ function update(dt) {
 }
 
 function updateEnemy(e, dt) {
-  // отголосок мерцания манит: кошмары окрест летят на него, не на свет
+  // отголосок мерцания манит, покуда тлеет: кошмары окрест летят на него, не
+  // на свет. Остывший след зовёт одного лишь хозяина — кошмарам он не виден
   let tgx = io.x, tgy = io.y;
-  if (io.reloc.phase === 'echo') {
+  if (io.reloc.phase === 'echo' && io.reloc.timer > 0) {
     const ed = hyp(io.reloc.rx - e.x, io.reloc.ry - e.y);
     if (ed < 560) {
       tgx = io.reloc.rx; tgy = io.reloc.ry;
@@ -3971,6 +4278,8 @@ function draw() {
       tintGlow(px, py, d.r * 4, pal.tint, d.a * (0.75 + 0.25 * Math.sin(tm * 0.9 + d.tw)));
     }
   }
+
+  if (TUTOR.on) drawTutor();
 
   // фразы — готовые спрайты, тень уже впечена
   for (const tx of texts) {
@@ -4781,12 +5090,14 @@ function drawIo(P, pal, tm) {
     sc.stroke();
   }
   if (io.reloc.phase === 'echo') {
-    // отголосок-приманка: призрак света, тлеющий и манящий кошмаров
+    // Отголосок двулик: покуда тлеет — приманка, манящая кошмаров; после —
+    // остывший след, что виден одному хозяину и зовёт назад целую минуту.
     const R2 = proj(io.reloc.rx, io.reloc.ry);
-    const fade = Math.min(1, io.reloc.timer / 0.6);
-    const pl = 0.5 + 0.5 * Math.sin(tm * 6);
+    const lure = io.reloc.timer > 0;
+    const fade = Math.max(0.55 * Math.min(1, io.reloc.hold / 3), Math.min(1, io.reloc.timer / 0.6));
+    const pl = 0.5 + 0.5 * Math.sin(tm * (lure ? 6 : 2)); // остывший дышит ровнее
     sc.globalCompositeOperation = 'lighter';
-    tintGlow(R2.x, R2.y, 24 * R2.k, RUN.echoBurn ? [1, 0.6, 0.4] : IO_COL, (0.3 + pl * 0.25) * fade);
+    tintGlow(R2.x, R2.y, 24 * R2.k, lure && RUN.echoBurn ? [1, 0.6, 0.4] : IO_COL, (0.3 + pl * 0.25) * fade);
     sc.strokeStyle = css3(IO_COL, (0.45 + 0.2 * pl) * fade);
     sc.lineWidth = 1.2;
     sc.setLineDash([4, 6]);
@@ -4794,6 +5105,21 @@ function drawIo(P, pal, tm) {
     sc.setLineDash([]);
     sc.fillStyle = css3([1, 1, 1], 0.6 * fade);
     sc.beginPath(); sc.arc(R2.x, R2.y, 2.5 * R2.k, 0, TAU); sc.fill();
+    // Улетев за край, хозяин всё же видит дорогу назад: у самой кромки тлеет
+    // стрелка в сторону следа — иначе минуту возврата искать пришлось бы наощупь
+    const mg = 26;
+    if (R2.x < mg || R2.x > W - mg || R2.y < mg || R2.y > H - mg) {
+      const ex = Math.min(W - mg, Math.max(mg, R2.x));
+      const ey = Math.min(H - mg, Math.max(mg, R2.y));
+      sc.save();
+      sc.translate(ex, ey);
+      sc.rotate(Math.atan2(R2.y - ey, R2.x - ex));
+      sc.fillStyle = css3(IO_COL, (0.35 + pl * 0.25) * fade);
+      sc.beginPath();
+      sc.moveTo(10, 0); sc.lineTo(-5, 5.5); sc.lineTo(-5, -5.5);
+      sc.closePath(); sc.fill();
+      sc.restore();
+    }
     sc.globalCompositeOperation = 'source-over';
   }
 }
@@ -4846,7 +5172,11 @@ function drawGL() {
   gl.uniform1f(U.uAurI, pal.aurI);
   gl.uniform1f(U.uStars, pal.stars);
   const fxK = SET.fx / 100;
-  gl.uniform1f(U.uAberr, (0.0015 + S.energy * S.energy * 0.008 + S.glitch * 0.01) * fxK);
+  // Расщепление цвета — та самая краса, что съедала читаемость: на пике ночи
+  // оно расходилось едва не на дюжину точек, и всякая строка двоилась в глазах.
+  // Ныне вполовину скромнее, а в саду обучения и того тише: там надобно читать.
+  const abK = TUTOR.on ? 0.5 : 1;
+  gl.uniform1f(U.uAberr, (0.0011 + S.energy * S.energy * 0.0042 + S.glitch * 0.007) * fxK * abK);
   gl.uniform1f(U.uGlitch, S.glitch * 0.6 * fxK);
   gl.uniform1f(U.uGrain, fxK);
   gl.uniform1f(U.uShake, S.shake * SET.shake / 100);
@@ -5103,41 +5433,41 @@ document.getElementById('skyBack').addEventListener('pointerdown', e => {
 // друг с другом: надеть можно всё разом, и каждый слой рисует своё.
 const WARDROBE = [
   { grp: 'shell', slot: 'shell', id: 'storm_shell', theme: 'storm', dot: '#ffb85c',
-    name: { ru: 'штормовая оболочка', en: 'storm shell' },
-    desc: { ru: 'свет Ио отливает янтарём бури', en: 'Io’s light turns storm-amber' } },
+    name: { ru: 'штормовая оболочка', en: 'storm shell', de: 'sturmhülle' },
+    desc: { ru: 'свет Ио отливает янтарём бури', en: 'Io’s light turns storm-amber', de: 'ios licht schimmert im bernstein des sturms' } },
   { grp: 'shell', slot: 'shell', id: 'night_shell', theme: 'night', dot: '#a88aff',
-    name: { ru: 'полуночная оболочка', en: 'midnight shell' },
-    desc: { ru: 'сирень и тишь самой глубокой ночи', en: 'lilac and hush of the deepest night' } },
+    name: { ru: 'полуночная оболочка', en: 'midnight shell', de: 'nachthülle' },
+    desc: { ru: 'сирень и тишь самой глубокой ночи', en: 'lilac and hush of the deepest night', de: 'flieder und schweigen der tiefsten nacht' } },
   { grp: 'shell', slot: 'shell', id: 'dawn_shell', themes: 2, dot: '#ff9eb8',
-    name: { ru: 'оболочка зари', en: 'dawn shell' },
-    desc: { ru: 'розовый свет утра, что так и не пришло', en: 'rose light of a morning that never came' } },
+    name: { ru: 'оболочка зари', en: 'dawn shell', de: 'hülle der morgenröte' },
+    desc: { ru: 'розовый свет утра, что так и не пришло', en: 'rose light of a morning that never came', de: 'rosiges licht eines morgens, der niemals kam' } },
   { grp: 'shell', slot: 'shell', id: 'aurora_shell', themes: 5, dot: '#8cffbf',
-    name: { ru: 'оболочка сияния', en: 'aurora shell' },
-    desc: { ru: 'зелёный огонь северного неба', en: 'green fire of the northern sky' } },
+    name: { ru: 'оболочка сияния', en: 'aurora shell', de: 'nordlichthülle' },
+    desc: { ru: 'зелёный огонь северного неба', en: 'green fire of the northern sky', de: 'grünes feuer des nordhimmels' } },
   { grp: 'trail', slot: 'trail', id: 'tether_trail', theme: 'tether', dot: '#ff8a5c',
-    name: { ru: 'огненный след', en: 'fiery trail' },
-    desc: { ru: 'за Ио тянется пламя, белое у сердца', en: 'a flame trails behind, white at the heart' } },
+    name: { ru: 'огненный след', en: 'fiery trail', de: 'feuerspur' },
+    desc: { ru: 'за Ио тянется пламя, белое у сердца', en: 'a flame trails behind, white at the heart', de: 'eine flamme folgt io, weiß an ihrem herzen' } },
   { grp: 'trail', slot: 'trail', id: 'aurora_trail', themes: 4, dot: '#7de8ff',
-    name: { ru: 'полярный след', en: 'polar trail' },
-    desc: { ru: 'след переливается всеми огнями севера', en: 'the trail shimmers with every northern light' } },
+    name: { ru: 'полярный след', en: 'polar trail', de: 'nordlichtspur' },
+    desc: { ru: 'след переливается всеми огнями севера', en: 'the trail shimmers with every northern light', de: 'die spur schillert in allen lichtern des nordens' } },
   { grp: 'trail', key: 'dust', id: 'star_dust', phr: 0.25, dot: '#ffe6a0',
-    name: { ru: 'звёздная пыль', en: 'star dust' },
-    desc: { ru: 'в полёте с Ио осыпаются золотые искорки', en: 'golden sparks shake loose as Io flies' } },
+    name: { ru: 'звёздная пыль', en: 'star dust', de: 'sternenstaub' },
+    desc: { ru: 'в полёте с Ио осыпаются золотые искорки', en: 'golden sparks shake loose as Io flies', de: 'im fluge rieseln goldene funken von io' } },
   { grp: 'spirits', slot: 'spirits', id: 'ship_spirits', theme: 'ships', dot: '#8fd0ff',
-    name: { ru: 'спириты-кометы', en: 'comet spirits' },
-    desc: { ru: 'за всякой искрой хоровода — хвост', en: 'every spark of the round drags a tail' } },
+    name: { ru: 'спириты-кометы', en: 'comet spirits', de: 'kometengeister' },
+    desc: { ru: 'за всякой искрой хоровода — хвост', en: 'every spark of the round drags a tail', de: 'jeder funke im reigen zieht einen schweif' } },
   { grp: 'spirits', slot: 'spirits', id: 'star_spirits', phr: 0.55, dot: '#fff3c8',
-    name: { ru: 'спириты-звёзды', en: 'star spirits' },
-    desc: { ru: 'искры огранены, как павшие звёзды', en: 'sparks cut like fallen stars' } },
+    name: { ru: 'спириты-звёзды', en: 'star spirits', de: 'sterngeister' },
+    desc: { ru: 'искры огранены, как павшие звёзды', en: 'sparks cut like fallen stars', de: 'funken, geschliffen wie gefallene sterne' } },
   { grp: 'spirits', key: 'emberSp', id: 'ember_spirits', phr: 0.75, dot: '#ffb866',
-    name: { ru: 'жар хоровода', en: 'ember round' },
-    desc: { ru: 'спириты горят тёплым углём', en: 'the spirits burn warm as embers' } },
+    name: { ru: 'жар хоровода', en: 'ember round', de: 'glutreigen' },
+    desc: { ru: 'спириты горят тёплым углём', en: 'the spirits burn warm as embers', de: 'die geister glühen warm wie kohlen' } },
   { grp: 'halo', slot: 'halo', id: 'folk_halo', theme: 'folk', dot: '#ffd98a',
-    name: { ru: 'ореол светлячков', en: 'firefly halo' },
-    desc: { ru: 'тёплые огоньки Жителей блуждают подле', en: 'warm lights of the Folk wander close' } },
+    name: { ru: 'ореол светлячков', en: 'firefly halo', de: 'glühwurmkranz' },
+    desc: { ru: 'тёплые огоньки Жителей блуждают подле', en: 'warm lights of the Folk wander close', de: 'die warmen lichter der bewohner wandeln nahebei' } },
   { grp: 'halo', key: 'ring', id: 'ring_halo', phr: 0.4, dot: '#bfe4ff',
-    name: { ru: 'кольцо орбиты', en: 'orbit ring' },
-    desc: { ru: 'тонкое кольцо с бегущей искрой', en: 'a thin ring with a running spark' } },
+    name: { ru: 'кольцо орбиты', en: 'orbit ring', de: 'bahnenring' },
+    desc: { ru: 'тонкое кольцо с бегущей искрой', en: 'a thin ring with a running spark', de: 'ein feiner ring mit eilendem funken' } },
 ];
 const WD_GROUPS = ['shell', 'trail', 'spirits', 'halo'];
 
@@ -5228,6 +5558,7 @@ const deathScreen = document.getElementById('deathScreen');
 const hud = document.getElementById('hud');
 
 function startRun() {
+  TUTOR.on = false; TUTOR.stops = []; zoneForce.clear(); // сад за собою не тянем
   try {
     audioInit();
     if (A.ctx.state === 'suspended') A.ctx.resume();
@@ -5248,7 +5579,378 @@ function startRun() {
   updateHud(); updateClock();
 }
 
+// ============================================================
+// ОБУЧЕНИЕ: сад, где всякая вещь ночи ждёт своей очереди
+// ============================================================
+// Мир здесь тот же самый, да разложен по порядку: станы стоят чередою вдоль
+// пути, и у каждого свой круг — такой же, каким корабль подпускает к себе нить.
+// Войдёшь в круг — вещь оживает и показывает себя в деле; выйдешь — замирает и
+// убирает за собою, чтобы сад не зарастал. Ночь тут не наступает, бодрость не
+// тает и смерти нет: учиться надлежит без страха. Речь пояснений — простая,
+// без книжного слога: объяснять надобно понятно, а красоваться после будем.
+const TUTOR_R = 300;    // круг, в котором вещь оживает
+const TUTOR_GAP = 1500; // шаг между станами; шире клетки, чтобы зоны не спорили
+const TU_FOES = ['shade', 'nm', 'dasher', 'eye', 'siren', 'eater', 'moth', 'weaver'];
+
+const TUTOR_STOPS = [
+  { id: 'mote', kind: 'mote',
+    t: { ru: 'мысль', en: 'a thought', de: 'ein gedanke' },
+    d: { ru: 'Твоя еда. Каждая пойманная мысль возвращает немного бодрости и даёт опыт. Просто лети сквозь них — они притянутся сами.',
+         en: 'Your food. Every thought you catch gives back a little wakefulness and some experience. Just fly through them — they pull in by themselves.',
+         de: 'Deine nahrung. Jeder gefangene gedanke gibt etwas wachheit und erfahrung zurück. Flieg einfach hindurch — sie ziehen von selbst heran.' } },
+  { id: 'star', kind: 'star',
+    t: { ru: 'падучая звезда', en: 'a falling star', de: 'eine sternschnuppe' },
+    d: { ru: 'Редкая находка: даёт сразу много бодрости и опыта. Увидел — не пролетай мимо.',
+         en: 'A rare find: it gives a big helping of wakefulness and experience at once. If you see one, do not fly past.',
+         de: 'Ein seltener fund: gibt auf einmal viel wachheit und erfahrung. Wenn du eine siehst, flieg nicht vorbei.' } },
+  { id: 'blink', kind: 'hint',
+    t: { ru: 'мерцание — пробел', en: 'blink — space', de: 'flackern — leertaste' },
+    d: { ru: 'Переносит тебя туда, куда указывает курсор. На старом месте остаётся след: нажми ещё раз — и вернёшься к нему с любого расстояния, пока не прошла минута. Лучшее спасение, когда зажали со всех сторон.',
+         en: 'It moves you to where the cursor points. A trace stays where you were: press again and you return to it from any distance, as long as a minute has not passed. The best escape when you are boxed in.',
+         de: 'Es versetzt dich dorthin, wohin der zeiger weist. Am alten platz bleibt eine spur: drück noch einmal, und du kehrst aus jeder ferne zurück, solange keine minute verging. Die beste rettung, wenn du eingekreist bist.' } },
+  { id: 'charge', kind: 'hint',
+    t: { ru: 'заряд — shift', en: 'charge — shift', de: 'ladung — shift' },
+    d: { ru: 'Ненадолго разгоняет твой свет: летишь быстрее, бьёшь больнее, а бодрость тает медленнее. Потом заряду нужно время, чтобы набраться снова.',
+         en: 'It overcharges your light for a while: you fly faster, hit harder, and wakefulness drains slower. Afterwards it needs time to gather again.',
+         de: 'Es lädt dein licht eine weile auf: du fliegst schneller, triffst härter, und die wachheit schwindet langsamer. Danach braucht es zeit, um sich zu sammeln.' } },
+  { id: 'ship', kind: 'ship',
+    t: { ru: 'корабль и нить', en: 'a ship and the thread', de: 'ein schiff und die spur' },
+    d: { ru: 'Корабли идут по небу сами по себе. Подлети ближе и нажми левую кнопку мыши — бросишь нить. Она тянет тебя следом, жжёт всё, что её пересекает, и с палубы сыплются мысли. Нажми ещё раз, чтобы отвязаться.',
+         en: 'Ships sail the sky on their own. Fly close and press the left mouse button to cast the thread. It pulls you along, burns anything that crosses it, and thoughts spill from the deck. Press again to let go.',
+         de: 'Schiffe segeln von selbst über den himmel. Flieg näher und drück die linke maustaste, um die spur zu werfen. Sie zieht dich mit, versengt alles, was sie kreuzt, und vom deck rieseln gedanken. Noch ein druck, und du bist frei.' } },
+  { id: 'shade', kind: 'shade',
+    t: { ru: 'тени', en: 'shades', de: 'schatten' },
+    d: { ru: 'Летают стайкой и жмутся к свету. Поодиночке слабы, но толпой быстро объедают бодрость. Бей их спиритами — искрами, что кружат вокруг тебя.',
+         en: 'They fly in a small flock and crowd towards the light. Weak alone, but a crowd eats your wakefulness fast. Kill them with the spirits — the sparks circling you.',
+         de: 'Sie fliegen im schwarm und drängen zum licht. Einzeln schwach, doch im rudel fressen sie die wachheit schnell. Erschlag sie mit den spiriten — den funken, die dich umkreisen.' } },
+  { id: 'nm', kind: 'nm',
+    t: { ru: 'кошмар', en: 'a nightmare', de: 'ein albtraum' },
+    d: { ru: 'Простой преследователь: медленно, но упрямо идёт за твоим светом. Сожги его нитью или дай спиритам сделать своё дело.',
+         en: 'A plain chaser: slow but stubborn, it follows your light. Burn it with the thread, or let the spirits do their work.',
+         de: 'Ein schlichter verfolger: langsam, aber hartnäckig folgt er deinem licht. Verbrenn ihn mit der spur oder lass die spiriten ihr werk tun.' } },
+  { id: 'dasher', kind: 'dasher',
+    t: { ru: 'скорохват', en: 'the dasher', de: 'der stürmer' },
+    d: { ru: 'Замирает, целится — и бросается рывком по прямой. Как только увидел, что он застыл, уходи в сторону: рывок мимо, и он снова беззащитен.',
+         en: 'It stops, takes aim, and lunges in a straight line. The moment you see it freeze, move sideways: the dash misses and it is helpless again.',
+         de: 'Er hält an, zielt und stößt geradeaus vor. Sobald du siehst, dass er erstarrt, weich zur seite: der stoß geht ins leere und er ist wieder wehrlos.' } },
+  { id: 'eye', kind: 'eye',
+    t: { ru: 'око', en: 'the eye', de: 'das auge' },
+    d: { ru: 'Медленно плывёт и стреляет в тебя издали. Не стой у него на линии — двигайся поперёк, и выстрелы уйдут в пустоту.',
+         en: 'It drifts slowly and shoots at you from afar. Do not stand in its line — move across it, and the shots go into the void.',
+         de: 'Es treibt langsam und schießt aus der ferne. Bleib nicht in seiner linie — beweg dich quer, und die schüsse gehen ins leere.' } },
+  { id: 'siren', kind: 'siren',
+    t: { ru: 'сирена', en: 'the siren', de: 'die sirene' },
+    d: { ru: 'Сама почти не двигается, но вокруг неё кольцо, которое тянет к себе и ранит. Не задерживайся внутри кольца.',
+         en: 'It barely moves, but a ring around it drags you in and hurts. Do not linger inside the ring.',
+         de: 'Sie bewegt sich kaum, doch ein ring um sie zieht dich heran und verletzt. Verweile nicht in diesem ring.' } },
+  { id: 'eater', kind: 'eater',
+    t: { ru: 'пожиратель', en: 'the eater', de: 'der fresser' },
+    d: { ru: 'Ест твои мысли раньше тебя и толстеет с каждой. Гони его первым: убитый, он возвращает всё съеденное.',
+         en: 'It eats your thoughts before you do and swells with each one. Kill it first: when it dies, it gives everything back.',
+         de: 'Er frisst deine gedanken vor dir und schwillt mit jedem an. Töte ihn zuerst: erschlagen gibt er alles zurück.' } },
+  { id: 'moth', kind: 'moth',
+    t: { ru: 'мотыльки', en: 'moths', de: 'motten' },
+    d: { ru: 'Липнут к свету и виснут на нём, замедляя полёт. Урона не наносят, но с ними не убежишь. Стряхнуть их можно мерцанием.',
+         en: 'They cling to the light and hang on it, slowing you down. They deal no damage, but you cannot run with them. A blink shakes them off.',
+         de: 'Sie kleben am licht und hängen daran, was dich bremst. Sie verletzen nicht, doch fliehen kannst du so nicht. Ein flackern schüttelt sie ab.' } },
+  { id: 'weaver', kind: 'weaver',
+    t: { ru: 'ловец снов', en: 'the dreamcatcher', de: 'der traumfänger' },
+    d: { ru: 'Плетёт паутину и ждёт. Попал в неё — увяз и стал лёгкой добычей для всех остальных. Рви паутину нитью или облетай стороной.',
+         en: 'It weaves a web and waits. Caught in it, you are stuck and easy prey for everything else. Tear the web with the thread, or fly around it.',
+         de: 'Er webt ein netz und wartet. Gerätst du hinein, steckst du fest und wirst leichte beute für alle anderen. Zerreiß das netz mit der spur oder flieg außen herum.' } },
+  { id: 'bolt', kind: 'bolt',
+    t: { ru: 'молния', en: 'lightning', de: 'der blitz' },
+    d: { ru: 'Перед ударом небо чертит светлую полосу — это предупреждение, и длится оно долго. Просто уйди с полосы в сторону.',
+         en: 'Before the strike the sky draws a bright column — that is the warning, and it lasts a good while. Simply step aside from it.',
+         de: 'Vor dem schlag zeichnet der himmel eine helle säule — das ist die warnung, und sie währt lange. Geh einfach zur seite.' } },
+  { id: 'meadow', kind: 'meadow',
+    t: { ru: 'луг', en: 'a meadow', de: 'eine wiese' },
+    d: { ru: 'Тихое место, где мыслей заметно гуще обычного. Здесь стоит задержаться и поесть впрок.',
+         en: 'A quiet place where thoughts grow much thicker than usual. Worth lingering here to eat your fill.',
+         de: 'Ein stiller ort, wo gedanken viel dichter wachsen als sonst. Hier lohnt es sich zu verweilen und sich satt zu essen.' } },
+  { id: 'rift', kind: 'rift',
+    t: { ru: 'разлом', en: 'a rift', de: 'ein riss' },
+    d: { ru: 'Дурное место: кошмаров вдвое гуще, а мыслей почти нет. Пролетай насквозь и не задерживайся.',
+         en: 'A bad place: twice as many nightmares and almost no thoughts. Fly straight through and do not linger.',
+         de: 'Ein böser ort: doppelt so viele albträume und fast keine gedanken. Flieg hindurch und verweile nicht.' } },
+  { id: 'current', kind: 'current',
+    t: { ru: 'течение', en: 'a current', de: 'eine strömung' },
+    d: { ru: 'Небесная река. По течению летишь заметно быстрее, против — еле ползёшь. Смотри на стрелки и ложись на них.',
+         en: 'A river in the sky. With the current you fly much faster; against it you barely crawl. Watch the arrows and follow them.',
+         de: 'Ein fluss am himmel. Mit der strömung fliegst du viel schneller, gegen sie kriechst du nur. Achte auf die pfeile und folge ihnen.' } },
+  { id: 'lighthouse', kind: 'lighthouse',
+    t: { ru: 'уснувший фонарь', en: 'the sleeping lantern', de: 'die schlafende laterne' },
+    d: { ru: 'Потухшая башня. Подлети вплотную — и она загорится: пока горит, бодрость рядом с нею тает вдвое медленнее.',
+         en: 'A tower gone dark. Fly right up to it and it kindles: while it burns, wakefulness fades half as fast nearby.',
+         de: 'Ein erloschener turm. Flieg dicht heran, und er entzündet sich: solange er brennt, schwindet die wachheit in seiner nähe halb so schnell.' } },
+  { id: 'graveyard', kind: 'graveyard',
+    t: { ru: 'кладбище кораблей', en: 'the ship graveyard', de: 'der schiffsfriedhof' },
+    d: { ru: 'Остовы старых кораблей. Мысли между рёбрами вдвое сытнее, но в них гнездятся ловцы снов — добыча тут с риском.',
+         en: 'The ribs of old ships. Thoughts between them feed you twice as well, but dreamcatchers nest there — this harvest carries a risk.',
+         de: 'Die rippen alter schiffe. Gedanken dazwischen nähren doppelt, doch traumfänger nisten dort — diese ernte hat ihren preis.' } },
+  { id: 'whale', kind: 'whale',
+    t: { ru: 'небесный кит', en: 'the sky whale', de: 'der himmelswal' },
+    d: { ru: 'Огромный и мирный: тебя он не тронет. Из дыхала веером сыплются мысли — держись рядом и собирай. Столкнёшься — стряхнёт и разбудит округу.',
+         en: 'Huge and peaceful: it will not touch you. Thoughts spray from its blowhole — stay close and gather. Bump into it and it shrugs you off and wakes the neighbourhood.',
+         de: 'Riesig und friedlich: er tut dir nichts. Aus seinem blasloch sprüht ein fächer von gedanken — bleib nah und sammle. Stößt du an, schüttelt er dich ab und weckt die umgebung.' } },
+  { id: 'lamplighter', kind: 'lamplighter',
+    t: { ru: 'фонарщик', en: 'the lamplighter', de: 'der laternenanzünder' },
+    d: { ru: 'Странник, что идёт своей дорогой и зажигает за собой цепочку мыслей. Лететь за ним и выгодно, и спокойно.',
+         en: 'A wanderer who walks his own road and lights a chain of thoughts behind him. Following him is both profitable and calm.',
+         de: 'Ein wanderer, der seinen weg geht und hinter sich eine kette von gedanken entzündet. Ihm zu folgen ist einträglich und ruhig.' } },
+  { id: 'sleepstar', kind: 'sleepstar',
+    t: { ru: 'уснувшая звезда', en: 'a sleeping star', de: 'ein schlafender stern' },
+    d: { ru: 'Побудь рядом — и она проснётся, щедро одарив тебя. Но ночь тоже заметит, что ты её разбудил, и пришлёт гостей.',
+         en: 'Linger beside her and she wakes, rewarding you richly. But the night notices that you woke her, and sends guests.',
+         de: 'Bleib bei ihm, und er erwacht und beschenkt dich reich. Doch die nacht merkt, dass du ihn wecktest, und schickt gäste.' } },
+  { id: 'pedlar', kind: 'pedlar',
+    t: { ru: 'сонный меняла', en: 'the drowsy pedlar', de: 'der schläfrige händler' },
+    d: { ru: 'Меняет мысли на бодрость и обратно. Подлети — и он предложит сделку; согласен, коли есть чем платить.',
+         en: 'He trades thoughts for wakefulness and back again. Fly up and he offers a deal — if you have something to pay with.',
+         de: 'Er tauscht gedanken gegen wachheit und zurück. Flieg heran, und er bietet einen handel — wenn du etwas zu zahlen hast.' } },
+  { id: 'nest', kind: 'nest',
+    t: { ru: 'гнездо кошмаров', en: 'a nightmare nest', de: 'ein albtraumnest' },
+    d: { ru: 'Из него лезут кошмары, покуда оно живо. Задержись рядом подольше — и выжжешь его совсем.',
+         en: 'Nightmares crawl out of it while it lives. Linger beside it long enough and you burn it out for good.',
+         de: 'Aus ihm kriechen albträume, solange es lebt. Bleib lange genug daneben, und du brennst es ganz aus.' } },
+  { id: 'starfall', kind: 'starfall',
+    t: { ru: 'звездопад', en: 'a starfall', de: 'ein sternenfall' },
+    d: { ru: 'Редкое событие: небо роняет звёзды целой пригоршней. Лови, пока они не погасли.',
+         en: 'A rare event: the sky drops a whole handful of stars. Catch them before they go out.',
+         de: 'Ein seltenes ereignis: der himmel lässt eine ganze handvoll sterne fallen. Fang sie, ehe sie erlöschen.' } },
+];
+
+function tutorForceZone(st) {
+  const key = Math.floor(st.x / CELL) + ',' + Math.floor(st.y / CELL);
+  const z = st.kind === 'current'
+    ? { type: 'current', x: st.x, y: st.y, r: 380, dx: 1, dy: 0, seed: 11 }
+    : { type: st.kind, x: st.x, y: st.y, r: 340, seed: 11 };
+  zoneForce.set(key, z);
+}
+
+function startTutor() {
+  startRun();            // мир заводится обычным чином, а после утихомиривается
+  TUTOR.on = true;
+  S.t = 0.3;             // ночь замирает в ясной своей поре: ни бури, ни рассвета
+  RUN.thoughts = 120;    // менялу надобно чем-то испытать
+  RUN.wake = RUN.wakeMax;
+  zoneForce.clear();
+  TUTOR.stops = TUTOR_STOPS.map((s, i) => ({
+    def: s, id: s.id, kind: s.kind, on: false, t: 0, cd: 0,
+    x: (i + 1) * TUTOR_GAP, y: Math.sin(i * 0.85) * 210,
+    lines: null, lang: null, lw: 0, wrap: 0,
+  }));
+  for (const st of TUTOR.stops) if (st.kind === 'meadow' || st.kind === 'rift' || st.kind === 'current') tutorForceZone(st);
+  updateHud();
+}
+
+function tutorSpawn(st, arr, fn) { // всё, что родилось у стана, метится его именем
+  const n = arr.length;
+  fn();
+  for (let i = n; i < arr.length; i++) arr[i].tu = st.id;
+}
+
+function tutorWake(st) {
+  st.on = true; st.t = 0; st.cd = 0;
+  const x = st.x, y = st.y, k = st.kind;
+  if (k === 'mote' || k === 'meadow')
+    tutorSpawn(st, motes, () => { for (let i = 0; i < 12; i++) spawnMoteAt(x + rand(-220, 220), y + rand(-170, 170), 1e5); });
+  else if (k === 'star')
+    tutorSpawn(st, stars, () => stars.push({ x: x + rand(-130, 130), y: y + rand(-90, 90), t: 0, life: 1e5, seed: rand(TAU) }));
+  else if (TU_FOES.includes(k))
+    tutorSpawn(st, enemies, () => spawnEnemy(k, x + rand(-70, 70), y + rand(-70, 70), false));
+  else if (k === 'rift') // о гущине кошмаров надобно рассказывать кошмарами
+    tutorSpawn(st, enemies, () => { spawnEnemy('nm', x + 140, y - 90, false); spawnEnemy('shade', x - 150, y + 110, false); });
+  else if (k === 'ship')
+    tutorSpawn(st, ships, () => ships.push({ x: x - 140, y: y - 30, vx: 24, scl: 1, near: true, dir: 1, bob: rand(TAU), life: 1e5 }));
+  else if (k === 'lighthouse')
+    tutorSpawn(st, landmarks, () => landmarks.push({ type: 'lighthouse', x, y, state: 'dark', t: 0, r: 250 }));
+  else if (k === 'graveyard')
+    tutorSpawn(st, landmarks, () => landmarks.push({ type: 'graveyard', x, y, r: 250 }));
+  else if (k === 'whale')
+    tutorSpawn(st, landmarks, () => landmarks.push({ type: 'whale', x: x - 160, y, vx: 22, vy: 0, t: 2 }));
+  else if (k === 'lamplighter')
+    tutorSpawn(st, landmarks, () => landmarks.push({ type: 'lamplighter', x: x - 160, y, vx: 34, vy: 0, t: 1 }));
+  else if (k === 'sleepstar')
+    tutorSpawn(st, landmarks, () => landmarks.push({ type: 'star', x, y, state: 'asleep', prog: 0, t: 0, seed: rand(TAU) }));
+  else if (k === 'pedlar')
+    tutorSpawn(st, landmarks, () => landmarks.push({ type: 'pedlar', x: x - 120, y, vx: 10, vy: 0, state: 'trade', cd: 0, t: 0 }));
+  else if (k === 'nest')
+    tutorSpawn(st, landmarks, () => landmarks.push({ type: 'nest', x, y, state: 'alive', prog: 0, t: 3, cried: false }));
+  else if (k === 'starfall')
+    tutorSpawn(st, landmarks, () => landmarks.push({ type: 'starfall', x, y, state: 'wait', t: 0 }));
+}
+
+function tutorSleep(st) {
+  st.on = false;
+  for (let i = motes.length - 1; i >= 0; i--) if (motes[i].tu === st.id) freeMote(motes.splice(i, 1)[0]);
+  for (let i = enemies.length - 1; i >= 0; i--) if (enemies[i].tu === st.id) freeEnemy(enemies.splice(i, 1)[0]);
+  for (let i = ships.length - 1; i >= 0; i--) if (ships[i].tu === st.id) {
+    if (io.tether === ships[i]) releaseTether();
+    ships.splice(i, 1);
+  }
+  for (let i = stars.length - 1; i >= 0; i--) if (stars[i].tu === st.id) stars.splice(i, 1);
+  for (let i = landmarks.length - 1; i >= 0; i--) if (landmarks[i].tu === st.id) landmarks.splice(i, 1);
+  if (st.kind === 'weaver') webs.length = 0; // паутина уходит вслед за ловцом
+}
+
+// Покуда хозяин в круге, стан держит показ живым: съеденное подсыпается,
+// убитое родится вновь, а бродячие жители не уходят за околицу.
+function tutorTick(st, dt) {
+  st.t += dt;
+  const k = st.kind, x = st.x, y = st.y;
+  if (k === 'mote' || k === 'meadow') {
+    if (!motes.some(m => m.tu === st.id) && (st.cd -= dt) <= 0) {
+      st.cd = 1.2;
+      tutorSpawn(st, motes, () => { for (let i = 0; i < 12; i++) spawnMoteAt(x + rand(-220, 220), y + rand(-170, 170), 1e5); });
+    }
+  } else if (k === 'star') {
+    if (!stars.some(s2 => s2.tu === st.id) && (st.cd -= dt) <= 0) {
+      st.cd = 2.5;
+      tutorSpawn(st, stars, () => stars.push({ x: x + rand(-130, 130), y: y + rand(-90, 90), t: 0, life: 1e5, seed: rand(TAU) }));
+    }
+  } else if (TU_FOES.includes(k)) {
+    if (!enemies.some(e => e.tu === st.id) && (st.cd -= dt) <= 0) {
+      st.cd = 2.2;
+      tutorSpawn(st, enemies, () => spawnEnemy(k, x + rand(-70, 70), y + rand(-70, 70), false));
+    }
+  } else if (k === 'rift') {
+    if (!enemies.some(e => e.tu === st.id) && (st.cd -= dt) <= 0) {
+      st.cd = 2.6;
+      tutorSpawn(st, enemies, () => { spawnEnemy('nm', x + 140, y - 90, false); spawnEnemy('shade', x - 150, y + 110, false); });
+    }
+  } else if (k === 'bolt') {
+    if ((st.cd -= dt) <= 0) { st.cd = 3.4; spawnBolt(); }
+  } else if (k === 'ship') {
+    const sh = ships.find(s2 => s2.tu === st.id);
+    if (sh && sh.x > x + 520) { sh.x = x - 520; } // корабль ходит кругом, не уплывая
+    else if (!sh && (st.cd -= dt) <= 0) {
+      st.cd = 2;
+      tutorSpawn(st, ships, () => ships.push({ x: x - 140, y: y - 30, vx: 24, scl: 1, near: true, dir: 1, bob: rand(TAU), life: 1e5 }));
+    }
+  } else {
+    // бродячие жители: кит, фонарщик да меняла — возвращаем их к стану
+    for (const l of landmarks) {
+      if (l.tu !== st.id) continue;
+      if (hyp(l.x - x, l.y - y) > 460) { l.x = x - 200; l.y = y; }
+    }
+    if (k === 'nest' || k === 'sleepstar' || k === 'lighthouse') {
+      // выжженное да разбуженное родится вновь, чтобы показ можно было повторить
+      const l = landmarks.find(l2 => l2.tu === st.id);
+      if (!l && (st.cd -= dt) <= 0) { st.cd = 3; tutorWake(st); }
+    }
+  }
+}
+
+function updateTutor(dt) {
+  for (const st of TUTOR.stops) {
+    const near = hyp(io.x - st.x, io.y - st.y) < TUTOR_R;
+    if (near && !st.on) tutorWake(st);
+    else if (!near && st.on) tutorSleep(st);
+    if (st.on) tutorTick(st, dt);
+  }
+}
+
+// Пояснение разбивается на строки единожды на язык: мерить его всякий кадр
+// незачем, а языки на ходу меняются.
+function tutorLines(st) {
+  const maxW = Math.min(430, W - 64); // на телефоне табличка ужимается по экрану
+  if (st.lines && st.lang === LANG && st.wrap === maxW) return st.lines;
+  st.wrap = maxW;
+  _measG.font = '500 17px ' + GAME_FONT;
+  const out = [];
+  let line = '';
+  for (const word of nm(st.def.d).split(' ')) {
+    const probe = line ? line + ' ' + word : word;
+    if (_measG.measureText(probe).width > maxW && line) { out.push(line); line = word; }
+    else line = probe;
+  }
+  if (line) out.push(line);
+  _measG.font = '600 21px ' + GAME_FONT;
+  let w = _measG.measureText(nm(st.def.t)).width;
+  _measG.font = '500 17px ' + GAME_FONT;
+  for (const l of out) w = Math.max(w, _measG.measureText(l).width);
+  st.lines = out; st.lang = LANG; st.lw = w;
+  return out;
+}
+
+// Сад рисуется поверх мира, но под летучими фразами: круг стана, дорожка к
+// следующему и табличка с пояснением. Табличка — на тёмной подложке: поверх
+// сияний ночи иначе не прочесть, а читать её надобно спокойно.
+function drawTutor() {
+  const tmw = S.time;
+  for (let i = 0; i < TUTOR.stops.length; i++) {
+    const st = TUTOR.stops[i];
+    if (hyp(st.x - cam.x, st.y - cam.y) > viewR() + 700) continue;
+    const P = proj(st.x, st.y);
+    const rr = TUTOR_R * P.k;
+    // дорожка к следующему стану — чтобы порядок был виден сам собою
+    const nx = TUTOR.stops[i + 1];
+    if (nx) {
+      const P2 = proj(nx.x, nx.y);
+      sc.strokeStyle = css3(IO_COL, 0.1);
+      sc.lineWidth = 1; sc.setLineDash([3, 14]);
+      sc.beginPath(); sc.moveTo(P.x, P.y); sc.lineTo(P2.x, P2.y); sc.stroke();
+      sc.setLineDash([]);
+    }
+    const pl = 0.5 + 0.5 * Math.sin(tmw * 1.6 + i);
+    sc.strokeStyle = css3(IO_COL, st.on ? 0.34 + pl * 0.16 : 0.13);
+    sc.lineWidth = st.on ? 1.6 : 1;
+    sc.setLineDash(st.on ? [] : [6, 10]);
+    sc.beginPath();
+    sc.ellipse(P.x, P.y, rr, rr * view.tilt, 0, 0, TAU);
+    sc.stroke();
+    sc.setLineDash([]);
+
+    // Табличка держится своего стана: коли тот далеко за краем, её не рисуем
+    // вовсе — иначе пояснения к дальним вещам сгрудились бы у кромки экрана.
+    if (P.x < -260 || P.x > W + 260 || P.y < -260 || P.y > H + 260) continue;
+    const lines = tutorLines(st);
+    const padX = 18, padY = 15, lh = 23;
+    const bw = st.lw + padX * 2;
+    const bh = 28 + lines.length * lh + padY * 2;
+    let bx = P.x - bw / 2;
+    let by = P.y - rr * view.tilt - bh - 18;
+    bx = clamp(bx, 14, Math.max(14, W - bw - 14));
+    by = clamp(by, 92, Math.max(92, H - bh - 96)); // выше — часы, ниже — полосы и кнопки
+    const dim = st.on ? 1 : 0.62;
+    sc.fillStyle = 'rgba(6,8,12,' + (0.84 * dim + 0.08) + ')';
+    sc.beginPath();
+    if (sc.roundRect) sc.roundRect(bx, by, bw, bh, 10); else sc.rect(bx, by, bw, bh);
+    sc.fill();
+    sc.strokeStyle = css3(IO_COL, st.on ? 0.3 : 0.12);
+    sc.lineWidth = 1;
+    sc.stroke();
+    sc.textAlign = 'left'; sc.textBaseline = 'top';
+    sc.fillStyle = css3(IO_COL, st.on ? 1 : 0.6);
+    sc.font = '600 21px ' + GAME_FONT;
+    sc.fillText(nm(st.def.t), bx + padX, by + padY);
+    sc.font = '500 17px ' + GAME_FONT;
+    sc.fillStyle = 'rgba(238,242,248,' + (st.on ? 0.97 : 0.58) + ')';
+    for (let l = 0; l < lines.length; l++)
+      sc.fillText(lines[l], bx + padX, by + padY + 30 + l * lh);
+  }
+  sc.textAlign = 'center'; sc.textBaseline = 'middle';
+}
+
+function exitTutor() {
+  if (S.paused) togglePause();
+  for (const st of TUTOR.stops) if (st.on) tutorSleep(st);
+  TUTOR.on = false;
+  TUTOR.stops = [];
+  zoneForce.clear();
+  endLive = null;
+  S.mode = 'title';
+  hud.classList.remove('on');
+  document.body.classList.remove('playing');
+  deathScreen.classList.add('hidden');
+  restScreen.classList.add('hidden');
+  titleScreen.classList.remove('hidden');
+  showBestLine();
+}
+
 function levelUp() {
+  if (TUTOR.on) { RUN.xp = 0; return; } // в саду дары не раздают — урок важнее
   RUN.xp -= RUN.xpNext;
   RUN.level++;
   RUN.xpNext = Math.round(8 + RUN.level * 5);
@@ -5284,6 +5986,7 @@ function levelUp() {
     const d = document.createElement('button');
     d.className = 'dream' + (u.rare ? ' rare' : '');
     d.dataset.key = String(++dIdx);
+    d.dataset.up = u.id;
     d.innerHTML =
       '<span class="d-orb"><svg class="d-ring" viewBox="0 0 100 100">' +
       '<circle class="r1" cx="50" cy="50" r="46"/><circle class="r2" cx="50" cy="50" r="39"/></svg>' +
@@ -5345,6 +6048,7 @@ function buildSheet(cause) {
     row.className = 'end-row' + (rec.fresh.has(r.key) ? ' best' : '');
     const line = document.createElement('div'); line.className = 'end-line';
     const name = document.createElement('span'); name.className = 'end-name';
+    name.dataset.i18n = r.key;
     name.textContent = tr(r.key);
     const badge = document.createElement('span'); badge.className = 'end-best';
     badge.textContent = tr('stBest');
@@ -5473,6 +6177,21 @@ document.getElementById('againBtn').addEventListener('click', e => {
   e.stopPropagation();
   startRun();
 });
+document.getElementById('tutorBtn').addEventListener('pointerdown', e => {
+  e.stopPropagation(); e.preventDefault();
+  startTutor();
+});
+document.getElementById('pauseExit').addEventListener('click', e => {
+  e.stopPropagation();
+  if (TUTOR.on) { exitTutor(); return; }
+  togglePause();
+  endLive = null;
+  S.mode = 'title';
+  hud.classList.remove('on');
+  document.body.classList.remove('playing');
+  titleScreen.classList.remove('hidden');
+  showBestLine();
+});
 document.getElementById('titleBtn2').addEventListener('click', e => {
   e.stopPropagation();
   endLive = null;
@@ -5500,6 +6219,21 @@ function applyLang() {
   }
   showBestLine();
   updateHud(); updateClock();
+  if (S.mode === 'level') {
+    document.getElementById('restHead').textContent =
+      tr('restHead', RUN.level, Math.max(1, Math.ceil(RUN.wake)), RUN.wakeMax);
+    for (const d of document.querySelectorAll('.dream[data-up]')) {
+      const u = UPGRADES.find(v => v.id === d.dataset.up);
+      if (!u) continue;
+      d.querySelector('.d-name').textContent = upName(u);
+      d.querySelector('.d-desc').textContent = upDesc(u);
+    }
+  }
+  if (S.mode === 'death')
+    document.getElementById('deathNight').textContent = tr('deathNight', RUN.night, plural(RUN.night));
+  if (!metaScreen.classList.contains('hidden')) renderMeta();
+  if (!skyScreen.classList.contains('hidden')) openSky();
+  if (!skinScreen.classList.contains('hidden')) renderWardrobe();
   if (!setPanel.classList.contains('hidden'))
     document.getElementById('setReset').textContent = resetArmed ? tr('sResetSure') : tr('sReset');
 }
@@ -5732,7 +6466,8 @@ requestAnimationFrame(frame);
 {
   const q = new URLSearchParams(location.search);
   if (q.get('lang')) { // отладка языка: не записывая выбор в память
-    LANG = SET.lang = q.get('lang') === 'en' ? 'en' : 'ru';
+    const qLang = q.get('lang');
+    LANG = SET.lang = ['ru', 'en', 'de'].includes(qLang) ? qLang : 'ru';
     applyLang(); syncSetUI();
   }
   if (q.get('perf')) PERF.on = true;
@@ -5777,6 +6512,14 @@ requestAnimationFrame(frame);
     }
   }
   if (q.get('menu')) setTimeout(() => titleScreen.classList.add('open'), 300); // отладка: меню титула раскрыто
+  if (q.get('tutor')) setTimeout(() => { // отладка сада: ?tutor=1 · ?tutor=<номер стана>
+    startTutor();
+    const n = parseInt(q.get('tutor'), 10);
+    if (n > 1 && TUTOR.stops[n - 1]) { // встать подле нужного стана, минуя дорогу
+      const st = TUTOR.stops[n - 1];
+      io.x = st.x; io.y = st.y + 120; cam.x = io.x; cam.y = io.y;
+    }
+  }, 400);
   if (q.get('wdall')) { // отладка гардероба: всё добыто, но лишь в памяти — без записи
     STARS_DATA.completed = CHALLENGES.map(c2 => c2.id);
     skyGroups().forEach((tier, gi) => tier.forEach((p2, pi) => SKY.add(phraseKey(gi, pi))));
