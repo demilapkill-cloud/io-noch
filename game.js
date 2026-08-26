@@ -130,6 +130,16 @@ const TXT = {
     stThoughts: 'мыслей уловлено',
     stKills: 'кошмаров рассеяно',
     stDist: 'неба пройдено',
+    stTime: 'ночь длилась',
+    stWaves: 'приливов отбито',
+    stShips: 'кораблей потоплено',
+    stStars: 'звёзд зажжено',
+    stLevel: 'степень света',
+    stBest: 'рекорд',
+    purseHead: 'мысли ссыпаются в шкатулку',
+    deathSkip: 'нажми, чтобы промотать',
+    deathVoid: 'бездна забрала и корабль, и привязь.',
+    titleBtn: 'к заглавию',
     againBtn: 'возгореться сызнова',
     pauseTxt: 'пауза',
     pauseSub: 'esc — воротиться в ночь',
@@ -218,6 +228,16 @@ const TXT = {
     stThoughts: 'thoughts caught',
     stKills: 'nightmares scattered',
     stDist: 'sky travelled',
+    stTime: 'the night lasted',
+    stWaves: 'tides repelled',
+    stShips: 'ships sunk',
+    stStars: 'stars kindled',
+    stLevel: 'degree of light',
+    stBest: 'record',
+    purseHead: 'thoughts pour into the casket',
+    deathSkip: 'press to skip',
+    deathVoid: 'the void took both the ship and its tether.',
+    titleBtn: 'to the title',
     againBtn: 'kindle again',
     pauseTxt: 'paused',
     pauseSub: 'esc — return to the night',
@@ -1600,7 +1620,7 @@ function newRun() {
     hotMul: 1, flow: false, riftGift: false,
     sparkCdMul: 1, comboMul: 1, comboXp: false, boltRod: false,
     relocVeil: false, stormXp: false, maxSpd: 900, starRateMul: 1, dawnDew: 0,
-    kills: 0, thoughts: 0, comboBest: 0, dist: 0, bosses: 0, newStars: 0, taken: [], offerHist: [],
+    kills: 0, thoughts: 0, comboBest: 0, dist: 0, bosses: 0, newStars: 0, waves: 0, taken: [], offerHist: [],
   };
   applyMeta(r); // прокачка за мысли
   return r;
@@ -2015,6 +2035,21 @@ function sfxChoice() {
     const send = ctx.createGain(); send.gain.value = 1.2; g.connect(send); send.connect(A.verbSend);
     o.start(tt); o.stop(tt + 0.75);
   });
+}
+
+// капель мыслей, что сыплются в шкатулку на листе итогов
+function sfxTick(k) {
+  if (!A.started) return;
+  const ctx = A.ctx, t = ctx.currentTime;
+  const g = ctx.createGain();
+  g.gain.setValueAtTime(0.001, t);
+  g.gain.exponentialRampToValueAtTime(0.07, t + 0.006);
+  g.gain.exponentialRampToValueAtTime(0.001, t + 0.22);
+  g.connect(A.sfxBus);
+  const send = ctx.createGain(); send.gain.value = 0.8; g.connect(send); send.connect(A.verbSend);
+  const o = ctx.createOscillator(); o.type = 'triangle';
+  o.frequency.value = m2f(PENT[k % PENT.length] + 12);
+  o.connect(g); o.start(t); o.stop(t + 0.25);
 }
 
 // ---------- ввод ----------
@@ -2520,6 +2555,7 @@ function update(dt) {
     } else if (enemies.length <= 3) {
       WAVE.active = false;
       WAVE.timer = rand(34, 50);
+      RUN.waves++;
       spawnText(io.x, io.y - 120, tr('waveOut'), true);
       // отлив оставляет мысли кольцом окрест
       for (let k2 = 0; k2 < 6; k2++) {
@@ -4056,8 +4092,24 @@ function saveBest(nights, thoughts) {
   try {
     const b = loadBest();
     if (!b || nights > b.nights || (nights === b.nights && thoughts > b.thoughts))
-      localStorage.setItem('io-noch-best', JSON.stringify({ nights, thoughts }));
+      localStorage.setItem('io-noch-best', JSON.stringify(
+        Object.assign({}, b, { nights, thoughts })));
   } catch (_) {}
+}
+// пределы всех прошлых бессонниц: и полосу мерить есть чем, и рекорд видно
+function recordRun(stats) {
+  const fresh = new Set();
+  let b, max;
+  try { b = loadBest() || {}; } catch (_) { b = {}; }
+  max = b.max || {};
+  const prev = Object.assign({}, max);
+  for (const k in stats) {
+    if (k in max) { if (stats[k] > max[k]) { fresh.add(k); max[k] = stats[k]; } }
+    else max[k] = stats[k]; // первая ночь рекордом не считается — не с чем равнять
+  }
+  b.max = max;
+  try { localStorage.setItem('io-noch-best', JSON.stringify(b)); } catch (_) {}
+  return { fresh, prev };
 }
 function showBestLine() {
   const c = skyCaught();
@@ -4201,6 +4253,7 @@ function startRun() {
   } catch (err) { console.warn('audio unavailable', err); }
   RUN = newRun();
   io.spirits = [];
+  endLive = null;
   resetWorld(false);
   S.mode = 'play';
   titleScreen.classList.add('hidden');
@@ -4268,6 +4321,121 @@ function levelUp() {
   updateHud();
 }
 
+// ---------- лист итогов ----------
+// всякая строка: имя, набегающее число и полоса, что меряет ночь прошлыми ночами.
+// goal — мера для полосы, покуда своего рекорда ещё нет: добрая, но не лёгкая ночь
+const END_ROWS = [
+  { key: 'stNights', val: () => RUN.night, goal: 10 },
+  { key: 'stTime', val: () => Math.round(S.playT), always: true, goal: 900,
+    fmt: v => Math.floor(v / 60) + ':' + String(v % 60).padStart(2, '0') },
+  { key: 'stThoughts', val: () => RUN.thoughts, always: true, goal: 200 },
+  { key: 'stKills', val: () => RUN.kills, always: true, goal: 150 },
+  { key: 'stWaves', val: () => RUN.waves, goal: 6 },
+  { key: 'stShips', val: () => RUN.bosses, goal: 3 },
+  { key: 'stStars', val: () => RUN.newStars, goal: 6 },
+  { key: 'stLevel', val: () => RUN.level, goal: 12 },
+  { key: 'stDist', val: () => Math.round(RUN.dist), goal: 60000,
+    fmt: v => (v / 1000).toFixed(1) + tr('distK') },
+];
+const ROW_IN = 0.26, ROW_RUN = 0.6, PURSE_GAP = 0.45, PURSE_RUN = 1.5, BTN_GAP = 0.5;
+let endSeq = 0;      // растёт на всякой смерти — прошлая раскадровка гаснет сама
+let endLive = null;  // раскадровка текущего листа, покуда идёт
+
+function buildSheet(cause) {
+  const stats = {};
+  for (const r of END_ROWS) stats[r.key] = r.val();
+  const rec = recordRun(stats);
+  const sheet = document.getElementById('endSheet');
+  sheet.textContent = '';
+  const rows = [];
+  for (const r of END_ROWS) {
+    const v = stats[r.key];
+    if (!v && !r.always) continue; // пустых строк не показываем
+    const best = Math.max(rec.prev[r.key] || r.goal || v, v, 1);
+    const row = document.createElement('div');
+    row.className = 'end-row' + (rec.fresh.has(r.key) ? ' best' : '');
+    const line = document.createElement('div'); line.className = 'end-line';
+    const name = document.createElement('span'); name.className = 'end-name';
+    name.textContent = tr(r.key);
+    const badge = document.createElement('span'); badge.className = 'end-best';
+    badge.textContent = tr('stBest');
+    name.appendChild(badge);
+    const val = document.createElement('span'); val.className = 'end-val';
+    val.textContent = r.fmt ? r.fmt(0) : '0';
+    line.appendChild(name); line.appendChild(val);
+    const bar = document.createElement('div'); bar.className = 'end-bar';
+    const fill = document.createElement('div'); fill.className = 'end-fill';
+    bar.appendChild(fill);
+    row.appendChild(line); row.appendChild(bar);
+    sheet.appendChild(row);
+    rows.push({ row, val, fill, v, frac: clamp(v / best, 0, 1), fmt: r.fmt });
+  }
+  const purse = document.getElementById('endPurse');
+  const runEl = document.getElementById('purseRun'), metaEl = document.getElementById('purseMeta');
+  const before = META.thoughts - RUN.thoughts; // копилка до ссыпания
+  runEl.textContent = RUN.thoughts; metaEl.textContent = before;
+  purse.classList.remove('in', 'pouring', 'done');
+  const btns = document.getElementById('deathBtns'), skip = document.getElementById('deathSkip');
+  btns.classList.remove('in'); skip.classList.remove('in');
+  document.getElementById('deathQuote').textContent = cause === 'blackhole'
+    ? tr('deathVoid') : pick(DEATH_QUOTES[LANG] || DEATH_QUOTES.ru);
+  const pourT = RUN.thoughts ? PURSE_RUN : 0;
+  const rowsEnd = rows.length * ROW_IN + ROW_RUN;
+  return {
+    rows, purse, runEl, metaEl, before, btns, skip, pourT, rowsEnd,
+    t: 0, seq: endSeq, done: false, tick: -1,
+    total: rowsEnd + PURSE_GAP + pourT + BTN_GAP,
+  };
+}
+
+function endStep(dt) {
+  const E = endLive;
+  if (!E || E.seq !== endSeq) return;
+  E.t += dt;
+  for (let i = 0; i < E.rows.length; i++) {
+    const r = E.rows[i];
+    const k = clamp((E.t - i * ROW_IN) / ROW_RUN, 0, 1);
+    if (k <= 0) continue;
+    if (!r.shown) { r.shown = true; r.row.classList.add('in'); r.fill.style.width = (r.frac * 100).toFixed(1) + '%'; }
+    const e = sstep(k), v = Math.round(r.v * e);
+    if (v !== r.last) { r.last = v; r.val.textContent = r.fmt ? r.fmt(v) : v; }
+  }
+  const pt = E.t - E.rowsEnd - PURSE_GAP;
+  if (pt > 0) {
+    if (!E.pourShown) { E.pourShown = true; E.purse.classList.add('in', 'pouring'); }
+    const k = E.pourT ? clamp(pt / E.pourT, 0, 1) : 1;
+    const moved = Math.round(RUN.thoughts * sstep(k));
+    if (moved !== E.moved) {
+      E.moved = moved;
+      E.runEl.textContent = RUN.thoughts - moved;
+      E.metaEl.textContent = E.before + moved;
+      const tick = Math.floor(k * 12);
+      if (tick !== E.tick && k < 1) { E.tick = tick; sfxTick(tick); }
+    }
+    if (k >= 1 && !E.poured) {
+      E.poured = true;
+      E.purse.classList.remove('pouring');
+      E.purse.classList.add('done'); // отдавшая половина гаснет, копилка остаётся
+      sfxChoice();
+    }
+  }
+  if (E.t >= E.total && !E.done) endFinish();
+}
+
+function endFinish() {
+  const E = endLive;
+  if (!E || E.done) return;
+  E.done = true;
+  for (const r of E.rows) {
+    r.row.classList.add('in');
+    r.fill.style.width = (r.frac * 100).toFixed(1) + '%';
+    r.val.textContent = r.fmt ? r.fmt(r.v) : r.v;
+  }
+  E.purse.classList.add('in', 'done'); E.purse.classList.remove('pouring');
+  E.runEl.textContent = 0; E.metaEl.textContent = E.before + RUN.thoughts;
+  E.btns.classList.add('in'); E.skip.classList.add('in');
+}
+
 function die(cause) {
   S.mode = 'death';
   io.oc = false; ocBtn.classList.remove('held');
@@ -4276,18 +4444,8 @@ function die(cause) {
   META.thoughts += RUN.thoughts;
   saveMeta();
   document.getElementById('deathNight').textContent = tr('deathNight', RUN.night, plural(RUN.night));
-  document.getElementById('stNights').textContent = RUN.night;
-  document.getElementById('stMoths').textContent = RUN.thoughts;
-  document.getElementById('stKills').textContent = RUN.kills;
-  document.getElementById('stDist').textContent = (RUN.dist / 1000).toFixed(1) + tr('distK');
-  const sg = document.getElementById('skyGain');
-  if (RUN.newStars > 0) {
-    sg.textContent = tr('skyGain', RUN.newStars, starWord(RUN.newStars));
-    sg.classList.remove('hidden');
-  } else sg.classList.add('hidden');
-  document.getElementById('deathQuote').textContent = cause === 'blackhole' 
-    ? (LANG === 'en' ? 'the void took both the ship and its tether.' : 'бездна забрала и корабль, и привязь.')
-    : pick(DEATH_QUOTES[LANG] || DEATH_QUOTES.ru);
+  endSeq++;
+  endLive = buildSheet(cause);
   sfxCrash();
   S.shake = 1; S.glitch = 1;
   burst(io.x, io.y, IO_COL, 60, 500);
@@ -4295,10 +4453,24 @@ function die(cause) {
   hud.classList.remove('on');
 }
 
+// нажатие где угодно на листе — промотать до конца
+deathScreen.addEventListener('pointerdown', e => {
+  if (e.target.closest('.end-btn')) return;
+  endFinish();
+});
+
 titleScreen.addEventListener('pointerdown', startRun);
 document.getElementById('againBtn').addEventListener('click', e => {
   e.stopPropagation();
   startRun();
+});
+document.getElementById('titleBtn2').addEventListener('click', e => {
+  e.stopPropagation();
+  endLive = null;
+  S.mode = 'title';
+  deathScreen.classList.add('hidden');
+  titleScreen.classList.remove('hidden');
+  showBestLine();
 });
 
 // ---------- панель настроек ----------
@@ -4472,6 +4644,7 @@ function frame(now) {
     }
   }
   S.time += dt;
+  if (endLive && !endLive.done) endStep(dt);
   if (PERF.on) {
     const t0 = performance.now();
     update(dt);
@@ -4546,6 +4719,19 @@ requestAnimationFrame(frame);
       joyMove({ clientX: W / 2 + (p[0] || 0), clientY: H * 0.62 + (p[1] || 0) });
     }, 900);
   }
+  if (q.get('die')) setTimeout(() => { // отладка листа итогов: смерть с готовыми числами
+    startRun();
+    RUN.night = 7; RUN.thoughts = 148; RUN.kills = 96; RUN.waves = 4;
+    RUN.bosses = 1; RUN.newStars = 3; RUN.level = 9; RUN.dist = 41200;
+    S.playT = 512;
+    die(q.get('die') === 'bh' ? 'blackhole' : 'wake');
+    if (q.get('skip')) setTimeout(() => { // отладка: сразу конечный вид листа
+      endFinish();
+      console.log('ЛИСТ · ' + document.getElementById('endSheet').innerText.replace(/\n/g, ' | ') +
+        ' · копилка ' + document.getElementById('purseRun').textContent + '→' + document.getElementById('purseMeta').textContent +
+        ' · кнопки «' + document.getElementById('deathBtns').className + '»');
+    }, 1800);
+  }, 500);
   if (q.get('q')) { SET.quality = q.get('q'); applyQuality(); }
   if (q.get('touch')) { // отладка тач-раскладки на настольном браузере
     TOUCH = true;

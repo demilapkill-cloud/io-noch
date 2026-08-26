@@ -119,10 +119,6 @@
   #titleScreen .title-help{animation:fadeUp 1.1s var(--ease) .45s both}
   #titleScreen .title-best{animation:fadeUp 1.1s var(--ease) .6s both}
   #titleScreen .title-hint{animation:fadeUp 1.1s var(--ease) .7s both, pulse 2.6s var(--ease) 1.8s infinite}
-  #deathScreen .end-stat{animation:fadeUp .9s var(--ease) both}
-  #deathScreen .end-stat:nth-child(2){animation-delay:.12s}
-  #deathScreen .end-stat:nth-child(3){animation-delay:.24s}
-  #deathScreen .end-stat:nth-child(4){animation-delay:.36s}
   #deathScreen .death-quote{animation:fadeUp 1s var(--ease) .5s both}
   #restScreen .dream{animation:fadeUp .7s var(--ease) backwards}
   #restScreen .dream:nth-child(2){animation-delay:.12s}
@@ -183,10 +179,44 @@
   .death-big{font-family:var(--font-display);font-weight:300;
     font-size:clamp(38px,8vw,84px);line-height:1.05;color:var(--ink)}
   .death-sub{margin-top:16px;font-size:11px;letter-spacing:.28em;color:var(--ink-3);text-transform:uppercase;font-family:var(--font-mono)}
-  .end-stats{margin-top:42px;display:flex;gap:48px;justify-content:center;flex-wrap:wrap}
-  .end-stat b{display:block;font-family:var(--font-display);font-weight:300;font-size:44px;color:var(--ink);line-height:1}
-  .end-stat span{display:block;margin-top:10px;font-size:10px;letter-spacing:.22em;color:var(--ink-3);text-transform:uppercase;font-family:var(--font-mono)}
-  .death-quote{margin-top:44px;font-family:var(--font-display);font-weight:300;font-size:22px;color:var(--ink-2);max-width:520px}
+  /* лист итогов: полосы наливаются, числа набегают */
+  .end-sheet{margin-top:34px;width:min(560px,86vw);display:flex;flex-direction:column;gap:14px}
+  .end-row{opacity:0;transform:translateY(10px);transition:opacity .5s var(--ease),transform .5s var(--ease)}
+  .end-row.in{opacity:1;transform:none}
+  .end-line{display:flex;align-items:baseline;justify-content:space-between;gap:16px}
+  .end-name{font-family:var(--font-mono);font-size:10px;letter-spacing:.22em;
+    text-transform:uppercase;color:var(--ink-3);white-space:nowrap}
+  .end-val{font-family:var(--font-display);font-weight:300;font-size:26px;color:var(--ink);
+    line-height:1;font-variant-numeric:tabular-nums}
+  .end-bar{margin-top:7px;height:2px;background:var(--ink-4);position:relative;overflow:hidden}
+  .end-fill{position:absolute;inset:0 auto 0 0;width:0;background:var(--io);
+    transition:width .85s var(--ease);box-shadow:0 0 10px rgba(143,208,255,.5)}
+  .end-row.best .end-fill{background:var(--ember);box-shadow:0 0 12px rgba(232,165,74,.55)}
+  .end-row.best .end-val{color:var(--ember)}
+  .end-best{margin-left:10px;font-family:var(--font-mono);font-size:9px;letter-spacing:.2em;
+    text-transform:uppercase;color:var(--ember);opacity:0;transition:opacity .4s var(--ease)}
+  .end-row.best .end-best{opacity:.9}
+  /* мысли перетекают в копилку */
+  .end-purse{margin-top:32px;opacity:0;transform:translateY(10px);
+    transition:opacity .5s var(--ease),transform .5s var(--ease)}
+  .end-purse.in{opacity:1;transform:none}
+  .end-purse .end-name{display:block;text-align:center}
+  .end-flow{margin-top:12px;display:flex;align-items:center;justify-content:center;gap:18px;
+    font-family:var(--font-display);font-weight:300;font-size:34px;line-height:1;
+    font-variant-numeric:tabular-nums}
+  #purseRun{color:var(--io)}
+  #purseMeta{color:var(--ember)}
+  .end-arrow{font-size:20px;color:var(--ink-4)}
+  .end-purse.pouring #purseMeta{text-shadow:0 0 22px rgba(232,165,74,.55)}
+  .end-purse.done #purseRun,.end-purse.done .end-arrow{opacity:.22;transition:opacity .6s var(--ease)}
+  .death-quote{margin-top:38px;font-family:var(--font-display);font-weight:300;font-size:22px;color:var(--ink-2);max-width:520px}
+  #deathBtns{display:flex;gap:14px;flex-wrap:wrap;justify-content:center;
+    opacity:0;pointer-events:none;transition:opacity .6s var(--ease)}
+  #deathBtns.in{opacity:1;pointer-events:auto}
+  #deathBtns .end-btn{margin-top:34px}
+  .death-skip{margin-top:22px;font-family:var(--font-mono);font-size:9px;letter-spacing:.24em;
+    text-transform:uppercase;color:var(--ink-4);opacity:0;transition:opacity .4s var(--ease)}
+  .death-skip.in{opacity:1}
   .end-btn{margin-top:50px;pointer-events:auto;cursor:pointer;background:none;color:var(--ink-2);
     border:1px solid var(--line);padding:14px 34px;font-family:var(--font-mono);font-size:11px;
     letter-spacing:.25em;text-transform:uppercase;transition:all .25s var(--ease)}
@@ -348,29 +378,28 @@
   <div class="dreams" id="dreams"></div>
 </div>
 
-<div id="deathScreen" class="veil hidden" style="background:rgba(5,6,10,.95);">
+<div id="deathScreen" class="veil hidden">
   <div class="death-big" data-i18n="deathBig"></div>
   <div class="death-sub" id="deathNight"></div>
 
-  <div class="end-stats">
-    <div class="end-stat"><b id="stNights">0</b><span data-i18n="stNights"></span></div>
-    <div class="end-stat"><b id="stKills">0</b><span data-i18n="stKills"></span></div>
-    <div class="end-stat"><b id="stDist">0</b><span data-i18n="stDist"></span></div>
-  </div>
+  <div class="end-sheet" id="endSheet"></div>
 
-  <div style="margin: 30px auto; text-align: center;">
-    <div style="font-size: 14px; color: var(--ink-3); text-transform: uppercase; font-family: var(--font-mono); letter-spacing: 0.1em;" data-i18n="stThoughts"></div>
-    <div style="font-size: 32px; color: var(--ink); margin-top: 5px;">
-      <span id="animRunThoughts">0</span> <span style="color: var(--ink-4);">→</span> <span id="animMetaThoughts" style="color: var(--ember);">0</span>
+  <div class="end-purse" id="endPurse">
+    <span class="end-name" data-i18n="purseHead"></span>
+    <div class="end-flow">
+      <span id="purseRun">0</span>
+      <span class="end-arrow">→</span>
+      <span id="purseMeta">0</span>
     </div>
   </div>
 
   <div class="death-quote" id="deathQuote"></div>
 
-  <div id="deathBtns" style="opacity: 0; pointer-events: none; transition: opacity 0.5s ease; display: flex; flex-direction: column; align-items: center; gap: 10px; margin-top: 20px;">
+  <div id="deathBtns">
     <button class="end-btn" id="againBtn" data-i18n="againBtn"></button>
     <button class="end-btn" id="titleBtn2" data-i18n="titleBtn"></button>
   </div>
+  <div class="death-skip" id="deathSkip" data-i18n="deathSkip"></div>
 </div>
 
 
@@ -457,6 +486,6 @@
   <button class="end-btn" id="setClose" data-i18n="sClose"></button>
 </div>
 
-<script src="game.js?v=92"></script>
+<script src="game.js?v=93"></script>
 </body>
 </html>
