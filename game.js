@@ -51,6 +51,7 @@ function loadSettings() {
   let s = {};
   try { s = JSON.parse(localStorage.getItem('io-noch-set')) || {}; } catch (_) {}
   const out = Object.assign({}, DEFAULT_SET, s);
+  out.visuals = Object.assign({}, DEFAULT_SET.visuals, s.visuals); // облики — гнездом
   if (out.lang !== 'ru' && out.lang !== 'en') out.lang = 'ru';
   return out;
 }
@@ -136,6 +137,10 @@ const TXT = {
     stStars: 'звёзд зажжено',
     stLevel: 'степень света',
     stBest: 'рекорд',
+    starLit: 'новая звезда зажглась в созвездии',
+    themeDone: r => 'созвездие полно · ' + r + ' — твой',
+    skyEquip: 'надеть',
+    skyWorn: 'надето',
     purseHead: 'мысли ссыпаются в шкатулку',
     deathSkip: 'нажми, чтобы промотать',
     deathVoid: 'бездна забрала и корабль, и привязь.',
@@ -234,6 +239,10 @@ const TXT = {
     stStars: 'stars kindled',
     stLevel: 'degree of light',
     stBest: 'record',
+    starLit: 'a new star is lit in the constellation',
+    themeDone: r => 'the constellation is full · ' + r + ' is yours',
+    skyEquip: 'wear',
+    skyWorn: 'worn',
     purseHead: 'thoughts pour into the casket',
     deathSkip: 'press to skip',
     deathVoid: 'the void took both the ship and its tether.',
@@ -1070,6 +1079,16 @@ cloudSpr.width = 300; cloudSpr.height = 140;
 }
 
 const IO_COL = [0.56, 0.815, 1];
+// облики, добытые полными созвездиями. Цвета готовы заранее: в кадре ни один
+// из них не рождается заново, оттого краса эта не стоит ни доли миллисекунды.
+const SHELL_AMBER = [1, 0.72, 0.36];
+const SHELL_NIGHT = [0.66, 0.54, 1];
+const FIRE_RAMP = [];
+for (let i = 0; i < 8; i++) FIRE_RAMP.push(mix3([1, 0.95, 0.82], [0.95, 0.3, 0.1], i / 7));
+function ioCol() {
+  const s = SET.visuals.shell;
+  return s === 'storm_shell' ? SHELL_AMBER : s === 'night_shell' ? SHELL_NIGHT : IO_COL;
+}
 // общие цвета частиц: один массив на всех — так отрисовка кладёт их одной заливкой
 const COL_LAMP = [1, 0.72, 0.35], COL_HEAT = [1, 0.62, 0.3];
 const COL_RIFT = [0.5, 0.25, 0.7], COL_FOE = [0.5, 0.28, 0.66];
@@ -1341,6 +1360,9 @@ const C_THEMES = {
   night: { name: { ru: 'Глубокие ночи', en: 'Deep Nights' }, rewardType: 'shell', rewardId: 'night_shell', rewardName: { ru: 'Полуночная оболочка', en: 'Midnight Shell' } }
 };
 
+// имена и описания испытаний живут парами {ru, en} — берём по нынешнему языку
+function nm(pair) { return (pair && pair[LANG]) || (pair && pair.ru) || ''; }
+
 const CHALLENGES = [
   // Буря
   { id: 'c_storm_1', theme: 'storm', desc: { ru: 'Пережить первый шторм', en: 'Survive the first storm' } },
@@ -1366,19 +1388,18 @@ const CHALLENGES = [
 
 let STARS_DATA = loadStars();
 function loadStars() {
-  let raw;
-  try { raw = JSON.parse(localStorage.getItem('io-noch-stars')) || { completed: [] }; }
-  catch (_) { raw = { completed: [] }; }
-  
-  // Migration
-  let oldSky = [];
-  try { oldSky = JSON.parse(localStorage.getItem('io-noch-sky')) || []; } catch (_) {}
-  if (oldSky.length > 0) {
-    META.thoughts += oldSky.length * 15;
-    saveMeta();
-    localStorage.removeItem('io-noch-sky');
-  }
-  return raw;
+  try { return JSON.parse(localStorage.getItem('io-noch-stars')) || { completed: [] }; }
+  catch (_) { return { completed: [] }; }
+}
+// Наследство прежних созвездий. Искры памяти отменены (сила живёт в шкатулке),
+// оттого за всякую пойманную прежде фразу разом отсыпается по пятнадцати мыслей.
+// Самих фраз не трогаем: небо остаётся при игроке — это его память, не валюта.
+function skyBounty() {
+  if (META.skyBounty) return;
+  META.skyBounty = true;
+  const caught = SKY.size;
+  if (caught > 0) META.thoughts += caught * 15;
+  saveMeta();
 }
 function saveStars() {
   localStorage.setItem('io-noch-stars', JSON.stringify(STARS_DATA));
@@ -1387,8 +1408,19 @@ function unlockChallenge(id) {
   if (STARS_DATA.completed.includes(id)) return;
   STARS_DATA.completed.push(id);
   saveStars();
-  spawnText(io.x, io.y - 140, LANG === 'en' ? 'New star lit in the Constellation!' : 'Новая звезда зажглась в созвездии!', true);
+  spawnText(io.x, io.y - 140, tr('starLit'), true);
   sfxChoice();
+  const ch = CHALLENGES.find(c => c.id === id);
+  if (ch && checkThemeCompleted(ch.theme)) {
+    const th = C_THEMES[ch.theme];
+    spawnText(io.x, io.y - 180, tr('themeDone', nm(th.rewardName)), true);
+    equipVisual(th); // добытый облик надевается сам — за ним и шли
+  }
+}
+// облик, дарованный полным созвездием: оболочка, след или свита
+function equipVisual(th) {
+  SET.visuals[th.rewardType] = SET.visuals[th.rewardType] === th.rewardId ? 'default' : th.rewardId;
+  saveSettings();
 }
 function checkThemeCompleted(themeId) {
   const req = CHALLENGES.filter(c => c.theme === themeId).length;
@@ -1440,21 +1472,9 @@ function skyCaught() {
   return n;
 }
 
-// искры памяти — наследство созвездия, мягкое и накопительное
-const SPARKS = [
-  { n: 5,  id: 'mem',  apply: r => { r.wakeMax += 10; r.wake += 10; } },
-  { n: 10, id: 'warm', apply: r => r.healBonus += 1 },
-  { n: 16, id: 'ring', apply: r => r.spirits++ },
-  { n: 22, id: 'blink', apply: r => r.relocCd = Math.max(3, r.relocCd - 1) },
-  { n: 28, id: 'reach', apply: r => r.pickupR *= 1.15 },
-  { n: 34, id: 'swift', apply: r => r.speed *= 1.1 },
-  { n: 0,  id: 'dawn', apply: r => r.secondWind = true },
-];
-function sparkNeed(s) { return s.n === 0 ? skyTotal() : s.n; }
-function applySparks(r) {
-  const c = skyCaught();
-  for (const s of SPARKS) if (c >= sparkNeed(s)) s.apply(r);
-}
+// Искр памяти более нет: созвездие силы не даёт вовсе. Сила покупается
+// мыслями в шкатулке, а небо хранит память и дарит облик — иначе два
+// наследства складывались бы и ломали всякий счёт.
 
 
 // ---------- Метапрогрессия (Шкатулка мыслей) ----------
@@ -1464,8 +1484,9 @@ function loadMeta() {
   catch (_) { return { thoughts: 0, up: {} }; }
 }
 function saveMeta() {
-  localStorage.setItem('io-noch-meta', JSON.stringify(META));
+  try { localStorage.setItem('io-noch-meta', JSON.stringify(META)); } catch (_) {}
 }
+skyBounty(); // разом, при первом запуске новой поры — SKY и META уже на месте
 function metaCost(id, lvl) {
   const up = META_UP.find(u => u.id === id);
   return Math.floor(up.baseCost * Math.pow(1.7, lvl));
@@ -1581,27 +1602,6 @@ const UP_EN = {
 function upName(u) { const e = UP_EN[u.id]; return LANG === 'en' && e ? e[0] : u.name; }
 function upDesc(u) { const e = UP_EN[u.id]; return LANG === 'en' && e ? e[1] : u.desc; }
 
-const SPARK_TXT = {
-  ru: {
-    mem:   ['искра памяти',   'предел бодрости выше на 10'],
-    warm:  ['искра тепла',    'всякая мысль целит на 1 сильнее'],
-    ring:  ['искра хоровода', 'лишний спирит с самого начала'],
-    blink: ['искра мерцания', 'мерцание возвращается секундой ранее'],
-    reach: ['искра простора', 'мысли льнут к тебе охотнее'],
-    swift: ['искра полёта',   'свет летит на десятую долю быстрее'],
-    dawn:  ['искра рассвета', 'бессонница начинается со вторым дыханием'],
-  },
-  en: {
-    mem:   ['spark of memory', 'the limit of wakefulness is 10 higher'],
-    warm:  ['spark of warmth', 'every thought heals 1 more'],
-    ring:  ['spark of the round', 'an extra spirit from the very start'],
-    blink: ['spark of the blink', 'the blink returns a second sooner'],
-    reach: ['spark of reach', 'thoughts cling to you more readily'],
-    swift: ['spark of flight', 'the light flies a tenth faster'],
-    dawn:  ['spark of dawn', 'every sleepless run begins with a second wind'],
-  },
-};
-function sparkTxt(s) { return (SPARK_TXT[LANG] || SPARK_TXT.ru)[s.id]; }
 
 // иконки даров — тонкий штрих в духе созвездий
 const ICONS = {
@@ -3918,14 +3918,17 @@ function drawTetherLine(P, tm) {
 function drawIo(P, pal, tm) {
   drawTetherLine(P, tm);
   const blink = S.hurtT > 0.5 && Math.sin(tm * 30) > 0;
+  const col = ioCol(), fiery = SET.visuals.trail === 'tether_trail';
   if (io.trail.length > 3) {
     sc.globalCompositeOperation = 'lighter';
     let prev = proj(io.trail[0].x, io.trail[0].y);
     for (let i = 1; i < io.trail.length; i++) {
       const cur = proj(io.trail[i].x, io.trail[i].y);
       const a = 1 - i / io.trail.length;
-      sc.strokeStyle = css3(IO_COL, a * 0.3);
-      sc.lineWidth = a * 7 + 1;
+      // огненный след: у самой искры бел, к хвосту сходит в уголь
+      sc.strokeStyle = fiery ? css3(FIRE_RAMP[((1 - a) * 7) | 0], a * 0.42)
+        : css3(col, a * 0.3);
+      sc.lineWidth = a * (fiery ? 9 : 7) + 1;
       sc.lineCap = 'round';
       sc.beginPath(); sc.moveTo(prev.x, prev.y); sc.lineTo(cur.x, cur.y); sc.stroke();
       prev = cur;
@@ -3939,14 +3942,14 @@ function drawIo(P, pal, tm) {
   if (io.heat > 0.4) { // раскалился от скорости
     tintGlow(P.x, P.y, 46 * ocMul, [1, 0.55, 0.25], (io.heat - 0.4) * 0.9);
   }
-  tintGlow(P.x, P.y, 36 * ocMul, IO_COL, 0.5);
+  tintGlow(P.x, P.y, 36 * ocMul, col, 0.5);
   sc.fillStyle = 'rgba(255,255,255,.97)';
   sc.beginPath(); sc.arc(P.x, P.y, 6 * ocMul, 0, TAU); sc.fill();
-  sc.strokeStyle = css3(IO_COL, 0.85);
+  sc.strokeStyle = css3(col, 0.85);
   sc.lineWidth = 1.6;
   sc.beginPath(); sc.arc(P.x, P.y, 11.5 * ocMul + Math.sin(tm * 5) * 1.2, 0, TAU); sc.stroke();
   // медленное внешнее кольцо из трёх дуг
-  sc.strokeStyle = css3(IO_COL, 0.35);
+  sc.strokeStyle = css3(col, 0.35);
   sc.lineWidth = 1;
   for (let i = 0; i < 3; i++) {
     const a0 = -tm * 0.6 + i * TAU / 3;
@@ -3955,20 +3958,29 @@ function drawIo(P, pal, tm) {
   for (let i = 0; i < 5; i++) {
     const a = tm * 1.1 + i * TAU / 5;
     const rr = (16 + Math.sin(tm * 3.3 + i * 1.7) * 4) * k;
-    sc.fillStyle = css3(IO_COL, 0.5);
+    sc.fillStyle = css3(col, 0.5);
     sc.beginPath();
     sc.arc(P.x + Math.cos(a) * rr, P.y + Math.sin(a) * rr * 0.9, 1.3, 0, TAU);
     sc.fill();
   }
   // спириты — позиции в мире, проекция сама их кладёт в наклон плоскости
   const orbR = RUN.orbitR * (io.oc ? 1.6 : 1);
+  const comets = SET.visuals.spirits === 'ship_spirits';
   for (const sp of io.spirits) {
     const SP = proj(io.x + Math.cos(sp.ang) * orbR, io.y + Math.sin(sp.ang) * orbR * 0.82);
     if (sp.cd > 0) {
-      sc.fillStyle = css3(IO_COL, 0.18);
+      sc.fillStyle = css3(col, 0.18);
       sc.beginPath(); sc.arc(SP.x, SP.y, 1.6, 0, TAU); sc.fill();
     } else {
-      tintGlow(SP.x, SP.y, 10 * SP.k, IO_COL, 0.55);
+      // кометы: за всякой искрою тянется короткий хвост по ходу хоровода
+      if (comets) {
+        const back = sp.ang - 0.42;
+        const T = proj(io.x + Math.cos(back) * orbR, io.y + Math.sin(back) * orbR * 0.82);
+        sc.strokeStyle = css3(col, 0.4);
+        sc.lineWidth = 2.2 * SP.k; sc.lineCap = 'round';
+        sc.beginPath(); sc.moveTo(T.x, T.y); sc.lineTo(SP.x, SP.y); sc.stroke();
+      }
+      tintGlow(SP.x, SP.y, 10 * SP.k, col, 0.55);
       sc.fillStyle = 'rgba(255,255,255,.95)';
       sc.beginPath(); sc.arc(SP.x, SP.y, 2.4 * SP.k, 0, TAU); sc.fill();
     }
@@ -4241,14 +4253,20 @@ function skyHitTest(ev) {
 function openSky() {
   const c = skyCaught(), tot = skyTotal();
   document.getElementById('skyCount').textContent = tr('skyCount', c, tot);
+  // вместо прежних искр — четыре созвездия испытаний и облик, что они дарят
   const box = document.getElementById('skySparks');
   box.innerHTML = '';
-  for (const s of SPARKS) {
-    const need = sparkNeed(s);
+  for (const id in C_THEMES) {
+    const th = C_THEMES[id];
+    const req = CHALLENGES.filter(ch => ch.theme === id);
+    const have = req.filter(ch => STARS_DATA.completed.includes(ch.id)).length;
+    const done = have >= req.length;
+    const worn = SET.visuals[th.rewardType] === th.rewardId;
     const el = document.createElement('div');
-    el.className = 'spark' + (c >= need ? ' lit' : '');
-    const st = sparkTxt(s);
-    el.innerHTML = '<b>' + st[0] + '</b><span>' + (c >= need ? st[1] : tr('sparkLocked', need)) + '</span>';
+    el.className = 'spark' + (done ? ' lit' : '') + (worn ? ' worn' : '');
+    el.innerHTML = '<b>' + nm(th.name) + ' · ' + have + '/' + req.length + '</b><span>' +
+      (done ? nm(th.rewardName) + ' — ' + tr(worn ? 'skyWorn' : 'skyEquip') : nm(req[have].desc)) + '</span>';
+    if (done) el.addEventListener('click', () => { equipVisual(th); sfxChoice(); openSky(); });
     box.appendChild(el);
   }
   document.getElementById('skyCaption').textContent = tr('skyHint');
@@ -4733,6 +4751,11 @@ requestAnimationFrame(frame);
   }
   if (q.get('perf')) PERF.on = true;
   if (q.get('wlog')) WLOG.on = true;
+  if (q.get('look')) { // отладка обликов: ?look=storm_shell,tether_trail,ship_spirits
+    for (const id of q.get('look').split(',')) {
+      for (const k in C_THEMES) if (C_THEMES[k].rewardId === id) SET.visuals[C_THEMES[k].rewardType] = id;
+    }
+  }
   if (q.get('tlog')) setInterval(() => {   // отладка нити: видно ли движение под нею
     if (!io.tether) { console.log('нити нет'); return; }
     const sh = io.tether;
@@ -4776,7 +4799,7 @@ requestAnimationFrame(frame);
   }
   if (q.get('set')) setTimeout(openSettings, 300);
   if (q.get('sky')) { // отладка созвездия: зажечь часть звёзд, памяти не трогая
-    skyGroups().forEach((tier, gi) => tier.forEach((p, pi) => { if ((pi + gi) % 2 === 0) SKY.add(p); }));
+    skyGroups().forEach((tier, gi) => tier.forEach((p, pi) => { if ((pi + gi) % 2 === 0) SKY.add(phraseKey(gi, pi)); }));
     setTimeout(openSky, 300);
   }
   if (q.get('auto')) {

@@ -242,6 +242,10 @@
   .spark.lit{border-color:rgba(232,165,74,.45);box-shadow:0 0 18px rgba(232,165,74,.12)}
   .spark.lit b{color:var(--ember)}
   .spark.lit span{color:var(--ink-2)}
+  .spark.lit{pointer-events:auto;cursor:pointer;transition:border-color .25s var(--ease),box-shadow .25s var(--ease)}
+  .spark.lit:hover{border-color:var(--io);box-shadow:0 0 22px rgba(143,208,255,.22)}
+  .spark.worn{border-color:var(--io);box-shadow:0 0 22px rgba(143,208,255,.3)}
+  .spark.worn span{color:var(--io)}
   #skyScreen .end-btn{margin-top:30px;margin-bottom:6vh}
   .sky-gain{margin-top:26px;font-family:var(--font-mono);font-size:10px;letter-spacing:.22em;
     text-transform:uppercase;color:var(--ember)}
@@ -486,6 +490,6 @@
   <button class="end-btn" id="setClose" data-i18n="sClose"></button>
 </div>
 
-<script src="game.js?v=94"></script>
+<script src="game.js?v=95"></script>
 </body>
 </html>
