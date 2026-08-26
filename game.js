@@ -1742,16 +1742,16 @@ function spawnEnemy(type, ax, ay, sleeping) {
   const crust = D >= 3.5 ? 2 : 1;
   const pushE = (props) => { const e = allocEnemy(); Object.assign(e, base, props); enemies.push(e); };
 
-  if (type === 'nm') pushE({ r: rand(14, 22), sp: 50 + D * 11, dmg: 17, hp: crust, flashT: 0 });
+  if (type === 'nm') pushE({ r: rand(14, 22), sp: 65 + D * 14, dmg: 22, hp: crust, flashT: 0 });
   else if (type === 'shade') {
     const n = 4 + (Math.random() * 3 | 0);
     for (let i = 0; i < n; i++) pushE({
       x: x + rand(-60, 60), y: y + rand(-60, 60),
-      r: rand(6, 9), sp: 100 + D * 12, dmg: 7, seed: rand(TAU)
+      r: rand(6, 9), sp: 115 + D * 15, dmg: 10, seed: rand(TAU)
     });
-  } else if (type === 'dasher') pushE({ r: 11, sp: 74 + D * 9, dmg: 24, st: 'seek', stT: 0, dx: 0, dy: 0 });
+  } else if (type === 'dasher') pushE({ r: 11, sp: 85 + D * 12, dmg: 30, st: 'seek', stT: 0, dx: 0, dy: 0 });
   else if (type === 'siren') pushE({ r: 16, sp: 8, dmg: 8, ringR: 150, pulse: rand(TAU) });
-  else if (type === 'eater') pushE({ r: 12, sp: 64 + D * 8, dmg: 12, eaten: 0, hp: D >= 4.5 ? 2 : 1, flashT: 0 });
+  else if (type === 'eater') pushE({ r: 12, sp: 70 + D * 10, dmg: 16, eaten: 0, hp: D >= 4.0 ? 2 : 1, flashT: 0 });
   else if (type === 'eye') pushE({ r: 13, sp: 30 + D * 4, dmg: 16, st: 'drift', stT: rand(2, 4), aim: 0 });
   else if (type === 'moth') {
     const n = 3 + (Math.random() * 2 | 0);
