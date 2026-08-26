@@ -39,9 +39,20 @@ function css3(c, a = 1) {
 // Русский — родной голос игры, английский и немецкий идут следом; всё видимое
 // проходит через tr(), а настройки живут в localStorage.
 // ============================================================
+// Раскладка правится игроком, оттого живёт в настройках, а не в коде.
+// Клавиши хранятся строчными латинскими, а нажатие приводится к ним через
+// e.code: иначе кириллица и Shift давали бы совсем другие буквы, и раскладка
+// ломалась бы у всякого, кто пишет не по-английски.
+const DEFAULT_KEYS = {
+  up: 'KeyW', down: 'KeyS', left: 'KeyA', right: 'KeyD',
+  tether: 'KeyQ', blink: 'KeyR', charge: 'KeyE', halt: 'Mouse0',
+};
 const DEFAULT_SET = {
   lang: 'ru', vol: 85, music: 100, sfx: 100,
   quality: 'auto', shake: 100, fx: 100, hud: 'full', fps: false,
+  text: true,           // летучие строки мира — по желанию гасятся целиком
+  steer: 'keys',        // чем править на ПК: 'keys' — WASD, 'mouse' — за прицелом
+  keys: Object.assign({}, DEFAULT_KEYS),
   touchSide: 'right', joyR: 78, joyShow: false,
   // облики: четыре гнезда-выбора да три слоя-переключателя — они складываются
   visuals: { trail: 'default', shell: 'default', spirits: 'default', halo: 'default',
@@ -55,7 +66,9 @@ function loadSettings() {
   try { s = JSON.parse(localStorage.getItem('io-noch-set')) || {}; } catch (_) {}
   const out = Object.assign({}, DEFAULT_SET, s);
   out.visuals = Object.assign({}, DEFAULT_SET.visuals, s.visuals); // облики — гнездом
+  out.keys = Object.assign({}, DEFAULT_KEYS, s.keys);              // раскладка — тоже
   if (!['ru', 'en', 'de'].includes(out.lang)) out.lang = 'ru';
+  if (out.steer !== 'keys' && out.steer !== 'mouse') out.steer = 'keys';
   return out;
 }
 function saveSettings() {
@@ -113,110 +126,110 @@ const TXT = {
     hint_wake: 'бодрость тает; иссякнет — растворишься',
     hint_foe: 'кошмары чуют свет — уводи его прочь',
     // — HUD —
-    thoughts: n => 'мыслей · ' + n,
-    tierN: n => 'степень ' + n,
-    chain: n => 'чреда ×' + n,
-    keyMouse: 'ЛКМ', keySpace: 'пробел', keyShift: 'shift', secShort: 'с',
-    wakeLabel: 'бодрость',
-    ocBtn: 'заряд',
+    thoughts: n => 'мысли · ' + n,
+    tierN: n => 'уровень ' + n,
+    chain: n => 'серия ×' + n,
+    keyMouse: 'ЛКМ', keyMouse2: 'ПКМ', keySpace: 'пробел', keyShift: 'shift', secShort: 'с',
+    wakeLabel: 'силы',
+    ocBtn: 'ускорение',
     bossName: 'корабль-кошмар',
     bossNameWhale: 'левиафан бессонницы',
     distK: 'к',
     // — экраны —
     titleBig: 'бесконечная\u00a0ночь',
-    titleSub: 'роглайк о шарике света, коему не спится',
-    help1: 'мышью — лететь · клик подле корабля — нить · пробел — мерцание',
-    help1t: 'коснись — под пальцем родится джойстик, наклоняй его в сторону',
-    help2t: 'кнопки под большим пальцем: нить · мерцание · заряд',
-    btnTether: 'нить',
-    btnBlink: 'мерцание',
+    titleSub: 'роглайк о шарике света, которому не спится',
+    help1: (mv, h, t, b, c) => mv + ' — движение · ' + h + ' — остановиться · ' + t + ' — трос · ' + b + ' — рывок · ' + c + ' — ускорение',
+    help1t: 'коснитесь экрана — под пальцем появится джойстик',
+    help2t: 'кнопки под большим пальцем: трос · рывок · ускорение',
+    btnTether: 'трос',
+    btnBlink: 'рывок',
     sTouch: 'палец',
     sTouchSide: 'сторона кнопок',
     sideRight: 'справа', sideLeft: 'слева',
     sJoyR: 'размер джойстика',
     sJoyShow: 'показывать джойстик',
-    help2: 'shift — заряд · бодрость тает всечасно — одни мысли её держат',
-    help3: 'луга щедры · разломы гибельны · теченья сносят · скорость жжёт',
-    help4: 'всякая пятая ночь приводит корабль-кошмар — бей, покуда фонарь открыт',
-    titleHint: 'коснись огонька',
-    mPlay: 'зажечься',
+    help2: 'силы тают всё время — восполняют их только мысли',
+    help3: 'на лугах много мыслей · в разломах опасно · течения сносят · скорость перегревает',
+    help4: 'каждая пятая ночь — корабль-кошмар: бейте, пока открыт фонарь',
+    titleHint: 'нажмите на огонёк',
+    mPlay: 'играть',
     mSky: 'созвездие',
     mSkyN: (c, t) => 'созвездие · ' + c + '/' + t,
-    mMeta: 'шкатулка',
-    mSkins: 'облики',
+    mMeta: 'улучшения',
+    mSkins: 'внешний вид',
     mTutor: 'обучение',
-    mBoard: 'летопись',
-    bd_head: 'летопись бессонниц',
-    bd_world: n => 'мировая доска · ' + n,
-    bd_local: 'летопись здешняя: мировая молчит, покуда не указан её адрес в настройках',
-    bd_off: 'мировой летописи не указано — сохраняются лишь твои забеги',
+    mBoard: 'таблица',
+    bd_head: 'таблица лидеров',
+    bd_world: n => 'общая таблица · ' + n,
+    bd_local: 'локальная таблица — общая появится, когда в настройках указан адрес сервера',
+    bd_off: 'сервер не указан — сохраняются только ваши результаты',
     bd_login: 'войти',
-    bd_reg: 'завести имя',
+    bd_reg: 'создать аккаунт',
     bd_out: 'выйти',
     bd_name_ph: 'имя',
-    bd_pass_ph: 'пропуск',
-    bd_col_place: '№', bd_col_name: 'имя', bd_col_nights: 'ночей', bd_col_thoughts: 'мыслей',
-    bd_empty: 'летопись пуста — первая бессонница станет первой строкою',
-    bd_wait: 'летопись читается…',
-    bd_fail: 'летопись не отозвалась',
-    bd_hi: n => 'здравствуй, ' + n,
-    bd_sent: n => 'записано в летопись · место ' + n,
-    bd_sent_no: 'записано; прежний забег был лучше',
-    bd_guest: 'играешь без имени — забег останется при тебе',
-    bd_you: 'ты',
-    sBoard: 'адрес летописи',
-    sBoardHint: 'пусто — мировой доски нет, лишь свои забеги',
-    wd_head: 'облики ночи',
-    wd_sub: 'краса, добытая созвездиями · на силу не влияет ничуть',
-    wd_count: (n, t) => 'добыто ' + n + ' из ' + t,
+    bd_pass_ph: 'пароль',
+    bd_col_place: '№', bd_col_name: 'игрок', bd_col_nights: 'ночей', bd_col_thoughts: 'мыслей',
+    bd_empty: 'таблица пуста — ваш забег станет первым',
+    bd_wait: 'загрузка…',
+    bd_fail: 'сервер не отвечает',
+    bd_hi: n => 'вы вошли как ' + n,
+    bd_sent: n => 'результат отправлен · место ' + n,
+    bd_sent_no: 'отправлено; прошлый результат был лучше',
+    bd_guest: 'вы играете без аккаунта — результаты сохраняются только здесь',
+    bd_you: 'вы',
+    sBoard: 'адрес сервера таблицы',
+    sBoardHint: 'пусто — общей таблицы нет, только свои результаты',
+    wd_head: 'внешний вид',
+    wd_sub: 'украшения за созвездия · на игру не влияют',
+    wd_count: (n, t) => 'открыто ' + n + ' из ' + t,
     wd_grp_shell: 'оболочка — цвет света',
     wd_grp_trail: 'след',
     wd_grp_spirits: 'спириты',
     wd_grp_halo: 'ореолы',
     wd_worn: 'надето · снять',
-    wd_have: 'в запасе · надеть',
-    wd_new: n2 => 'гардероб пополнился — «' + n2 + '»',
-    wd_lock_theme: n2 => 'созвездие «' + n2 + '» ещё не полно',
-    wd_lock_themes: n2 => 'собери полных созвездий испытаний: ' + n2,
-    wd_lock_phr: n2 => 'поймай фраз в созвездие: ' + n2,
-    titleVer: 'killu · роглайк-ответвление «третьей ночи» · наушники надобны непременно',
-    bestLine: (n, t, p) => 'славнейшая бессонница · ' + n + ' ноч' + p + ' · ' + t + ' мыслей',
-    restHead: (lvl, w, mx) => 'степень ' + lvl + ' · бодрости ' + w + ' из ' + mx,
-    restBig: 'дар бессонницы',
-    restSub: 'ночь обождёт — избери себе один · клавиши 1 · 2 · 3',
-    deathBig: 'ты растворился в ночи',
-    deathNight: (n, p) => 'бессонница твоя длилась ' + n + ' ноч' + p,
-    stNights: 'ночей выстояно',
-    stThoughts: 'мыслей уловлено',
+    wd_have: 'открыто · надеть',
+    wd_new: n2 => 'новый облик — «' + n2 + '»',
+    wd_lock_theme: n2 => 'нужно собрать созвездие «' + n2 + '»',
+    wd_lock_themes: n2 => 'нужно собрать созвездий: ' + n2,
+    wd_lock_phr: n2 => 'нужно поймать фраз: ' + n2,
+    titleVer: 'killu · ответвление «третьей ночи» · лучше в наушниках',
+    bestLine: (n, t, p) => 'лучший забег · ' + n + ' ноч' + p + ' · ' + t + ' мыслей',
+    restHead: (lvl, w, mx) => 'уровень ' + lvl + ' · силы ' + w + ' из ' + mx,
+    restBig: 'улучшение',
+    restSub: 'выберите одно улучшение · клавиши 1 · 2 · 3',
+    deathBig: 'вы растворились в ночи',
+    deathNight: (n, p) => 'вы продержались ' + n + ' ноч' + p,
+    stNights: 'ночей прожито',
+    stThoughts: 'мыслей собрано',
     stKills: 'кошмаров рассеяно',
-    stDist: 'неба пройдено',
+    stDist: 'пройдено',
     stTime: 'ночь длилась',
-    stWaves: 'приливов отбито',
+    stWaves: 'волн отбито',
     stShips: 'кораблей потоплено',
-    stStars: 'звёзд зажжено',
-    stLevel: 'степень света',
+    stStars: 'звёзд открыто',
+    stLevel: 'уровень',
     stBest: 'рекорд',
     starLit: 'новая звезда зажглась в созвездии',
-    themeDone: r => 'созвездие полно · ' + r + ' — твой',
+    themeDone: r => 'созвездие собрано · ' + r + ' — ваш',
     skyEquip: 'надеть',
     skyWorn: 'надето',
-    purseHead: 'мысли ссыпаются в шкатулку',
-    deathSkip: 'нажми, чтобы промотать',
+    purseHead: 'мысли идут в копилку',
+    deathSkip: 'нажмите, чтобы пропустить',
     deathVoid: 'бездна забрала и корабль, и привязь.',
-    titleBtn: 'к заглавию',
-    againBtn: 'возгореться сызнова',
+    titleBtn: 'в меню',
+    againBtn: 'играть снова',
     pauseTxt: 'пауза',
-    pauseSub: 'esc — воротиться в ночь',
+    pauseSub: 'esc — продолжить',
     // — созвездие —
     skyHead: 'созвездие пойманных фраз',
     skyBtn: (c, t) => 'созвездие · ' + c + ' из ' + t + ' фраз',
     skyBtnEmpty: 'созвездие пойманных фраз',
     skyCount: (c, t) => c + ' из ' + t,
-    skyHint: 'наведи на звезду — она вспомнит свою фразу',
-    skyDark: 'эта звезда ещё не зажжена',
+    skyHint: 'наведите на звезду, чтобы увидеть фразу',
+    skyDark: 'звезда ещё не открыта',
     sparkLocked: n => 'зажжётся на ' + n + '-й фразе',
     skyGain: (n, w) => 'созвездие пополнилось · ' + n + ' ' + w,
-    skyBack: 'воротиться в ночь',
+    skyBack: 'назад',
     // — настройки —
     settings: 'настройки',
     sLang: 'язык',
@@ -224,22 +237,36 @@ const TXT = {
     sVol: 'общая громкость',
     sMusic: 'музыка',
     sSfx: 'звуки',
-    sPicture: 'картина',
+    sPicture: 'графика',
     sQuality: 'качество',
     qAuto: 'авто', qHigh: 'высокое', qLow: 'низкое',
     sShake: 'тряска экрана',
-    sFx: 'помехи и зерно',
+    sFx: 'помехи и зернистость',
     sHud: 'интерфейс',
     sFps: 'счётчик кадров',
     sOn: 'вкл', sOff: 'выкл',
     hFull: 'полный', hLite: 'только полосы', hOff: 'скрыт',
-    sMemory: 'память',
-    sReset: 'погасить созвездие',
-    sResetHint: 'сотрёт все пойманные фразы и искры памяти — навсегда',
-    sResetSure: 'точно? нажми ещё раз',
-    sResetDone: 'созвездие погашено',
+    sControls: 'управление',
+    sSteer: 'как двигаться',
+    steerKeys: 'клавишами',
+    steerMouse: 'за курсором',
+    sSteerHint: 'клавишами — свет летит, пока клавиша нажата; за курсором — как раньше, свет всё время тянется к прицелу',
+    sKeys: 'клавиши',
+    sKeysHint: 'нажмите строку, затем новую клавишу; правая и левая кнопки мыши тоже подойдут',
+    sKeyWait: 'нажмите клавишу…',
+    sKeyReset: 'вернуть как было',
+    sKeyBusy: 'эта клавиша занята игрой',
+    act_up: 'вверх', act_down: 'вниз', act_left: 'влево', act_right: 'вправо',
+    act_tether: 'трос', act_blink: 'рывок', act_charge: 'ускорение', act_halt: 'остановиться',
+    sText: 'летающие надписи',
+    sTextHint: 'фразы и вести ночи, всплывающие поверх игры',
+    sMemory: 'сохранения',
+    sReset: 'сбросить созвездие',
+    sResetHint: 'сотрёт все пойманные фразы — навсегда',
+    sResetSure: 'точно? нажмите ещё раз',
+    sResetDone: 'созвездие сброшено',
     sClose: 'закрыть',
-    sHintPause: 'ночь ждёт, покуда открыты настройки',
+    sHintPause: 'игра на паузе, пока открыты настройки',
   },
   en: {
     bossComes: 'the nightmare ship sails the sky',
@@ -285,7 +312,7 @@ const TXT = {
     thoughts: n => 'thoughts · ' + n,
     tierN: n => 'tier ' + n,
     chain: n => 'chain ×' + n,
-    keyMouse: 'LMB', keySpace: 'space', keyShift: 'shift', secShort: 's',
+    keyMouse: 'LMB', keyMouse2: 'RMB', keySpace: 'space', keyShift: 'shift', secShort: 's',
     wakeLabel: 'wakefulness',
     ocBtn: 'charge',
     bossName: 'the nightmare ship',
@@ -293,7 +320,7 @@ const TXT = {
     distK: 'k',
     titleBig: 'endless\u00a0night',
     titleSub: 'a roguelike about a wisp that cannot sleep',
-    help1: 'mouse — fly · click near a ship — thread · space — blink',
+    help1: (mv, h, t, b, c) => mv + ' — move · ' + h + ' — hold still · ' + t + ' — thread · ' + b + ' — blink · ' + c + ' — charge',
     help1t: 'touch anywhere — a joystick is born under your finger',
     help2t: 'buttons under your thumb: thread · blink · charge',
     btnTether: 'thread',
@@ -303,7 +330,7 @@ const TXT = {
     sideRight: 'right', sideLeft: 'left',
     sJoyR: 'joystick size',
     sJoyShow: 'show the joystick',
-    help2: 'shift — overcharge · wakefulness always drains — only thoughts hold it',
+    help2: 'wakefulness always drains — only thoughts hold it',
     help3: 'meadows are generous · rifts are deadly · currents carry · speed burns',
     help4: 'every fifth night brings the nightmare ship — strike while its lantern is open',
     titleHint: 'touch the wisp',
@@ -399,6 +426,20 @@ const TXT = {
     sFps: 'frame counter',
     sOn: 'on', sOff: 'off',
     hFull: 'full', hLite: 'bars only', hOff: 'hidden',
+    sControls: 'controls',
+    sSteer: 'movement',
+    steerKeys: 'keys',
+    steerMouse: 'follow cursor',
+    sSteerHint: 'keys — the light flies while a key is held; cursor — as before, the light always drifts to the aim',
+    sKeys: 'keys',
+    sKeysHint: 'click a row, then press a new key; mouse buttons work too',
+    sKeyWait: 'press a key…',
+    sKeyReset: 'restore defaults',
+    sKeyBusy: 'that key belongs to the game',
+    act_up: 'up', act_down: 'down', act_left: 'left', act_right: 'right',
+    act_tether: 'thread', act_blink: 'blink', act_charge: 'charge', act_halt: 'hold still',
+    sText: 'floating text',
+    sTextHint: 'phrases and tidings of the night that surface over the game',
     sMemory: 'memory',
     sReset: 'extinguish the constellation',
     sResetHint: 'erases every caught phrase and memory spark — for good',
@@ -454,7 +495,7 @@ const TXT = {
     thoughts: n => 'gedanken · ' + n,
     tierN: n => 'stufe ' + n,
     chain: n => 'folge ×' + n,
-    keyMouse: 'LMT', keySpace: 'leertaste', keyShift: 'shift', secShort: 's',
+    keyMouse: 'LMT', keyMouse2: 'RMT', keySpace: 'leertaste', keyShift: 'shift', secShort: 's',
     wakeLabel: 'wachheit',
     ocBtn: 'ladung',
     bossName: 'das albtraumschiff',
@@ -463,7 +504,7 @@ const TXT = {
     // — bildschirme —
     titleBig: 'endlose\u00a0nacht',
     titleSub: 'ein roguelike um ein lichtlein, das keinen schlaf findet',
-    help1: 'maus — fliegen · klick nahe dem schiff — faden · leertaste — flackern',
+    help1: (mv, h, t, b, c) => mv + ' — bewegung · ' + h + ' — stillstehen · ' + t + ' — faden · ' + b + ' — flackern · ' + c + ' — ladung',
     help1t: 'berühre den schirm — unter dem finger erwacht ein steuerkreis',
     help2t: 'tasten unterm daumen: faden · flackern · ladung',
     btnTether: 'faden',
@@ -473,7 +514,7 @@ const TXT = {
     sideRight: 'rechts', sideLeft: 'links',
     sJoyR: 'steuerkreis',
     sJoyShow: 'steuerkreis zeigen',
-    help2: 'shift — laden · wachheit schwindet stets — nur gedanken bewahren sie',
+    help2: 'wachheit schwindet stets — nur gedanken bewahren sie',
     help3: 'auen sind mild · klüfte tödlich · ströme tragen · eile brennt',
     help4: 'jede fünfte nacht bringt das albtraumschiff — triff, solange die laterne offen steht',
     titleHint: 'berühre das lichtlein',
@@ -571,6 +612,20 @@ const TXT = {
     sFps: 'bildzähler',
     sOn: 'an', sOff: 'aus',
     hFull: 'alles', hLite: 'nur balken', hOff: 'verborgen',
+    sControls: 'steuerung',
+    sSteer: 'bewegung',
+    steerKeys: 'tasten',
+    steerMouse: 'dem zeiger folgen',
+    sSteerHint: 'tasten — das licht fliegt, solange die taste gedrückt ist; zeiger — wie zuvor, das licht strebt stets zum ziel',
+    sKeys: 'tasten',
+    sKeysHint: 'zeile anklicken, dann neue taste drücken; maustasten gehen auch',
+    sKeyWait: 'taste drücken…',
+    sKeyReset: 'zurücksetzen',
+    sKeyBusy: 'diese taste gehört dem spiel',
+    act_up: 'hoch', act_down: 'runter', act_left: 'links', act_right: 'rechts',
+    act_tether: 'faden', act_blink: 'flackern', act_charge: 'ladung', act_halt: 'stillstehen',
+    sText: 'fliegende schrift',
+    sTextHint: 'sätze und kunde der nacht, die über dem spiel aufsteigen',
     sMemory: 'erinnerung',
     sReset: 'sternbild löschen',
     sResetHint: 'tilgt alle gefangenen sätze und erinnerungsfunken — für immer',
@@ -1823,7 +1878,12 @@ const C_THEMES = {
 };
 
 // имена и описания испытаний живут языковыми парами — берём по нынешнему языку
-function nm(pair) { return (pair && pair[LANG]) || (pair && pair.ru) || ''; }
+// Тексты сада называют клавиши, а те правятся игроком: вместо самих букв в
+// строках стоят метки вида {blink}, и они подменяются нынешней раскладкой.
+function nm(pair) {
+  const v = (pair && pair[LANG]) || (pair && pair.ru) || '';
+  return v.indexOf('{') < 0 ? v : v.replace(/\{(\w+)\}/g, (m, a) => SET.keys[a] ? keyName(SET.keys[a]) : m);
+}
 
 const CHALLENGES = [
   // Буря
@@ -1996,17 +2056,17 @@ const META_UP = [
   { id: 'xp', baseCost: 40, max: 10, apply: (r, lvl) => { r.metaXp = (r.metaXp || 0) + lvl * 0.11; } },
   { id: 'revive', baseCost: 800, max: 1, apply: (r, lvl) => { if (lvl > 0) r.secondWind = true; } },
 ];
-TXT.ru.meta_head = 'Шкатулка мыслей';
+TXT.ru.meta_head = 'Улучшения';
 TXT.ru.meta_thoughts = n => 'Мыслей в копилке: ' + n;
-TXT.ru.meta_startWake = 'Запас сил'; TXT.ru.meta_startWake_desc = 'Свет вмещает больше бодрости.';
-TXT.ru.meta_drain = 'Тлеющий уголь'; TXT.ru.meta_drain_desc = 'Бодрость тает медленнее.';
+TXT.ru.meta_startWake = 'Запас сил'; TXT.ru.meta_startWake_desc = 'Запас сил больше.';
+TXT.ru.meta_drain = 'Тлеющий уголь'; TXT.ru.meta_drain_desc = 'Силы тают медленнее.';
 TXT.ru.meta_spirit = 'Свита света'; TXT.ru.meta_spirit_desc = 'Лишний спирит с самого начала.';
-TXT.ru.meta_blink = 'Лёгкость бытия'; TXT.ru.meta_blink_desc = 'Мерцание возвращается скорее.';
+TXT.ru.meta_blink = 'Лёгкость бытия'; TXT.ru.meta_blink_desc = 'Рывок восстанавливается быстрее.';
 TXT.ru.meta_speed = 'Быстрый шаг'; TXT.ru.meta_speed_desc = 'Свет летит быстрее обычного.';
-TXT.ru.meta_tether = 'Крепкая нить'; TXT.ru.meta_tether_desc = 'Нить цепляет корабли издалече.';
+TXT.ru.meta_tether = 'Крепкая нить'; TXT.ru.meta_tether_desc = 'Трос цепляет корабли с большего расстояния.';
 TXT.ru.meta_xp = 'Ясность ума'; TXT.ru.meta_xp_desc = 'Каждая мысль приносит больше опыта.';
-TXT.ru.meta_revive = 'Ещё одна ночь'; TXT.ru.meta_revive_desc = 'Единожды за забег смерть отступает.';
-TXT.ru.meta_buy = 'Взять за ';
+TXT.ru.meta_revive = 'Ещё одна ночь'; TXT.ru.meta_revive_desc = 'Один раз за забег вы не погибаете.';
+TXT.ru.meta_buy = 'Купить за ';
 
 // ---------- способности: их надобно изучать и возвышать ----------
 const ABILITIES = [
@@ -2021,16 +2081,16 @@ const BOT_AB = { tether: 1, blink: 1, charge: 1, spirits: 1 };
 function abLvl(id) { return BOT.on ? BOT_AB[id] : Math.max(TUTOR.on ? 1 : 0, META.ab[id] || 0); }
 
 TXT.ru.ab_head = 'Способности';
-TXT.ru.ab_tether = 'нить';
-TXT.ru.ab_tether_desc = 'связать себя с кораблём: нить держит в пути и жжёт кошмаров. II — нить длиннее · III — жжёт злее.';
-TXT.ru.ab_blink = 'мерцание';
-TXT.ru.ab_blink_desc = 'перенестись к персту указующему; позади остаётся след, и вторым нажатием к нему воротишься — хоть с края ночи, покуда не истекла минута. II — возвращается скорее · III — след жжёт кошмаров.';
-TXT.ru.ab_charge = 'заряд';
-TXT.ru.ab_charge_desc = 'свет разгорается: спириты кружат вдвое быстрее, перегрев молчит, бодрость тает вполсилы. Выше степень — дольше горит (3 / 4½ / 6 с).';
+TXT.ru.ab_tether = 'трос';
+TXT.ru.ab_tether_desc = 'Цепляет вас к кораблю: трос тянет вас за ним и сжигает кошмаров, которые его пересекают. II — трос длиннее · III — жжёт сильнее.';
+TXT.ru.ab_blink = 'рывок';
+TXT.ru.ab_blink_desc = 'Переносит вас туда, куда смотрит прицел. На старом месте остаётся след: нажмите ещё раз — и вернётесь к нему с любого расстояния, если не прошла минута. II — откат короче · III — след сжигает кошмаров.';
+TXT.ru.ab_charge = 'ускорение';
+TXT.ru.ab_charge_desc = 'Свет разгорается: спириты кружат вдвое быстрее, перегрева нет, силы тают вдвое медленнее. Выше уровень — дольше держится (3 / 4½ / 6 с).';
 TXT.ru.ab_spirits = 'спириты';
-TXT.ru.ab_spirits_desc = 'хоровод искр, жгущих ночь. II — четвёртая искра · III — пятая.';
-TXT.ru.ab_lvl = n => 'степень ' + n;
-TXT.ru.ab_locked = 'не изучено';
+TXT.ru.ab_spirits_desc = 'Искры кружат вокруг вас и сами жгут кошмаров. II — четвёртая искра · III — пятая.';
+TXT.ru.ab_lvl = n => 'уровень ' + n;
+TXT.ru.ab_locked = 'не открыто';
 TXT.en.ab_head = 'Abilities';
 TXT.en.ab_tether = 'thread';
 TXT.en.ab_tether_desc = 'bind yourself to a ship: the thread carries you and burns nightmares. II — longer thread · III — burns fiercer.';
@@ -2324,7 +2384,10 @@ const io = {
   reloc: { phase: 'idle', timer: 0, hold: 0, cd: 0, rx: 0, ry: 0 },
   oc: false, tether: null,
 };
-const pointer = { x: 0, y: 0, active: false };
+// Прицел, покуда мышь не двинулась, стоит посреди экрана: играя одними
+// клавишами, его можно вовсе не тронуть, а рывок целится именно по нему.
+const pointer = { x: window.innerWidth / 2, y: window.innerHeight / 2, active: false };
+window.addEventListener('resize', () => { if (!pointer.active) { pointer.x = W / 2; pointer.y = H / 2; } });
 let steerTX = 0, steerTY = 0; // куда правит игрок — по этому уходит швырок с нити
 const keys = {};
 let motes = [], ships = [], enemies = [], bolts = [], parts = [], texts = [], shots = [], clouds = [], stars = [], webs = [], landmarks = [];
@@ -2649,6 +2712,7 @@ const GAME_FONT = '"SAO UI", "Trebuchet MS", sans-serif'; // единый шри
 const _measC = document.createElement('canvas');
 const _measG = _measC.getContext('2d');
 function spawnText(x, y, str, big) {
+  if (!SET.text) return; // надписи выключены — ночь молчит
   // Строку читают на бегу, поверх свечений и зерна: оттого начертание плотное,
   // кегль щедрый, а под буквами — двойная тёмная ножка. Цвет крупной строки
   // берётся из палитры ночи, но непременно осветляется к белому: сама палитра
@@ -2828,6 +2892,35 @@ function joyEnd() { joy.on = false; joy.mag = 0; }
 function audioUnlock() { // iOS будит звук лишь изнутри касания
   try { if (A.started && A.ctx.state === 'suspended' && !S.paused) A.ctx.resume(); } catch (_) {}
 }
+// Нажатия помним дважды: по букве (для цифр, Esc и Enter) и по физическому
+// коду — на нём стоит вся правка, оттого раскладка не зависит от языка.
+const codes = Object.create(null);
+function held(act) {
+  const c = SET.keys[act];
+  return !!(c && codes[c]);
+}
+function actOf(code) { // какое дело привязано к этой клавише
+  for (const a in SET.keys) if (SET.keys[a] === code) return a;
+  return null;
+}
+let haltHeld = false; // левая кнопка держит свет на месте
+let keyGrab = null;   // настройки ждут клавишу: сюда кладётся ловец
+// Имя клавиши для подсказок: коды вида KeyQ читать игроку незачем.
+function keyName(code) {
+  if (!code) return '—';
+  if (code === 'Mouse0') return tr('keyMouse');
+  if (code === 'Mouse2') return tr('keyMouse2');
+  if (code === 'Space') return tr('keySpace');
+  if (code.startsWith('Key')) return code.slice(3);
+  if (code.startsWith('Digit')) return code.slice(5);
+  if (code.startsWith('Arrow')) return { Up: '↑', Down: '↓', Left: '←', Right: '→' }[code.slice(5)] || code;
+  if (code.startsWith('Shift')) return 'shift';
+  if (code.startsWith('Control')) return 'ctrl';
+  if (code.startsWith('Alt')) return 'alt';
+  if (code === 'Tab') return 'tab';
+  return code;
+}
+
 window.addEventListener('pointermove', e => {
   if (e.pointerType === 'mouse') { touchSteer = false; setPointer(e); return; }
   if (steerId === e.pointerId) joyMove(e);
@@ -2838,7 +2931,14 @@ window.addEventListener('pointerdown', e => {
     touchSteer = false;
     setPointer(e);
     if (S.mode !== 'play' || S.paused) return;
-    toggleTether();
+    // Кнопки мыши идут через ту же раскладку, что и клавиши: 'Mouse0' и 'Mouse2'
+    // — такие же коды. Правая, если ничем не занята, по старой привычке кидает нить.
+    const act = actOf('Mouse' + e.button);
+    if (act === 'halt') haltHeld = true; // держать свет на месте
+    else if (act === 'tether') toggleTether();
+    else if (act === 'blink') tryRelocate();
+    else if (act === 'charge') startOvercharge();
+    else if (e.button === 2) toggleTether();
     return;
   }
   audioUnlock();
@@ -2847,10 +2947,26 @@ window.addEventListener('pointerdown', e => {
   joyStart(e);
 });
 for (const ev of ['pointerup', 'pointercancel']) {
-  window.addEventListener(ev, e => { if (steerId === e.pointerId) { steerId = null; joyEnd(); } });
+  window.addEventListener(ev, e => {
+    if (e.pointerType === 'mouse' && actOf('Mouse' + e.button) === 'halt') haltHeld = false;
+    if (steerId === e.pointerId) { steerId = null; joyEnd(); }
+  });
 }
+window.addEventListener('blur', () => { haltHeld = false; for (const k in codes) codes[k] = false; });
+window.addEventListener('contextmenu', e => {
+  if (S.mode === 'play' || keyWaiting) e.preventDefault(); // ловля клавиши ждёт и правую кнопку
+});
 window.addEventListener('keydown', e => {
   keys[e.key] = true;
+  codes[e.code] = true;
+  if (keyGrab) { keyGrab(e); return; } // настройки ловят клавишу для переназначения
+  if (S.mode === 'play' && !S.paused) { // дела по нынешней раскладке
+    const act = actOf(e.code);
+    if (act === 'tether') { e.preventDefault(); toggleTether(); }
+    else if (act === 'blink') { e.preventDefault(); tryRelocate(); }
+    else if (act === 'charge') { e.preventDefault(); startOvercharge(); }
+    else if (act === 'halt') e.preventDefault();
+  }
   if (S.mode === 'level' && ['1', '2', '3'].includes(e.key)) {
     const card = document.querySelector('.dream[data-key="' + e.key + '"]');
     if (card) card.click();
@@ -2866,11 +2982,15 @@ window.addEventListener('keydown', e => {
       !titleScreen.classList.contains('hidden') &&
       skyScreen.classList.contains('hidden') && metaScreen.classList.contains('hidden') &&
       skinScreen.classList.contains('hidden')) startRun();
-  if ((e.key === ' ' || e.code === 'Space') && S.mode === 'play' && !S.paused) { e.preventDefault(); tryRelocate(); }
-  if (e.key === 'Shift') startOvercharge();
+  // Пробел и Shift оставлены сверх раскладки: к ним привыкли за десять версий
+  if (e.code === 'Space' && S.mode === 'play' && !S.paused && SET.keys.blink !== 'Space') {
+    e.preventDefault(); tryRelocate();
+  }
+  if (e.key === 'Shift' && SET.keys.charge !== 'ShiftLeft') startOvercharge();
 });
 window.addEventListener('keyup', e => {
   keys[e.key] = false;
+  codes[e.code] = false;
 });
 const ocBtn = document.getElementById('ocBtn');
 const btnTether = document.getElementById('btnTether');
@@ -3116,14 +3236,8 @@ function update(dt) {
   zonesNear(cam.x, cam.y, viewR() + 300, visZones);
   if (TUTOR.on) updateTutor(dt); else checkCells(); // сад разложен рукою, не хешем
 
-  const ksp = 620 * dt;
-  if (!touchSteer && (keys['ArrowLeft'] || keys['ArrowRight'] || keys['ArrowUp'] || keys['ArrowDown'] ||
-    keys['a'] || keys['d'] || keys['w'] || keys['s'] || keys['ф'] || keys['в'] || keys['ц'] || keys['ы']))
-    pointer.active = true;
-  if (keys['ArrowLeft'] || keys['a'] || keys['ф']) pointer.x -= ksp;
-  if (keys['ArrowRight'] || keys['d'] || keys['в']) pointer.x += ksp;
-  if (keys['ArrowUp'] || keys['w'] || keys['ц']) pointer.y -= ksp;
-  if (keys['ArrowDown'] || keys['s'] || keys['ы']) pointer.y += ksp;
+  // Прицел ходит за мышью и никуда не бегает сам: клавиши правят светом, а
+  // прицел нужен мерцанию — оно переносит ровно туда, куда он смотрит.
   pointer.x = clamp(pointer.x, 10, W - 10); pointer.y = clamp(pointer.y, 10, H - 20);
 
   // --- Ио ---
@@ -3155,9 +3269,30 @@ function update(dt) {
       const P = proj(tx, ty);
       pointer.x = clamp(P.x, 10, W - 10);
       pointer.y = clamp(P.y, 10, H - 20);
+    } else if (SET.steer === 'keys') {
+      // Клавишами правят самим светом: нажал — полетел, отпустил — встал.
+      // Прежде WASD лишь двигали прицел, а свет вечно летел к нему, и стоять
+      // на месте было нельзя вовсе.
+      let dx = 0, dy = 0;
+      if (held('left') || keys['ArrowLeft']) dx -= 1;
+      if (held('right') || keys['ArrowRight']) dx += 1;
+      if (held('up') || keys['ArrowUp']) dy -= 1;
+      if (held('down') || keys['ArrowDown']) dy += 1;
+      const l = hyp(dx, dy);
+      if (l > 0) {
+        tx = io.x + (dx / l) * 430;
+        ty = io.y + (dy / l) * 430 / view.tilt;
+      } else { tx = io.x; ty = io.y; } // ничего не нажато — стоит
     } else {
       const pw = pointerWorld();
       tx = pw.x; ty = pw.y;
+    }
+    // Левая кнопка держит свет на месте: не просто отпускает правку, а гасит
+    // ход, чтобы можно было замереть и переждать, а не проплывать по инерции.
+    if (haltHeld || held('halt')) {
+      tx = io.x; ty = io.y;
+      const brake = Math.pow(0.015, dt);
+      io.vx *= brake; io.vy *= brake;
     }
     let slowMul = 1;
     for (const e of enemies) { // сирены вяжут движение
@@ -4363,10 +4498,41 @@ function draw() {
   }
   sc.globalAlpha = 1;
 
-  // точка-курсор живёт и под нитью — на ПК прицел не смеет пропадать
-  if (S.mode === 'play' && pointer.active && !touchSteer) {
-    sc.fillStyle = 'rgba(235,232,225,.35)';
-    sc.beginPath(); sc.arc(pointer.x, pointer.y, 2, 0, TAU); sc.fill();
+  // Прицел живёт и под нитью — на ПК ему пропадать нельзя. Прежде он был
+  // точкою в два пикселя на треть прозрачности и терялся в небе начисто, а
+  // меж тем он не украшение: мерцание переносит ровно туда, куда он смотрит.
+  // Ныне это малое кольцо с ядром и четырьмя засечками — в тот же свет, что и
+  // сам Ио, с тёмной подложкой, чтобы читался и поверх сияний.
+  if (S.mode === 'play' && !touchSteer && (pointer.active || !TOUCH)) {
+    const px = pointer.x, py = pointer.y;
+    const pl = 0.5 + 0.5 * Math.sin(S.time * 3.2);
+    const R = 9 + pl * 1.2;
+    sc.save();
+    sc.globalCompositeOperation = 'lighter';
+    tintGlow(px, py, 16, IO_COL, 0.16 + pl * 0.06); // мягкий ореол — виден всегда
+    sc.globalCompositeOperation = 'source-over';
+    // тёмная подложка: поверх светлых сияний белое кольцо иначе тонет
+    sc.strokeStyle = 'rgba(5,6,10,.55)'; sc.lineWidth = 3.4;
+    sc.beginPath(); sc.arc(px, py, R, 0, TAU); sc.stroke();
+    sc.strokeStyle = css3(IO_COL, 0.85); sc.lineWidth = 1.4;
+    sc.beginPath(); sc.arc(px, py, R, 0, TAU); sc.stroke();
+    for (let i = 0; i < 4; i++) { // засечки по сторонам света
+      const a = i * Math.PI / 2;
+      const ca = Math.cos(a), sa = Math.sin(a);
+      sc.strokeStyle = 'rgba(5,6,10,.5)'; sc.lineWidth = 3.2;
+      sc.beginPath();
+      sc.moveTo(px + ca * (R + 3), py + sa * (R + 3));
+      sc.lineTo(px + ca * (R + 7), py + sa * (R + 7));
+      sc.stroke();
+      sc.strokeStyle = css3(IO_COL, 0.7); sc.lineWidth = 1.3;
+      sc.beginPath();
+      sc.moveTo(px + ca * (R + 3), py + sa * (R + 3));
+      sc.lineTo(px + ca * (R + 7), py + sa * (R + 7));
+      sc.stroke();
+    }
+    sc.fillStyle = 'rgba(246,244,240,.95)';
+    sc.beginPath(); sc.arc(px, py, 1.9, 0, TAU); sc.fill();
+    sc.restore();
   }
   // курсор-спутник на касании: живёт подле Ио с той стороны, куда правим
   if (S.mode === 'play' && touchSteer) {
@@ -5273,6 +5439,7 @@ const elXp = document.getElementById('xpFill');
 const skTether = document.getElementById('skTether');
 const skBlink = document.getElementById('skBlink');
 const skBlinkKey = document.getElementById('skBlinkKey');
+const skTetherKey = document.getElementById('skTetherKey');
 const skCharge = document.getElementById('skCharge');
 const skChargeKey = document.getElementById('skChargeKey');
 const bossHud = document.getElementById('bossHud');
@@ -5309,13 +5476,14 @@ function updateHud() {
   skTether.classList.toggle('ready', !io.tether && reach);
   skBlink.classList.toggle('ready', blinkOk);
   skBlink.classList.toggle('cool', !blinkOk);
+  skTetherKey.textContent = keyName(SET.keys.tether);
   skBlinkKey.textContent = (io.reloc.cd > 0 && io.reloc.phase !== 'echo')
-    ? io.reloc.cd.toFixed(1) + tr('secShort') : tr('keySpace');
+    ? io.reloc.cd.toFixed(1) + tr('secShort') : keyName(SET.keys.blink);
   skCharge.classList.toggle('on', io.oc);
   skCharge.classList.toggle('ready', chargeOk);
   skCharge.classList.toggle('cool', !io.oc && !chargeOk);
   skChargeKey.textContent = io.ocCd > 0
-    ? io.ocCd.toFixed(1) + tr('secShort') : tr('keyShift');
+    ? io.ocCd.toFixed(1) + tr('secShort') : keyName(SET.keys.charge);
   if (TOUCH) { // кнопки под пальцем показывают, что готово, а что ещё стынет
     btnBlink.classList.toggle('locked', !abB);
     btnTether.classList.toggle('locked', !abT);
@@ -5677,20 +5845,20 @@ const TUTOR_STOPS = [
          en: 'A rare find: it gives a big helping of wakefulness and experience at once. If you see one, do not fly past.',
          de: 'Ein seltener fund: gibt auf einmal viel wachheit und erfahrung. Wenn du eine siehst, flieg nicht vorbei.' } },
   { id: 'blink', kind: 'hint',
-    t: { ru: 'мерцание — пробел', en: 'blink — space', de: 'flackern — leertaste' },
+    t: { ru: 'рывок — {blink}', en: 'blink — {blink}', de: 'flackern — {blink}' },
     d: { ru: 'Переносит тебя туда, куда указывает курсор. На старом месте остаётся след: нажми ещё раз — и вернёшься к нему с любого расстояния, пока не прошла минута. Лучшее спасение, когда зажали со всех сторон.',
          en: 'It moves you to where the cursor points. A trace stays where you were: press again and you return to it from any distance, as long as a minute has not passed. The best escape when you are boxed in.',
          de: 'Es versetzt dich dorthin, wohin der zeiger weist. Am alten platz bleibt eine spur: drück noch einmal, und du kehrst aus jeder ferne zurück, solange keine minute verging. Die beste rettung, wenn du eingekreist bist.' } },
   { id: 'charge', kind: 'hint',
-    t: { ru: 'заряд — shift', en: 'charge — shift', de: 'ladung — shift' },
+    t: { ru: 'ускорение — {charge}', en: 'charge — {charge}', de: 'ladung — {charge}' },
     d: { ru: 'Ненадолго разгоняет твой свет: летишь быстрее, бьёшь больнее, а бодрость тает медленнее. Потом заряду нужно время, чтобы набраться снова.',
          en: 'It overcharges your light for a while: you fly faster, hit harder, and wakefulness drains slower. Afterwards it needs time to gather again.',
          de: 'Es lädt dein licht eine weile auf: du fliegst schneller, triffst härter, und die wachheit schwindet langsamer. Danach braucht es zeit, um sich zu sammeln.' } },
   { id: 'ship', kind: 'ship',
     t: { ru: 'корабль и нить', en: 'a ship and the thread', de: 'ein schiff und die spur' },
-    d: { ru: 'Корабли идут по небу сами по себе. Подлети ближе и нажми левую кнопку мыши — бросишь нить. Она тянет тебя следом, жжёт всё, что её пересекает, и с палубы сыплются мысли. Нажми ещё раз, чтобы отвязаться.',
-         en: 'Ships sail the sky on their own. Fly close and press the left mouse button to cast the thread. It pulls you along, burns anything that crosses it, and thoughts spill from the deck. Press again to let go.',
-         de: 'Schiffe segeln von selbst über den himmel. Flieg näher und drück die linke maustaste, um die spur zu werfen. Sie zieht dich mit, versengt alles, was sie kreuzt, und vom deck rieseln gedanken. Noch ein druck, und du bist frei.' } },
+    d: { ru: 'Корабли идут по небу сами по себе. Подлети ближе и нажми {tether} — бросишь трос. Она тянет тебя следом, жжёт всё, что её пересекает, и с палубы сыплются мысли. Нажми ещё раз, чтобы отвязаться.',
+         en: 'Ships sail the sky on their own. Fly close and press {tether} to cast the thread. It pulls you along, burns anything that crosses it, and thoughts spill from the deck. Press again to let go.',
+         de: 'Schiffe segeln von selbst über den himmel. Flieg näher und drück {tether}, um die spur zu werfen. Sie zieht dich mit, versengt alles, was sie kreuzt, und vom deck rieseln gedanken. Noch ein druck, und du bist frei.' } },
   { id: 'shade', kind: 'shade',
     t: { ru: 'тени', en: 'shades', de: 'schatten' },
     d: { ru: 'Летают стайкой и жмутся к свету. Поодиночке слабы, но толпой быстро объедают бодрость. Бей их спиритами — искрами, что кружат вокруг тебя.',
@@ -6466,7 +6634,8 @@ function applyLang() {
   for (const el of document.querySelectorAll('[data-i18n]')) el.textContent = tr(el.dataset.i18n);
   for (const el of document.querySelectorAll('[data-i18n-lines]')) {
     const keys = (TOUCH && el.dataset.i18nLinesTouch) || el.dataset.i18nLines;
-    el.innerHTML = keys.split(',').map(k => tr(k)).join('<br>');
+    // help1 перечисляет клавиши, а они правятся: подпись собирается из раскладки
+    el.innerHTML = keys.split(',').map(k => k === 'help1' ? tr(k, ...helpKeys()) : tr(k)).join('<br>');
   }
   for (const [id, key] of [['btnTether', 'btnTether'], ['btnBlink', 'btnBlink'], ['ocBtn', 'ocBtn']]) {
     const el = document.getElementById(id);
@@ -6519,9 +6688,93 @@ function applyHudMode() {
   document.body.classList.toggle('hud-off', SET.hud === 'off');
   elFps.classList.toggle('on', !!SET.fps);
 }
+// Клавиши, что игра держит за собою: ими выбирают сны, закрывают окна и
+// начинают ночь, — отдавать их под правку нельзя.
+const KEY_RESERVED = ['Escape', 'Enter', 'NumpadEnter', 'Digit1', 'Digit2', 'Digit3'];
+const KEY_ORDER = ['up', 'down', 'left', 'right', 'halt', 'tether', 'blink', 'charge'];
+// Подпись под заглавием перечисляет клавиши: движение одною строкою, прочее — порознь.
+function helpKeys() {
+  const mv = ['up', 'left', 'down', 'right'].map(a => keyName(SET.keys[a])).join('');
+  return [mv, keyName(SET.keys.halt), keyName(SET.keys.tether),
+    keyName(SET.keys.blink), keyName(SET.keys.charge)];
+}
+const keyList = document.getElementById('keyList');
+const keyNote = document.getElementById('keyNote');
+let keyWaiting = null; // какое дело ждёт новой клавиши
+function renderKeys() {
+  if (!keyList) return;
+  keyList.innerHTML = '';
+  for (const act of KEY_ORDER) {
+    const b = document.createElement('button');
+    b.className = 'keyrow' + (keyWaiting === act ? ' grab' : '');
+    b.dataset.act = act;
+    const lbl = document.createElement('span');
+    lbl.textContent = tr('act_' + act);
+    const kv = document.createElement('i');
+    kv.textContent = keyWaiting === act ? '…' : keyName(SET.keys[act]);
+    b.append(lbl, kv);
+    keyList.appendChild(b);
+  }
+}
+// Ловля клавиши: занятую другим делом не отнимаем молча, а меняем местами —
+// иначе раскладка легко остаётся с двумя пустыми местами.
+function bindKey(act, code) {
+  if (KEY_RESERVED.includes(code)) {
+    keyNote.textContent = tr('sKeyBusy');
+    return false;
+  }
+  const held = actOf(code);
+  if (held && held !== act) SET.keys[held] = SET.keys[act];
+  SET.keys[act] = code;
+  saveSettings();
+  keyNote.textContent = tr('sKeysHint');
+  return true;
+}
+function startGrab(act) {
+  keyWaiting = act;
+  keyNote.textContent = tr('sKeyWait');
+  keyGrab = e => { // ловец живёт, пока ждём: клавиатуру слушает keydown
+    e.preventDefault();
+    if (e.code !== 'Escape') bindKey(act, e.code);
+    endGrab();
+  };
+  renderKeys();
+}
+function endGrab() {
+  keyWaiting = null; keyGrab = null;
+  for (const st of TUTOR.stops) st.lang = null; // таблички сада зовут клавиши по имени
+  renderKeys(); updateHud(); applyLang();
+}
+if (keyList) {
+  let keyClickGuard = false;
+  keyList.addEventListener('click', e => {
+    const b = e.target.closest('.keyrow'); if (!b) return;
+    e.stopPropagation();
+    if (keyClickGuard) { keyClickGuard = false; return; }
+    if (keyWaiting === b.dataset.act) { endGrab(); return; }
+    startGrab(b.dataset.act);
+  });
+  // Кнопки мыши ловятся нажатием, а не кликом: клик приходит уже после и его
+  // приходится гасить, иначе он тут же начал бы новую ловлю на той же строке.
+  setPanel.addEventListener('pointerdown', e => {
+    if (!keyWaiting || e.pointerType !== 'mouse') return;
+    if (e.button !== 0 && e.button !== 2) return;
+    e.preventDefault();
+    keyClickGuard = !!(e.target.closest && e.target.closest('.keyrow'));
+    bindKey(keyWaiting, 'Mouse' + e.button);
+    endGrab();
+  }, true);
+  document.getElementById('keyReset').addEventListener('click', e => {
+    e.stopPropagation();
+    SET.keys = Object.assign({}, DEFAULT_KEYS);
+    saveSettings(); endGrab();
+  });
+}
+
 function syncSetUI() {
   for (const [id, val] of [['segLang', LANG], ['segQual', SET.quality], ['segHud', SET.hud],
-    ['segSide', SET.touchSide], ['segFps', SET.fps ? 'on' : 'off']])
+    ['segSide', SET.touchSide], ['segFps', SET.fps ? 'on' : 'off'],
+    ['segSteer', SET.steer], ['segText', SET.text ? 'on' : 'off']])
     for (const b of document.querySelectorAll('#' + id + ' button'))
       b.classList.toggle('on', b.dataset.v === val);
   for (const [rid, vid, val] of [['rngVol', 'valVol', SET.vol], ['rngMusic', 'valMusic', SET.music],
@@ -6533,6 +6786,7 @@ function syncSetUI() {
   document.getElementById('valJoy').textContent = SET.joyR;
   for (const b of document.querySelectorAll('#segJoyShow button'))
     b.classList.toggle('on', b.dataset.v === (SET.joyShow ? 'on' : 'off'));
+  renderKeys();
 }
 function applySettings() {
   applyLang(); applyAudioSet(); applyQuality(); applyHudMode(); applyTouch(); syncSetUI();
@@ -6549,6 +6803,7 @@ function openSettings() {
   setPanel.classList.remove('hidden');
 }
 function closeSettings() {
+  if (keyWaiting) endGrab();
   setPanel.classList.add('hidden');
   if (pausedBySettings) {
     pausedBySettings = false; S.paused = false;
@@ -6582,6 +6837,14 @@ document.getElementById('segFps').addEventListener('click', e => {
 document.getElementById('segJoyShow').addEventListener('click', e => {
   const b = e.target.closest('button'); if (!b) return;
   SET.joyShow = b.dataset.v === 'on'; saveSettings(); syncSetUI();
+});
+document.getElementById('segSteer').addEventListener('click', e => {
+  const b = e.target.closest('button'); if (!b) return;
+  SET.steer = b.dataset.v; saveSettings(); syncSetUI();
+});
+document.getElementById('segText').addEventListener('click', e => {
+  const b = e.target.closest('button'); if (!b) return;
+  SET.text = b.dataset.v === 'on'; saveSettings(); syncSetUI();
 });
 document.getElementById('segSide').addEventListener('click', e => {
   const b = e.target.closest('button'); if (!b) return;
