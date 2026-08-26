@@ -69,6 +69,8 @@ const TXT = {
   ru: {
     // — надписи мира —
     bossComes: 'корабль-кошмар идёт по небу',
+    bossWhale: 'левиафан бессонницы всплывает из глуби',
+    bossWhaleEat: 'левиафан глотает мысли',
     bossFled: 'рассвет прогнал корабль-кошмар',
     tether: 'нить натянута надёжно',
     hintTether: 'корабль близко — брось нить: она вяжет и жжёт ночь',
@@ -111,6 +113,7 @@ const TXT = {
     wakeLabel: 'бодрость',
     ocBtn: 'заряд',
     bossName: 'корабль-кошмар',
+    bossNameWhale: 'левиафан бессонницы',
     distK: 'к',
     // — экраны —
     titleBig: 'бесконечная\u00a0ночь',
@@ -193,6 +196,8 @@ const TXT = {
   },
   en: {
     bossComes: 'the nightmare ship sails the sky',
+    bossWhale: 'the leviathan of sleeplessness rises from the deep',
+    bossWhaleEat: 'the leviathan swallows thoughts',
     bossFled: 'dawn drove the nightmare ship away',
     tether: 'the thread is drawn taut',
     hintTether: 'a ship is near — cast the thread: it snares and burns the night',
@@ -233,6 +238,7 @@ const TXT = {
     wakeLabel: 'wakefulness',
     ocBtn: 'charge',
     bossName: 'the nightmare ship',
+    bossNameWhale: 'the leviathan',
     distK: 'k',
     titleBig: 'endless\u00a0night',
     titleSub: 'a roguelike about a wisp that cannot sleep',
@@ -466,8 +472,8 @@ const PH = {
 };
 // фраза, что мыслями не ловится вовсе, — её добывают делом
 const DEEDS = {
-  ru: ['КОРАБЛЬ-КОШМАР ПОШЁЛ КО ДНУ'],
-  en: ['THE NIGHTMARE SHIP HAS GONE DOWN'],
+  ru: ['КОРАБЛЬ-КОШМАР ПОШЁЛ КО ДНУ', 'ЛЕВИАФАН УСНУЛ НАВЕКИ'],
+  en: ['THE NIGHTMARE SHIP HAS GONE DOWN', 'THE LEVIATHAN SLEEPS FOREVER'],
 };
 function phrases() { return PH[LANG] || PH.ru; }
 function deeds() { return DEEDS[LANG] || DEEDS.ru; }
@@ -1765,7 +1771,8 @@ const WAVE = { n: 0, timer: 40, active: false, left: 0, spawnT: 0, theme: null }
 // корабль-кошмар: всякая пятая ночь приводит его из-за края неба
 let boss = null, anchors = [];
 const BOSS_S = 2.4;                     // во сколько крат он больше доброго корабля
-function bossLamp(b) {                  // фонарь-сердце на носу — единственное уязвимое место
+function bossLamp(b) {                  // уязвимое место: фонарь на носу либо глаз левиафана
+  if (b.kind === 'whale') return { x: b.x + b.dir * -52 * BOSS_S, y: b.y - 12 * BOSS_S };
   return { x: b.x + b.dir * 100 * BOSS_S, y: b.y - 14 * BOSS_S };
 }
 
@@ -1878,24 +1885,101 @@ function pickEnemyType() {
   return 'nm';
 }
 // ---------- корабль-кошмар ----------
-function spawnBoss() {
+function spawnBoss(kindWish) {
   const p = spawnRing(viewR() + 260, viewR() + 420);
-  const hp = 12 + Math.floor(RUN.night / 5) * 3;
+  // всякая десятая ночь из глуби подымается левиафан, прочие пятые — корабль
+  const kind = kindWish || (RUN.night % 10 === 0 ? 'whale' : 'ship');
+  const hp = kind === 'whale' ? 14 + Math.floor(RUN.night / 10) * 4 : 12 + Math.floor(RUN.night / 5) * 3;
   boss = {
-    x: p.x, y: p.y, vx: 0, vy: 0, dir: p.x > io.x ? -1 : 1,
-    hp, hpMax: hp, st: 'sail', stT: 6, cycle: 0,
+    kind, x: p.x, y: p.y, vx: 0, vy: 0, dir: p.x > io.x ? -1 : 1,
+    hp, hpMax: hp, st: kind === 'whale' ? 'deep' : 'sail', stT: kind === 'whale' ? 4 : 6, cycle: 0,
     bob: rand(TAU), seed: rand(TAU), open: 0, flashT: 0,
-    dropT: 2, volley: 0, volleyT: 0,
+    dropT: 2, volley: 0, volleyT: 0, tx: 0, ty: 0, circ: rand(TAU), eaten: 0,
   };
-  spawnText(io.x, io.y - 130, tr('bossComes'), true);
+  document.getElementById('bossNameEl').textContent = tr(kind === 'whale' ? 'bossNameWhale' : 'bossName');
+  spawnText(io.x, io.y - 130, tr(kind === 'whale' ? 'bossWhale' : 'bossComes'), true);
   sfxRiser();
   S.glitch = Math.max(S.glitch, 0.7);
   S.shake = Math.max(S.shake, 0.5);
   bossHud.classList.add('on');
 }
 
+function updateWhaleBoss(b, dt) {
+  b.bob += dt;
+  b.flashT = Math.max(0, b.flashT - dt);
+  b.stT -= dt;
+  const eye = bossLamp(b);
+
+  if (b.st === 'deep') {
+    // тень кружит поодаль под плёнкою ночи — неуязвим и не вредит
+    b.circ += dt * 0.55;
+    const tx = io.x + Math.cos(b.circ) * 470, ty = io.y + Math.sin(b.circ) * 310;
+    const dx = tx - b.x, dy = ty - b.y, dd = hyp(dx, dy) || 1;
+    b.vx += (dx / dd * 230 - b.vx) * dt * 1.2;
+    b.vy += (dy / dd * 230 - b.vy) * dt * 1.2;
+    if (b.stT <= 0) {
+      b.st = 'aim'; b.stT = 1.25;
+      // метит с упреждением — стоять на месте безопаснее, чем удирать по прямой
+      b.tx = io.x + io.vx * 0.75; b.ty = io.y + io.vy * 0.75;
+      sfxZap(b.x);
+    }
+  } else if (b.st === 'aim') {
+    const dx = b.tx - b.x, dy = b.ty - b.y, dd = hyp(dx, dy) || 1;
+    b.vx += (dx / dd * 900 - b.vx) * dt * 3;
+    b.vy += (dy / dd * 900 - b.vy) * dt * 3;
+    if (b.stT <= 0 || dd < 60) {
+      b.x = b.tx; b.y = b.ty; b.vx *= 0.1; b.vy *= 0.1;
+      burst(b.tx, b.ty, [1, 0.5, 0.45], 40, 420);
+      S.shake = Math.max(S.shake, 0.7);
+      sfxCrash();
+      if (hyp((io.x - b.tx) / 1.6, io.y - b.ty) < 150) damageIo(26, b.tx, b.ty);
+      // глотает мысли окрест — оттого голоднее становится сама ночь
+      let ate = 0;
+      for (let i = motes.length - 1; i >= 0; i--) {
+        const m = motes[i];
+        if (hyp(m.x - b.tx, m.y - b.ty) < 300) { freeMote(m); motes.splice(i, 1); ate++; }
+      }
+      b.eaten += ate;
+      if (ate > 0) spawnText(b.tx, b.ty - 110, tr('bossWhaleEat'), true);
+      b.st = 'surfaced'; b.stT = 3.4;
+    }
+  } else { // 'surfaced' — глаз открыт: бей, покуда глядит
+    b.open = Math.min(1, b.open + dt * 2.5);
+    b.vx *= 0.92; b.vy *= 0.92;
+    if (hyp((io.x - b.x) / 3, io.y - b.y) < 60) damageIo(20, b.x, b.y);
+    if (b.stT <= 0) {
+      b.cycle++;
+      if (b.cycle % 2 === 0 && enemies.length < 20) spawnEnemy('moth', b.x, b.y, false);
+      b.st = 'deep'; b.stT = rand(3.5, 5);
+    }
+  }
+  if (b.st !== 'surfaced') b.open = Math.max(0, b.open - dt * 3);
+
+  b.x += b.vx * dt; b.y += b.vy * dt;
+  if (Math.abs(b.vx) > 18) b.dir = b.vx < 0 ? -1 : 1;
+
+  // искры разбивают глаз, покуда он открыт
+  if (b.open > 0.5) {
+    const orbR = RUN.orbitR * (io.oc ? 1.6 : 1);
+    for (const sp of io.spirits) {
+      if (sp.cd > 0) continue;
+      const sx = io.x + Math.cos(sp.ang) * orbR, sy = io.y + Math.sin(sp.ang) * orbR * 0.82;
+      if (hyp(sx - eye.x, sy - eye.y) < 34) {
+        sp.cd = 1.6 * RUN.sparkCdMul;
+        b.hp--; b.flashT = 0.25;
+        burst(eye.x, eye.y, [1, 0.6, 0.5], 16, 260);
+        sfxKill(b.x);
+        S.shake = Math.max(S.shake, 0.2);
+        if (b.hp <= 0) { killBoss(); return; }
+        break;
+      }
+    }
+  }
+}
+
 function updateBoss(dt) {
   const b = boss;
+  if (b.kind === 'whale') { updateWhaleBoss(b, dt); return; }
   b.bob += dt;
   b.flashT = Math.max(0, b.flashT - dt);
   b.stT -= dt;
@@ -1976,13 +2060,16 @@ function killBoss() {
   burst(b.x, b.y, [1, 0.8, 0.5], 70, 520);
   burst(b.x, b.y, [0.7, 0.4, 1], 50, 420);
   sfxCrash(); sfxChoice();
-  for (let i = 0; i < 12; i++) spawnMoteAt(b.x + rand(-220, 220), b.y + rand(-140, 140), 26);
+  // левиафан возвращает проглоченное — сверх обычной добычи
+  const loot = 12 + Math.min(10, b.eaten || 0);
+  for (let i = 0; i < loot; i++) spawnMoteAt(b.x + rand(-220, 220), b.y + rand(-140, 140), 26);
   for (let i = 0; i < 2; i++) {
     const p = spawnRing(160, 420);
     stars.push({ x: p.x, y: p.y, t: 0, life: 16, seed: rand(TAU) });
   }
-  if (catchKey(phraseKey(5, 0))) RUN.newStars++;
-  spawnText(b.x, b.y - 90, deeds()[0], true);
+  const di = b.kind === 'whale' ? 1 : 0; // каждому чудищу — свой подвиг на небе
+  if (catchKey(phraseKey(5, di))) RUN.newStars++;
+  spawnText(b.x, b.y - 90, deeds()[di], true);
   RUN.xp += RUN.xpNext - RUN.xp; // добыча стоит целой степени
   levelUp();
 }
@@ -3847,7 +3934,60 @@ function drawShip(sh, P, pal, tm) {
   sc.globalCompositeOperation = 'source-over';
 }
 
+function drawWhaleBoss(b, P, pal, tm) {
+  const s = BOSS_S * P.k, d = b.dir;
+  const deep = b.st === 'deep' || b.st === 'aim';
+  // метка прыжка: сжимающийся штриховой круг — единственное честное предупреждение
+  if (b.st === 'aim') {
+    const wp = proj(b.tx, b.ty);
+    const k = Math.max(0, b.stT / 1.25);
+    sc.globalCompositeOperation = 'lighter';
+    sc.strokeStyle = css3([1, 0.5, 0.45], 0.5 * (1 - k * 0.4));
+    sc.lineWidth = 1.6;
+    sc.setLineDash([4, 10]);
+    sc.beginPath();
+    sc.ellipse(wp.x, wp.y, (60 + 240 * k) * wp.k, (60 + 240 * k) * wp.k * view.tilt, 0, 0, TAU);
+    sc.stroke();
+    sc.setLineDash([]);
+    sc.globalCompositeOperation = 'source-over';
+  }
+  sc.save();
+  sc.translate(P.x, P.y);
+  sc.globalAlpha = deep ? 0.3 : 1;
+  sc.globalCompositeOperation = 'lighter';
+  sc.scale(d * s, s);
+  sc.rotate(Math.sin(b.bob * 0.4) * 0.03);
+  // остов — то же созвездие, что у доброго кита, да выпитое до угольев
+  sc.strokeStyle = css3([0.75, 0.35, 0.9], deep ? 0.5 : 0.4);
+  sc.lineWidth = 1.1;
+  for (const e of WHALE_EDGES) {
+    sc.beginPath();
+    sc.moveTo(WHALE_PTS[e[0]][0], WHALE_PTS[e[0]][1]);
+    sc.lineTo(WHALE_PTS[e[1]][0], WHALE_PTS[e[1]][1]);
+    sc.stroke();
+  }
+  sc.fillStyle = b.flashT > 0 ? 'rgba(255,255,255,.95)' : 'rgba(255,150,140,.9)';
+  for (let i = 0; i < WHALE_PTS.length; i++) {
+    const tw = 0.6 + 0.4 * Math.sin(tm * 2 + i * 1.9 + b.seed);
+    sc.beginPath();
+    sc.arc(WHALE_PTS[i][0], WHALE_PTS[i][1], 1.3 + tw, 0, TAU);
+    sc.fill();
+  }
+  // глаз: закрыт — тлеет, открыт — глядит и уязвим
+  const ember = [1, 0.55, 0.5];
+  if (b.open > 0.05) {
+    tintGlow(-52, -12, (10 + b.open * 16), [1, 0.9, 0.7], 0.3 + b.open * 0.5);
+    sc.fillStyle = 'rgba(255,244,220,.95)';
+    sc.beginPath(); sc.arc(-52, -12, 1.6 + b.open * 1.6, 0, TAU); sc.fill();
+  } else tintGlow(-52, -12, 8, ember, 0.25);
+  tintGlow(0, 0, 70, ember, deep ? 0.06 : 0.12);
+  sc.globalCompositeOperation = 'source-over';
+  sc.globalAlpha = 1;
+  sc.restore();
+}
+
 function drawBoss(b, P, pal, tm) {
+  if (b.kind === 'whale') { drawWhaleBoss(b, P, pal, tm); return; }
   const s = BOSS_S * P.k, d = b.dir;
   const rim = css3([0.75, 0.35, 0.9], 0.75);
   // поле фонаря — круг, в котором тает бодрость
@@ -5229,11 +5369,12 @@ requestAnimationFrame(frame);
       if (q.get('lvl')) levelUp();
       if (q.get('wave')) { WAVE.timer = 0.5; S.playT = Math.max(S.playT, 26); }
       if (q.get('boss')) {
-        spawnBoss();
-        boss.x = io.x + 340; boss.y = io.y - 60; boss.dir = -1;
         const bst = q.get('boss');
+        spawnBoss(bst === 'whale' || bst === 'surfaced' ? 'whale' : undefined);
+        boss.x = io.x + 340; boss.y = io.y - 60; boss.dir = -1;
         if (bst === 'lantern') { boss.st = 'lantern'; boss.stT = 30; boss.open = 1; }
         if (bst === 'volley') { boss.st = 'volley'; boss.stT = 30; boss.volley = 3; boss.volleyT = 0.2; }
+        if (bst === 'surfaced') { boss.st = 'surfaced'; boss.stT = 30; boss.open = 1; }
       }
     }, 800);
   }
