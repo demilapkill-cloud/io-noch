@@ -42,7 +42,7 @@ function css3(c, a = 1) {
 const DEFAULT_SET = {
   lang: 'ru', vol: 85, music: 100, sfx: 100,
   quality: 'auto', shake: 100, fx: 100, hud: 'full', fps: false,
-  touchSide: 'right', joyR: 78, joyShow: false,
+  touchSide: 'right', joyR: 78, joyShow: false, visuals: { trail: 'default', shell: 'default', spirits: 'default' },
 };
 let SET = loadSettings();
 let LANG = SET.lang;
@@ -1283,6 +1283,77 @@ function renderMeta() {
   });
 }
 
+
+// ---------- Созвездия (Испытания и Визуал) ----------
+const C_THEMES = {
+  storm: { name: { ru: 'Буря', en: 'The Storm' }, rewardType: 'shell', rewardId: 'storm_shell', rewardName: { ru: 'Штормовая оболочка (янтарная)', en: 'Storm Shell (Amber)' } },
+  ships: { name: { ru: 'Корабли', en: 'Ships' }, rewardType: 'spirits', rewardId: 'ship_spirits', rewardName: { ru: 'Спириты-кометы', en: 'Comet Spirits' } },
+  tether: { name: { ru: 'Нить', en: 'The Thread' }, rewardType: 'trail', rewardId: 'tether_trail', rewardName: { ru: 'Огненный след', en: 'Fiery Trail' } },
+  night: { name: { ru: 'Глубокие ночи', en: 'Deep Nights' }, rewardType: 'shell', rewardId: 'night_shell', rewardName: { ru: 'Полуночная оболочка', en: 'Midnight Shell' } }
+};
+
+const CHALLENGES = [
+  // Буря
+  { id: 'c_storm_1', theme: 'storm', desc: { ru: 'Пережить первый шторм', en: 'Survive the first storm' } },
+  { id: 'c_storm_2', theme: 'storm', desc: { ru: 'Пережить шторм без урона', en: 'Survive a storm unharmed' } },
+  { id: 'c_storm_3', theme: 'storm', desc: { ru: 'Собрать 20 мыслей в шторм', en: 'Catch 20 thoughts in a storm' } },
+  { id: 'c_storm_4', theme: 'storm', desc: { ru: 'Рассеять 10 врагов в шторм', en: 'Scatter 10 enemies in a storm' } },
+  // Корабли
+  { id: 'c_ships_1', theme: 'ships', desc: { ru: 'Потопить корабль-кошмар', en: 'Sink the nightmare ship' } },
+  { id: 'c_ships_2', theme: 'ships', desc: { ru: 'Отвязаться за секунду до дыры', en: 'Release a second before the void' } },
+  { id: 'c_ships_3', theme: 'ships', desc: { ru: 'Привязаться к 5 кораблям за ночь', en: 'Tether to 5 ships in one night' } },
+  { id: 'c_ships_4', theme: 'ships', desc: { ru: 'Уклониться от залпа якорей', en: 'Dodge an anchor volley' } },
+  // Нить
+  { id: 'c_tether_1', theme: 'tether', desc: { ru: 'Сжечь нитью 5 врагов разом', en: 'Burn 5 enemies at once with thread' } },
+  { id: 'c_tether_2', theme: 'tether', desc: { ru: 'Сжечь 20 врагов нитью за ночь', en: 'Burn 20 enemies with thread in one night' } },
+  { id: 'c_tether_3', theme: 'tether', desc: { ru: 'Порвать нить (до упора)', en: 'Snap the thread by force' } },
+  { id: 'c_tether_4', theme: 'tether', desc: { ru: 'Убить тёмного двойника нитью', en: 'Slay the dark twin with thread' } },
+  // Ночи
+  { id: 'c_night_1', theme: 'night', desc: { ru: 'Дожить до 4-й ночи', en: 'Reach the 4th night' } },
+  { id: 'c_night_2', theme: 'night', desc: { ru: 'Дожить до 8-й ночи', en: 'Reach the 8th night' } },
+  { id: 'c_night_3', theme: 'night', desc: { ru: 'Дожить до 12-й ночи', en: 'Reach the 12th night' } },
+  { id: 'c_night_4', theme: 'night', desc: { ru: 'Собрать 100 мыслей за забег', en: 'Catch 100 thoughts in one run' } }
+];
+
+let STARS_DATA = loadStars();
+function loadStars() {
+  let raw;
+  try { raw = JSON.parse(localStorage.getItem('io-noch-stars')) || { completed: [] }; }
+  catch (_) { raw = { completed: [] }; }
+  
+  // Migration
+  let oldSky = [];
+  try { oldSky = JSON.parse(localStorage.getItem('io-noch-sky')) || []; } catch (_) {}
+  if (oldSky.length > 0) {
+    META.thoughts += oldSky.length * 15;
+    saveMeta();
+    localStorage.removeItem('io-noch-sky');
+  }
+  return raw;
+}
+function saveStars() {
+  localStorage.setItem('io-noch-stars', JSON.stringify(STARS_DATA));
+}
+function unlockChallenge(id) {
+  if (STARS_DATA.completed.includes(id)) return;
+  STARS_DATA.completed.push(id);
+  saveStars();
+  spawnText(io.x, io.y - 140, LANG === 'en' ? 'New star lit in the Constellation!' : 'Новая звезда зажглась в созвездии!', true);
+  sfxChoice();
+}
+function checkThemeCompleted(themeId) {
+  const req = CHALLENGES.filter(c => c.theme === themeId).length;
+  const have = CHALLENGES.filter(c => c.theme === themeId && STARS_DATA.completed.includes(c.id)).length;
+  return have >= req;
+}
+
+// Stats tracking for challenges
+let CH_STATS = {
+  stormDmg: 0, stormThoughts: 0, stormKills: 0,
+  shipsTethered: new Set(), anchorDodged: false,
+  tetherKillsCombo: 0, tetherKillsNight: 0
+};
+
 // ---------- созвездие пойманных фраз (память между бессонницами) ----------
 // всякая пойманная впервые фраза остаётся звездою на небе игрока навсегда;
 // чем полнее созвездие, тем с бо́льшим наследством начинается новая ночь.
@@ -1806,7 +1877,7 @@ function killBoss() {
   const b = boss;
   boss = null; anchors = [];
   bossHud.classList.remove('on');
-  RUN.bosses++;
+  RUN.bosses++; unlockChallenge('c_ships_1');
   S.bossDone = true;
   S.shake = 1; S.glitch = 0.8;
   burst(b.x, b.y, [1, 0.8, 0.5], 70, 520);
@@ -2081,6 +2152,10 @@ function toggleTether() {
   const best = S.reachShip || shipInReach();
   if (best) {
     io.tether = best;
+    if (playing) {
+      CH_STATS.shipsTethered.add(best);
+      if (CH_STATS.shipsTethered.size >= 5) unlockChallenge('c_ships_3');
+    }
     best.cargoT = 1.2;
     sfxWind();
     spawnText(best.x, best.y - 70 * best.scl, tr('tether'));
@@ -2151,6 +2226,10 @@ function killEnemy(i) {
   const e = enemies[i];
   freeEnemy(enemies.splice(i, 1)[0]);
   RUN.kills++;
+  if (isStormNight()) {
+    CH_STATS.stormKills++;
+    if (CH_STATS.stormKills >= 10) unlockChallenge('c_storm_4');
+  }
   burst(e.x, e.y, COL_KILL, 18, 260);
   sfxKill(e.x);
   if (e.type === 'eater' && e.eaten > 0) {
@@ -2165,6 +2244,7 @@ function damageIo(dmg, srcX, srcY) {
   let mul = RUN.dmgMul;
   if (RUN.stormHeart && isStormNight()) mul *= 0.5;
   RUN.wake -= dmg * mul;
+  if (isStormNight()) CH_STATS.stormDmg += dmg * mul;
   S.hurtT = 1.1; S.shake = Math.max(S.shake, 0.7); S.glitch = Math.max(S.glitch, 0.6);
   S.combo = 0;
   sfxHurt();
@@ -2196,6 +2276,17 @@ function update(dt) {
     if (S.t >= 1) { // ночь перетекает в следующую без остановки
       S.t -= 1;
       RUN.night++;
+      if (RUN.night === 4) unlockChallenge('c_night_1');
+      if (RUN.night === 8) unlockChallenge('c_night_2');
+      if (RUN.night === 12) unlockChallenge('c_night_3');
+      if (RUN.night > 1 && (RUN.night - 1) % 3 === 0) {
+        unlockChallenge('c_storm_1');
+        if (CH_STATS.stormDmg === 0) unlockChallenge('c_storm_2');
+        CH_STATS.stormDmg = 0; CH_STATS.stormThoughts = 0; CH_STATS.stormKills = 0;
+      }
+      CH_STATS.tetherKillsNight = 0;
+      CH_STATS.shipsTethered.clear();
+      
       S.stormFired = false; S.dawnFired = false; S.bossDone = false;
       audioNight();
       spawnText(io.x, io.y - 100, tr('nightText', RUN.night, isStormNight()), true);
@@ -2342,7 +2433,7 @@ function update(dt) {
         const pull = Math.min(1, over * 2.6) * 2000;
         io.vx -= dx2 / d2 * pull * dt;
         io.vy -= dy2 / d2 * pull * dt;
-        if (d2 > TETHER_LEASH * 1.5) releaseTether(true);
+        if (d2 > TETHER_LEASH * 1.5) { releaseTether(true); unlockChallenge('c_tether_3'); }
       } else S.strain = 0;
     } else S.strain = 0;
     RUN.dist += spd * dt;
@@ -2487,6 +2578,7 @@ function update(dt) {
         if (sh.bh <= 3 && Math.random() < dt * 4) spawnMoteAt(sh.x + rand(-30, 30), sh.y + rand(-30, 30), 10);
         if (sh.bh <= 0) {
           if (io.tether === sh) die('blackhole');
+          else if (sh.bh <= 1.2 && io.tether === null) unlockChallenge('c_ships_2');
           ships.splice(i, 1);
           burst(sh.x, sh.y, [0.1, 0.1, 0.2], 40, 500);
           sfxCrash();
@@ -2539,6 +2631,7 @@ function update(dt) {
           e.threadT = 0; e.hp--; e.flashT = 0.25;
           burst(e.x, e.y, IO_COL, 12, 220); sfxKill(e.x);
           if (e.hp <= 0) {
+            unlockChallenge('c_tether_4');
             freeEnemy(enemies.splice(i, 1)[0]); RUN.kills++;
             for (let k3 = 0; k3 < 4; k3++) spawnMoteAt(e.x + rand(-40, 40), e.y + rand(-40, 40), 20);
             RUN.xp += 2;
@@ -2970,6 +3063,11 @@ function updateEnemy(e, dt) {
 
 function collectMote(m) {
   RUN.thoughts++;
+  if (RUN.thoughts >= 100) unlockChallenge('c_night_4');
+  if (isStormNight()) {
+    CH_STATS.stormThoughts++;
+    if (CH_STATS.stormThoughts >= 20) unlockChallenge('c_storm_3');
+  }
   // мысли у разломов ценнее: +1 опыта, а с даром — двойное лечение
   const nearRift = zoneAt(m.x, m.y, 'rift');
   let heal = (4 + RUN.healBonus) * (nearRift && RUN.riftGift ? 2 : 1);
