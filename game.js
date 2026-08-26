@@ -145,6 +145,27 @@ const TXT = {
     mMeta: 'шкатулка',
     mSkins: 'облики',
     mTutor: 'обучение',
+    mBoard: 'летопись',
+    bd_head: 'летопись бессонниц',
+    bd_world: n => 'мировая доска · ' + n,
+    bd_local: 'летопись здешняя: мировая молчит, покуда не указан её адрес в настройках',
+    bd_off: 'мировой летописи не указано — сохраняются лишь твои забеги',
+    bd_login: 'войти',
+    bd_reg: 'завести имя',
+    bd_out: 'выйти',
+    bd_name_ph: 'имя',
+    bd_pass_ph: 'пропуск',
+    bd_col_place: '№', bd_col_name: 'имя', bd_col_nights: 'ночей', bd_col_thoughts: 'мыслей',
+    bd_empty: 'летопись пуста — первая бессонница станет первой строкою',
+    bd_wait: 'летопись читается…',
+    bd_fail: 'летопись не отозвалась',
+    bd_hi: n => 'здравствуй, ' + n,
+    bd_sent: n => 'записано в летопись · место ' + n,
+    bd_sent_no: 'записано; прежний забег был лучше',
+    bd_guest: 'играешь без имени — забег останется при тебе',
+    bd_you: 'ты',
+    sBoard: 'адрес летописи',
+    sBoardHint: 'пусто — мировой доски нет, лишь свои забеги',
     wd_head: 'облики ночи',
     wd_sub: 'краса, добытая созвездиями · на силу не влияет ничуть',
     wd_count: (n, t) => 'добыто ' + n + ' из ' + t,
@@ -292,6 +313,27 @@ const TXT = {
     mMeta: 'casket',
     mSkins: 'guises',
     mTutor: 'how to play',
+    mBoard: 'chronicle',
+    bd_head: 'chronicle of sleepless nights',
+    bd_world: n => 'world board · ' + n,
+    bd_local: 'a local chronicle: the world board stays silent until its address is set in the settings',
+    bd_off: 'no world chronicle is set — only your own runs are kept',
+    bd_login: 'enter',
+    bd_reg: 'take a name',
+    bd_out: 'leave',
+    bd_name_ph: 'name',
+    bd_pass_ph: 'pass',
+    bd_col_place: '#', bd_col_name: 'name', bd_col_nights: 'nights', bd_col_thoughts: 'thoughts',
+    bd_empty: 'the chronicle is empty — the first sleepless night will be its first line',
+    bd_wait: 'reading the chronicle…',
+    bd_fail: 'the chronicle did not answer',
+    bd_hi: n => 'welcome, ' + n,
+    bd_sent: n => 'written into the chronicle · place ' + n,
+    bd_sent_no: 'written; an earlier run was better',
+    bd_guest: 'you play without a name — the run stays with you',
+    bd_you: 'you',
+    sBoard: 'chronicle address',
+    sBoardHint: 'empty — no world board, only your own runs',
     wd_head: 'guises of the night',
     wd_sub: 'beauty earned by constellations · never touches your strength',
     wd_count: (n, t) => n + ' of ' + t + ' earned',
@@ -441,6 +483,27 @@ const TXT = {
     mMeta: 'schatulle',
     mSkins: 'gewänder',
     mTutor: 'anleitung',
+    mBoard: 'chronik',
+    bd_head: 'chronik der schlaflosen nächte',
+    bd_world: n => 'welttafel · ' + n,
+    bd_local: 'eine hiesige chronik: die welttafel schweigt, bis ihre adresse in den einstellungen steht',
+    bd_off: 'keine weltchronik angegeben — nur deine eigenen läufe bleiben',
+    bd_login: 'eintreten',
+    bd_reg: 'namen nehmen',
+    bd_out: 'hinausgehen',
+    bd_name_ph: 'name',
+    bd_pass_ph: 'losung',
+    bd_col_place: '№', bd_col_name: 'name', bd_col_nights: 'nächte', bd_col_thoughts: 'gedanken',
+    bd_empty: 'die chronik ist leer — die erste schlaflose nacht wird ihre erste zeile',
+    bd_wait: 'die chronik wird gelesen…',
+    bd_fail: 'die chronik antwortete nicht',
+    bd_hi: n => 'sei gegrüßt, ' + n,
+    bd_sent: n => 'in die chronik geschrieben · platz ' + n,
+    bd_sent_no: 'geschrieben; ein früherer lauf war besser',
+    bd_guest: 'du spielst ohne namen — der lauf bleibt bei dir',
+    bd_you: 'du',
+    sBoard: 'adresse der chronik',
+    sBoardHint: 'leer — keine welttafel, nur eigene läufe',
     wd_head: 'gewänder der nacht',
     wd_sub: 'zier aus sternbildern · an deiner kraft ändert sie nichts',
     wd_count: (n, t) => n + ' von ' + t + ' errungen',
@@ -6149,6 +6212,10 @@ function die(cause) {
   saveBest(RUN.night, RUN.thoughts);
   META.thoughts += RUN.thoughts;
   saveMeta();
+  if (!TUTOR.on) boardSubmit({ // сад обучения летописи не касается вовсе
+    nights: RUN.night, thoughts: RUN.thoughts, time: Math.round(S.playT),
+    kills: RUN.kills, level: RUN.level,
+  });
   document.getElementById('deathNight').textContent = tr('deathNight', RUN.night, plural(RUN.night));
   endSeq++;
   endLive = buildSheet(cause);
@@ -6163,6 +6230,184 @@ function die(cause) {
 deathScreen.addEventListener('pointerdown', e => {
   if (e.target.closest('.end-btn')) return;
   endFinish();
+});
+
+
+// ============================================================
+// ЛЕТОПИСЬ БЕССОННИЦ: имя, пропуск и мировая доска
+// ============================================================
+// Заводить имя необязательно вовсе: без него игра идёт как шла, а забеги
+// ложатся в здешнюю летопись — она живёт в самом браузере и никуда не ходит.
+// Указан адрес мировой доски — забеги отсылаются туда и становятся вровень с
+// чужими. Адрес правится в настройках (или ключом io-noch-board, или ?board=).
+// Сам сервер — в папке server: один файл на node либо воркер Cloudflare.
+//
+// Мера честности здесь простая, как в подобных играх: клиент шлёт свой итог,
+// и подделать его при желании можно. Летопись эта — доброе слово, не присяга.
+const BOARD = { url: '', acc: null, rows: null, state: 'idle', msg: '', bad: false };
+
+function boardLoad() {
+  try {
+    BOARD.url = (localStorage.getItem('io-noch-board') || '').trim();
+    BOARD.acc = JSON.parse(localStorage.getItem('io-noch-acc') || 'null');
+  } catch (_) { BOARD.url = ''; BOARD.acc = null; }
+  try { BOARD.local = JSON.parse(localStorage.getItem('io-noch-runs') || '[]'); } catch (_) { BOARD.local = []; }
+  if (!Array.isArray(BOARD.local)) BOARD.local = [];
+}
+function boardSaveAcc() {
+  try {
+    if (BOARD.acc) localStorage.setItem('io-noch-acc', JSON.stringify(BOARD.acc));
+    else localStorage.removeItem('io-noch-acc');
+  } catch (_) {}
+}
+function boardSaveUrl(u) {
+  BOARD.url = (u || '').trim().replace(/\/+$/, '');
+  try {
+    if (BOARD.url) localStorage.setItem('io-noch-board', BOARD.url);
+    else localStorage.removeItem('io-noch-board');
+  } catch (_) {}
+}
+// Здешняя летопись хранит десяток лучших забегов — чтобы и без сервера
+// было на что смотреть и с чем себя сравнивать.
+function boardKeepLocal(run) {
+  BOARD.local.push(run);
+  BOARD.local.sort((a, b) => (b.nights - a.nights) || (b.thoughts - a.thoughts) || (b.time - a.time));
+  BOARD.local = BOARD.local.slice(0, 10);
+  try { localStorage.setItem('io-noch-runs', JSON.stringify(BOARD.local)); } catch (_) {}
+}
+
+async function boardFetch(path, body) {
+  if (!BOARD.url) throw new Error('no-url');
+  const opt = body
+    ? { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(body) }
+    : { method: 'GET' };
+  const res = await fetch(BOARD.url + path, opt);
+  let data = {};
+  try { data = await res.json(); } catch (_) {}
+  if (!res.ok) throw new Error(data.error || ('код ' + res.status));
+  return data;
+}
+
+// Итог забега уходит в летопись сам собою — но лишь коли имя заведено.
+// Без имени забег всё равно ложится в здешнюю: своё при себе остаётся всегда.
+function boardSubmit(run) {
+  boardKeepLocal(run);
+  if (!BOARD.url || !BOARD.acc) return;
+  boardFetch('/api/score', Object.assign({ token: BOARD.acc.token }, run))
+    .then(d => {
+      BOARD.rows = d.rows || BOARD.rows;
+      BOARD.msg = d.best && d.rank ? tr('bd_sent', d.rank) : tr('bd_sent_no');
+      BOARD.bad = false;
+      if (!boardScreen.classList.contains('hidden')) renderBoard();
+    })
+    .catch(err => { // сеть могла и не отозваться — забег уже сохранён у себя
+      if (err.message === 'войди прежде') { BOARD.acc = null; boardSaveAcc(); }
+      BOARD.msg = tr('bd_fail'); BOARD.bad = true;
+    });
+}
+
+const boardScreen = document.getElementById('boardScreen');
+const bdList = document.getElementById('bdList');
+const bdMsg = document.getElementById('bdMsg');
+const bdName = document.getElementById('bdName');
+const bdPass = document.getElementById('bdPass');
+const bdForm = document.getElementById('bdForm');
+const bdWho = document.getElementById('bdWho');
+
+function boardRow(cls, place, name, nights, thoughts) {
+  const d = document.createElement('div');
+  d.className = 'bd-row' + (cls ? ' ' + cls : '');
+  d.innerHTML = '<span class="bd-place">' + place + '</span><b></b><i>' + nights + '</i><i>' + thoughts + '</i>';
+  d.querySelector('b').textContent = name; // чужое имя — только текстом, не разметкой
+  return d;
+}
+
+function renderBoard() {
+  bdName.placeholder = tr('bd_name_ph');
+  bdPass.placeholder = tr('bd_pass_ph');
+  const mine = BOARD.acc && BOARD.acc.name;
+  bdForm.classList.toggle('hidden', !!mine);
+  bdWho.classList.toggle('hidden', !mine);
+  if (mine) document.getElementById('bdWhoName').textContent = tr('bd_hi', BOARD.acc.name);
+  document.getElementById('bdWhere').textContent =
+    BOARD.url ? tr('bd_world', BOARD.url.replace(/^https?:\/\//, '')) : tr('bd_local');
+  bdMsg.textContent = BOARD.msg || (BOARD.url ? '' : tr('bd_off'));
+  bdMsg.classList.toggle('bad', BOARD.bad);
+
+  bdList.innerHTML = '';
+  bdList.appendChild(boardRow('head', tr('bd_col_place'), tr('bd_col_name'), tr('bd_col_nights'), tr('bd_col_thoughts')));
+  const world = BOARD.url && BOARD.rows;
+  const rows = world ? BOARD.rows : BOARD.local.map(r => Object.assign({ name: mine || tr('bd_you') }, r));
+  if (BOARD.url && BOARD.state === 'wait' && !BOARD.rows) {
+    const d = document.createElement('div');
+    d.className = 'bd-row'; d.textContent = tr('bd_wait');
+    bdList.appendChild(d);
+    return;
+  }
+  if (!rows.length) {
+    const d = document.createElement('div');
+    d.className = 'bd-row'; d.textContent = tr('bd_empty');
+    bdList.appendChild(d);
+    return;
+  }
+  rows.forEach((r, i) => {
+    const me = mine && r.name === mine;
+    bdList.appendChild(boardRow(me ? 'me' : '', i + 1, r.name, r.nights, r.thoughts));
+  });
+}
+
+function openBoard() {
+  BOARD.msg = ''; BOARD.bad = false;
+  renderBoard();
+  boardScreen.classList.remove('hidden');
+  if (!BOARD.url) return;
+  BOARD.state = 'wait';
+  boardFetch('/api/top?limit=50')
+    .then(d => { BOARD.rows = d.rows || []; BOARD.state = 'idle'; renderBoard(); })
+    .catch(() => { BOARD.state = 'idle'; BOARD.msg = tr('bd_fail'); BOARD.bad = true; renderBoard(); });
+}
+
+function boardAuth(path) {
+  const name = bdName.value.trim(), pass = bdPass.value;
+  if (!BOARD.url) { BOARD.msg = tr('bd_off'); BOARD.bad = true; renderBoard(); return; }
+  BOARD.msg = tr('bd_wait'); BOARD.bad = false; renderBoard();
+  boardFetch(path, { name, pass })
+    .then(d => {
+      BOARD.acc = { name: d.name, token: d.token };
+      boardSaveAcc();
+      bdPass.value = '';
+      BOARD.msg = tr('bd_hi', d.name); BOARD.bad = false;
+      renderBoard();
+      return boardFetch('/api/top?limit=50').then(t => { BOARD.rows = t.rows || []; renderBoard(); });
+    })
+    .catch(err => { BOARD.msg = err.message === 'no-url' ? tr('bd_off') : err.message; BOARD.bad = true; renderBoard(); });
+}
+
+document.getElementById('boardBtn').addEventListener('pointerdown', e => {
+  e.stopPropagation(); e.preventDefault();
+  openBoard();
+});
+document.getElementById('bdBack').addEventListener('pointerdown', e => {
+  e.stopPropagation();
+  boardScreen.classList.add('hidden');
+});
+document.getElementById('bdLogin').addEventListener('pointerdown', e => { e.stopPropagation(); boardAuth('/api/login'); });
+document.getElementById('bdReg').addEventListener('pointerdown', e => { e.stopPropagation(); boardAuth('/api/register'); });
+document.getElementById('bdOut').addEventListener('pointerdown', e => {
+  e.stopPropagation();
+  BOARD.acc = null; boardSaveAcc();
+  BOARD.msg = tr('bd_guest'); BOARD.bad = false;
+  renderBoard();
+});
+bdPass.addEventListener('keydown', e => { if (e.key === 'Enter') boardAuth('/api/login'); });
+boardLoad();
+// Адрес летописи правится в настройках: поле помнит себя между ночами.
+const setBoardIn = document.getElementById('setBoard');
+setBoardIn.value = BOARD.url;
+setBoardIn.addEventListener('change', () => {
+  boardSaveUrl(setBoardIn.value);
+  setBoardIn.value = BOARD.url;
+  BOARD.rows = null; BOARD.msg = ''; BOARD.bad = false;
 });
 
 // ---------- меню-огонёк на титуле ----------
@@ -6522,6 +6767,10 @@ requestAnimationFrame(frame);
     }
   }
   if (q.get('menu')) setTimeout(() => titleScreen.classList.add('open'), 300); // отладка: меню титула раскрыто
+  if (q.get('board') !== null && q.get('board') !== undefined) { // отладка летописи: ?board=<адрес>
+    boardSaveUrl(q.get('board'));
+    setTimeout(openBoard, 300);
+  }
   if (q.get('tutor')) setTimeout(() => { // отладка сада: ?tutor=1 · ?tutor=<номер стана>
     startTutor();
     const n = parseInt(q.get('tutor'), 10);

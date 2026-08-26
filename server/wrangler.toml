@@ -1,0 +1,11 @@
+# Летопись бессонниц — воркер Cloudflare.
+# Поднять: npm i -g wrangler · wrangler login
+#          wrangler kv namespace create BOARD   → вписать id ниже
+#          wrangler deploy
+name = "io-noch-board"
+main = "worker.js"
+compatibility_date = "2026-01-01"
+
+[[kv_namespaces]]
+binding = "BOARD"
+id = "СЮДА_ID_ХРАНИЛИЩА"
