@@ -153,6 +153,7 @@ const TXT = {
     wd_grp_halo: 'ореолы',
     wd_worn: 'надето · снять',
     wd_have: 'в запасе · надеть',
+    wd_new: n2 => 'гардероб пополнился — «' + n2 + '»',
     wd_lock_theme: n2 => 'созвездие «' + n2 + '» ещё не полно',
     wd_lock_themes: n2 => 'собери полных созвездий испытаний: ' + n2,
     wd_lock_phr: n2 => 'поймай фраз в созвездие: ' + n2,
@@ -298,6 +299,7 @@ const TXT = {
     wd_grp_halo: 'halos',
     wd_worn: 'worn · take off',
     wd_have: 'earned · put on',
+    wd_new: n2 => 'the wardrobe grows — "' + n2 + '"',
     wd_lock_theme: n2 => 'the "' + n2 + '" constellation is not yet full',
     wd_lock_themes: n2 => 'complete full trial constellations: ' + n2,
     wd_lock_phr: n2 => 'catch phrases for the sky: ' + n2,
@@ -1585,6 +1587,7 @@ function unlockChallenge(id) {
     spawnText(io.x, io.y - 180, tr('themeDone', nm(th.rewardName)), true);
     equipVisual(th); // добытый облик надевается сам — за ним и шли
   }
+  checkWardrobeNews(); // счёт полных созвездий мог отпереть облик из гардероба
 }
 // облик, дарованный полным созвездием: оболочка, след или свита
 function equipVisual(th) {
@@ -1632,7 +1635,9 @@ function saveSky() {
 }
 function catchKey(key) { // запись идёт лишь на новой звезде — раз в несколько ночей
   if (SKY.has(key)) return false;
-  SKY.add(key); saveSky(); return true;
+  SKY.add(key); saveSky();
+  checkWardrobeNews(); // порог фраз мог отпереть облик — пусть скажется
+  return true;
 }
 function skyTotal() { let n = 0; for (const tier of skyGroups()) n += tier.length; return n; }
 function skyCaught() {
@@ -5152,6 +5157,22 @@ function skinLockText(s) {
   if (s.themes) return tr('wd_lock_themes', s.themes);
   return tr('wd_lock_phr', Math.ceil(skyTotal() * s.phr));
 }
+// Обновки гардероба сказываются вслух единожды: список виденного живёт в
+// шкатулке. Награды созвездий объявляет само созвездие («созвездие полно…»),
+// оттого вслух идут лишь облики, отпёртые порогами фраз и счётом созвездий.
+function checkWardrobeNews() {
+  if (!META.wdSeen) META.wdSeen = [];
+  let changed = false, ann = 0;
+  for (const s of WARDROBE) {
+    if (META.wdSeen.includes(s.id) || !skinUnlocked(s)) continue;
+    META.wdSeen.push(s.id);
+    changed = true;
+    if (!s.theme && S.mode === 'play') // редкая пара обновок разом — строки лесенкой
+      spawnText(io.x, io.y - 210 - 36 * ann++, tr('wd_new', nm(s.name)), true);
+  }
+  if (changed) saveMeta();
+}
+
 function skinWorn(s) { return s.slot ? SET.visuals[s.slot] === s.id : !!SET.visuals[s.key]; }
 function toggleSkin(s) {
   if (s.slot) SET.visuals[s.slot] = skinWorn(s) ? 'default' : s.id;
@@ -5198,6 +5219,7 @@ document.getElementById('wdBack').addEventListener('pointerdown', e => {
   e.stopPropagation();
   skinScreen.classList.add('hidden');
 });
+checkWardrobeNews(); // добытое до этой версии помечается виденным молча: на титуле объявлять некому
 
 // ---------- состояния ----------
 const titleScreen = document.getElementById('titleScreen');
