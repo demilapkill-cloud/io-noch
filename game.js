@@ -1061,6 +1061,76 @@ function wrapCoord(v, span) { return ((v % span) + span) % span; }
 const CELL = 1400;
 const zoneCache = new Map();
 function hash2(i, j) { const s = Math.sin(i * 127.1 + j * 311.7) * 43758.5453; return s - Math.floor(s); }
+
+function hash3(x, y, z) {
+  const s = Math.sin(x * 127.1 + y * 311.7 + z * 74.7) * 43758.5453;
+  return s - Math.floor(s);
+}
+
+function checkCells() {
+  const rad = 1.5; // кольцо клеток вперёд
+  const g0x = Math.floor((cam.x - CELL * rad) / CELL);
+  const g1x = Math.floor((cam.x + CELL * rad) / CELL);
+  const g0y = Math.floor((cam.y - CELL * rad) / CELL);
+  const g1y = Math.floor((cam.y + CELL * rad) / CELL);
+  for (let gx = g0x; gx <= g1x; gx++) {
+    for (let gy = g0y; gy <= g1y; gy++) {
+      const key = gx + ',' + gy;
+      if (!RUN.visitedCells.has(key)) {
+        RUN.visitedCells.add(key);
+        populateCell(gx, gy);
+      }
+    }
+  }
+}
+
+function populateCell(gx, gy) {
+  const seed = hash3(gx, gy, RUN.runSeed);
+  let _s = seed;
+  function rnd(a=1, b) {
+    _s = (_s * 16807) % 2147483647;
+    const v = (_s - 1) / 2147483646;
+    return b === undefined ? v * a : a + v * (b - a);
+  }
+  const cx = (gx + 0.5) * CELL, cy = (gy + 0.5) * CELL;
+  
+  // Motes: budget per cell is proportional to difficulty or meadow.
+  let moteCount = Math.floor(rnd(6, 12));
+  const z = zoneOfCell(gx, gy);
+  if (z && z.type === 'meadow') moteCount = Math.floor(moteCount * 2.5);
+  for (let i = 0; i < moteCount; i++) {
+    const mx = cx + rnd(-CELL/2, CELL/2), my = cy + rnd(-CELL/2, CELL/2);
+    const m = allocMote();
+    Object.assign(m, { x: mx, y: my, vx: rnd(-8, 8), vy: rnd(-5, 5), r: rnd(5, 8), seed: rnd(TAU), life: 100000, born: 0 });
+    motes.push(m);
+  }
+  
+  // Stars (rare)
+  if (rnd() < 0.08) {
+    const mx = cx + rnd(-CELL/2, CELL/2), my = cy + rnd(-CELL/2, CELL/2);
+    stars.push({ x: mx, y: my, t: 0, life: 100000, seed: rnd(TAU) });
+  }
+
+  // Sleeping enemies
+  let eCount = Math.floor(rnd(1, 4));
+  if (z && z.type === 'rift') eCount = Math.floor(eCount * 2.5);
+  for (let i = 0; i < eCount; i++) {
+    const ex = cx + rnd(-CELL/2, CELL/2), ey = cy + rnd(-CELL/2, CELL/2);
+    // types: shade, nm, dasher, siren, eater, eye, moth, weaver
+    const r = rnd();
+    let type = 'nm';
+    if (r < 0.3) type = 'shade';
+    else if (r < 0.45) type = 'moth';
+    else if (r < 0.55) type = 'dasher';
+    else if (r < 0.65) type = 'eye';
+    else if (r < 0.75) type = 'weaver';
+    else if (r < 0.85) type = 'siren';
+    else if (r < 0.95) type = 'eater';
+    
+    spawnEnemy(type, ex, ey, true); // sleeping = true
+  }
+}
+
 function zoneOfCell(gx, gy) {
   const key = gx + ',' + gy;
   if (zoneCache.has(key)) return zoneCache.get(key);
@@ -1300,6 +1370,7 @@ const ICONS = {
 
 function newRun() {
   const r = {
+    runSeed: Math.random() * 1e9 | 0, visitedCells: new Set(),
     night: 1, wake: 100, wakeMax: 100,
     level: 1, xp: 0, xpNext: 8,
     spirits: 3, orbitR: 52, spinMul: 1, pickupR: 48, speed: 1, dmgMul: 1,
@@ -1413,16 +1484,24 @@ function resetWorld(attract) {
 }
 
 // ---------- спавны ----------
+const motePool = [];
+function allocMote() { return motePool.length ? motePool.pop() : {}; }
+function freeMote(m) { if (motePool.length < 500) motePool.push(m); }
+
+const enemyPool = [];
+function allocEnemy() { return enemyPool.length ? enemyPool.pop() : {}; }
+function freeEnemy(e) { if (enemyPool.length < 500) enemyPool.push(e); }
+
 function spawnMote(closeOk) {
   const p = closeOk ? spawnRing(80, viewR() * 0.8) : spawnRing(140, viewR() * 1.05);
-  motes.push({
-    x: p.x, y: p.y,
-    vx: rand(-12, 12), vy: rand(-8, 8),
-    r: rand(5, 8), seed: rand(TAU), life: 30, born: 0,
-  });
+  const m = allocMote();
+  Object.assign(m, { x: p.x, y: p.y, vx: rand(-12, 12), vy: rand(-8, 8), r: rand(5, 8), seed: rand(TAU), life: 30, born: 0 });
+  motes.push(m);
 }
 function spawnMoteAt(x, y, life) {
-  motes.push({ x, y, vx: rand(-20, 20), vy: rand(-20, 20), r: rand(5, 7), seed: rand(TAU), life: life || 14, born: 0 });
+  const m = allocMote();
+  Object.assign(m, { x, y, vx: rand(-20, 20), vy: rand(-20, 20), r: rand(5, 7), seed: rand(TAU), life: life || 14, born: 0 });
+  motes.push(m);
 }
 function spawnShip() {
   const near = Math.random() < 0.6;
@@ -1432,36 +1511,39 @@ function spawnShip() {
   const p = spawnRing(viewR() + 150, viewR() + 320);
   ships.push({ x: p.x, y: p.y, vx: speed * dir, scl, near, dir, bob: rand(TAU) });
 }
-function spawnEnemy(type) {
+function spawnEnemy(type, ax, ay, sleeping) {
   const D = difficulty();
-  const p = spawnRing(viewR() + 60, viewR() + 260);
-  const base = { x: p.x, y: p.y, vx: 0, vy: 0, seed: rand(TAU), type };
-  // короста: к глубокой ночи кошмары обрастают бронёю и с одной искры не гаснут
+  let x, y;
+  if (ax !== undefined) { x = ax; y = ay; }
+  else { const p = spawnRing(viewR() + 60, viewR() + 260); x = p.x; y = p.y; }
+
+  const base = { x, y, vx: 0, vy: 0, seed: rand(TAU), type, sleeping: !!sleeping, threadT: 0, dead: false };
   const crust = D >= 3.5 ? 2 : 1;
-  if (type === 'nm') enemies.push({ ...base, r: rand(14, 22), sp: 50 + D * 11, dmg: 17, hp: crust, flashT: 0 });
+  const pushE = (props) => { const e = allocEnemy(); Object.assign(e, base, props); enemies.push(e); };
+
+  if (type === 'nm') pushE({ r: rand(14, 22), sp: 50 + D * 11, dmg: 17, hp: crust, flashT: 0 });
   else if (type === 'shade') {
     const n = 4 + (Math.random() * 3 | 0);
-    for (let i = 0; i < n; i++) enemies.push({
-      ...base, x: p.x + rand(-60, 60), y: p.y + rand(-60, 60),
-      r: rand(6, 9), sp: 100 + D * 12, dmg: 7, seed: rand(TAU), type: 'shade',
+    for (let i = 0; i < n; i++) pushE({
+      x: x + rand(-60, 60), y: y + rand(-60, 60),
+      r: rand(6, 9), sp: 100 + D * 12, dmg: 7, seed: rand(TAU)
     });
-  } else if (type === 'dasher') enemies.push({ ...base, r: 11, sp: 74 + D * 9, dmg: 24, st: 'seek', stT: 0, dx: 0, dy: 0 });
-  else if (type === 'siren') enemies.push({ ...base, r: 16, sp: 8, dmg: 8, ringR: 150, pulse: rand(TAU) });
-  else if (type === 'eater') enemies.push({ ...base, r: 12, sp: 64 + D * 8, dmg: 12, eaten: 0, hp: D >= 4.5 ? 2 : 1, flashT: 0 });
-  else if (type === 'eye') enemies.push({ ...base, r: 13, sp: 30 + D * 4, dmg: 16, st: 'drift', stT: rand(2, 4), aim: 0 });
+  } else if (type === 'dasher') pushE({ r: 11, sp: 74 + D * 9, dmg: 24, st: 'seek', stT: 0, dx: 0, dy: 0 });
+  else if (type === 'siren') pushE({ r: 16, sp: 8, dmg: 8, ringR: 150, pulse: rand(TAU) });
+  else if (type === 'eater') pushE({ r: 12, sp: 64 + D * 8, dmg: 12, eaten: 0, hp: D >= 4.5 ? 2 : 1, flashT: 0 });
+  else if (type === 'eye') pushE({ r: 13, sp: 30 + D * 4, dmg: 16, st: 'drift', stT: rand(2, 4), aim: 0 });
   else if (type === 'moth') {
     const n = 3 + (Math.random() * 2 | 0);
-    for (let i = 0; i < n; i++) enemies.push({
-      ...base, x: p.x + rand(-50, 50), y: p.y + rand(-50, 50),
-      r: 7, sp: 115 + D * 10, dmg: 0, seed: rand(TAU), type: 'moth',
-      latched: false, la: 0, stun: 0, burn: 0,
+    for (let i = 0; i < n; i++) pushE({
+      x: x + rand(-50, 50), y: y + rand(-50, 50),
+      r: 7, sp: 115 + D * 10, dmg: 0, seed: rand(TAU),
+      latched: false, la: 0, stun: 0, burn: 0
     });
   }
-  else if (type === 'weaver') enemies.push({ ...base, r: 12, sp: 34, dmg: 12, webT: rand(2, 4) });
-  else if (type === 'antio') enemies.push({
-    ...base, r: 9, sp: 55 + D * 6, dmg: 20, hp: 3, flashT: 0,
-    blinkT: rand(4, 6), orbR: 48,
-    esp: [{ ang: rand(TAU), cd: 0 }, { ang: rand(TAU), cd: 0 }, { ang: rand(TAU), cd: 0 }],
+  else if (type === 'weaver') pushE({ r: 12, sp: 34, dmg: 12, webT: rand(2, 4) });
+  else if (type === 'antio') pushE({
+    r: 9, sp: 55 + D * 6, dmg: 20, hp: 3, flashT: 0, blinkT: rand(4, 6), orbR: 48,
+    esp: [{ ang: rand(TAU), cd: 0 }, { ang: rand(TAU), cd: 0 }, { ang: rand(TAU), cd: 0 }]
   });
 }
 function pickEnemyType() {
@@ -1917,7 +1999,7 @@ function threadHit(e) {
 
 function killEnemy(i) {
   const e = enemies[i];
-  enemies.splice(i, 1);
+  freeEnemy(enemies.splice(i, 1)[0]);
   RUN.kills++;
   burst(e.x, e.y, COL_KILL, 18, 260);
   sfxKill(e.x);
@@ -1988,6 +2070,7 @@ function update(dt) {
     A.windGain.gain.value = 0.008 + S.energy * 0.028 + io.heat * 0.07;
   updateView();
   zonesNear(cam.x, cam.y, viewR() + 300, visZones);
+  checkCells();
 
   const ksp = 620 * dt;
   if (!touchSteer && (keys['ArrowLeft'] || keys['ArrowRight'] || keys['ArrowUp'] || keys['ArrowDown'] ||
@@ -2143,31 +2226,7 @@ function update(dt) {
   cam.y += (io.y + io.vy * 0.4 - cam.y) * Math.min(1, dt * 2.5);
 
   // --- таймеры мира ---
-  moteTimer -= dt;
-  const moteRate = (playing ? lerp(1.3, 0.55, S.energy) : 2.4) * RUN.moteRateMul;
-  if (moteTimer <= 0 && motes.length < 26) {
-    // луга мыслей: рядом с лугом мысли рождаются в нём и щедрее
-    const meadows = visZones.filter(z => z.type === 'meadow');
-    if (meadows.length && Math.random() < 0.6) {
-      const z = pick(meadows);
-      const a = rand(TAU), rr = Math.sqrt(Math.random()) * z.r * 0.85;
-      spawnMoteAt(z.x + Math.cos(a) * rr, z.y + Math.sin(a) * rr, 30);
-      moteTimer = moteRate * 0.55;
-    } else {
-      spawnMote(!playing);
-      moteTimer = moteRate;
-    }
-  }
-  // упавшие звёзды — редкий подарок неба
-  if (playing) {
-    starTimer -= dt;
-    if (starTimer <= 0 && stars.length < 2) {
-      starTimer = rand(22, 40) * RUN.starRateMul;
-      const p = spawnRing(220, viewR() * 0.8);
-      stars.push({ x: p.x, y: p.y, t: 0, life: 14, seed: rand(TAU) });
-      burst(p.x, p.y, [1, 1, 1], 20, 300);
-    }
-  }
+
   for (let i = stars.length - 1; i >= 0; i--) {
     const st = stars[i];
     st.t += dt;
@@ -2232,26 +2291,7 @@ function update(dt) {
       }
       sfxChoice();
     }
-    eTimer -= dt;
-    const cap = Math.min(5 + D * 2.2, 20);
-    if (eTimer <= 0 && enemies.length < cap && !WAVE.active && !boss) {
-      // разломы: рядом с ними ночь рожает чаще и прямо из трещины
-      const rifts = visZones.filter(z => z.type === 'rift');
-      if (rifts.length && Math.random() < 0.6) {
-        const z = pick(rifts);
-        const ty = pickEnemyType();
-        spawnEnemy(ty);
-        const e = enemies[enemies.length - 1];
-        if (e && e.type !== 'antio') {
-          const a = rand(TAU), rr = rand(60, 220);
-          e.x = z.x + Math.cos(a) * rr; e.y = z.y + Math.sin(a) * rr;
-        }
-        eTimer = lerp(2.5, 0.95, D / 9) * rand(0.5, 0.8);
-      } else {
-        spawnEnemy(pickEnemyType());
-        eTimer = lerp(2.5, 0.95, D / 9) * rand(0.8, 1.25);
-      }
-    }
+
     if (RUN.night >= 2 || isStormNight()) {
       boltTimer -= dt;
       if (boltTimer <= 0) {
@@ -2272,9 +2312,9 @@ function update(dt) {
       const f = 55 * RUN.gravity;
       m.x += dx / d * f * dt; m.y += dy / d * f * dt;
     }
-    if (m.born > m.life || hyp(m.x - cam.x, m.y - cam.y) > viewR() * 2.5) { motes.splice(i, 1); continue; }
+    if (m.born > m.life || hyp(m.x - cam.x, m.y - cam.y) > viewR() * 2.5) { freeMote(motes.splice(i, 1)[0]); continue; }
     if (playing && d < RUN.pickupR) {
-      motes.splice(i, 1);
+      freeMote(motes.splice(i, 1)[0]);
       collectMote(m);
     }
   }
@@ -2296,7 +2336,7 @@ function update(dt) {
   // --- враги ---
   for (let i = enemies.length - 1; i >= 0; i--) {
     const e = enemies[i];
-    if (hyp(e.x - cam.x, e.y - cam.y) > viewR() * 2.6) { enemies.splice(i, 1); continue; }
+    if (hyp(e.x - cam.x, e.y - cam.y) > viewR() * 2.6) { freeEnemy(enemies.splice(i, 1)[0]); continue; }
     if (playing) updateEnemy(e, dt);
     e.x += e.vx * dt; e.y += e.vy * dt;
     if (!playing) continue;
@@ -2329,7 +2369,7 @@ function update(dt) {
           e.threadT = 0; e.hp--; e.flashT = 0.25;
           burst(e.x, e.y, IO_COL, 12, 220); sfxKill(e.x);
           if (e.hp <= 0) {
-            enemies.splice(i, 1); RUN.kills++;
+            freeEnemy(enemies.splice(i, 1)[0]); RUN.kills++;
             for (let k3 = 0; k3 < 4; k3++) spawnMoteAt(e.x + rand(-40, 40), e.y + rand(-40, 40), 20);
             RUN.xp += 2;
             if (RUN.xp >= RUN.xpNext) levelUp();
@@ -2365,7 +2405,7 @@ function update(dt) {
           burst(e.x, e.y, [0.55, 0.25, 0.75], 14, 240);
           sfxKill(e.x);
           if (e.hp <= 0) {
-            enemies.splice(i, 1);
+            freeEnemy(enemies.splice(i, 1)[0]);
             RUN.kills++;
             for (let k2 = 0; k2 < 4; k2++) spawnMoteAt(e.x + rand(-40, 40), e.y + rand(-40, 40), 20);
             RUN.xp += 2;
@@ -2557,6 +2597,10 @@ function update(dt) {
 
 function updateEnemy(e, dt) {
   const dx = io.x - e.x, dy = io.y - e.y, d = hyp(dx, dy) || 1;
+  if (e.sleeping) {
+    if (d < 1000) e.sleeping = false; // wakes up
+    else return;
+  }
   if (e.flashT > 0) e.flashT = Math.max(0, e.flashT - dt);
   if (e.type === 'nm' || e.type === 'shade') {
     const wob = Math.sin(S.time * 1.3 + e.seed) * 40;
@@ -2573,7 +2617,7 @@ function updateEnemy(e, dt) {
       e.vx += (tx2 / l * e.sp - e.vx) * dt * 1.6;
       e.vy += (ty2 / l * e.sp - e.vy) * dt * 1.6;
       if (l < e.r + 8) {
-        motes.splice(motes.indexOf(target), 1);
+        freeMote(motes.splice(motes.indexOf(target), 1)[0]);
         e.eaten++; e.r = Math.min(30, e.r + 1.6);
       }
     } else {
