@@ -1098,8 +1098,18 @@ function hash3(x, y, z) {
   return s - Math.floor(s);
 }
 
+// Клетка, из которой ты улетел, вычищается вслед за тобою — оттого,
+// воротившись, ты нашёл бы пустошь. Ночь отрастает: спустя REGROW секунд
+// клетка родит вновь, но мыслей уже вполовину, а кошмаров — сполна.
+// Оттого сновать взад-вперёд ради мыслей невыгодно, а пустоты нигде нет.
+const REGROW = 50;
+// Круг, в котором ночь живёт. Он непременно шире круга засева (иначе рождённое
+// в дальнем углу клетки гибнет в тот же миг, а клетка уже помечена засеянной —
+// оттого мир и выедался). Считаем от клетки, а не от экрана: на малом окне
+// экран меньше клетки.
+function keepR() { return Math.max(viewR() * 2.6, CELL * 2.25); }
 function checkCells() {
-  const rad = 1.5; // кольцо клеток вперёд
+  const rad = 1; // кольцо клеток вперёд: дальний угол ближе, чем keepR
   const g0x = Math.floor((cam.x - CELL * rad) / CELL);
   const g1x = Math.floor((cam.x + CELL * rad) / CELL);
   const g0y = Math.floor((cam.y - CELL * rad) / CELL);
@@ -1107,16 +1117,32 @@ function checkCells() {
   for (let gx = g0x; gx <= g1x; gx++) {
     for (let gy = g0y; gy <= g1y; gy++) {
       const key = gx + ',' + gy;
-      if (!RUN.visitedCells.has(key)) {
-        RUN.visitedCells.add(key);
-        populateCell(gx, gy);
+      const c = RUN.cells.get(key);
+      if (c === undefined) {
+        RUN.cells.set(key, { t: S.playT, n: 0 });
+        populateCell(gx, gy, 1, 0);
+      } else if (S.playT - c.t > REGROW) {
+        c.t = S.playT; c.n++;
+        populateCell(gx, gy, 0.5, c.n);
       }
     }
   }
+  if (RUN.cells.size > 700) forgetFarCells();
 }
 
-function populateCell(gx, gy) {
-  const seed = hash3(gx, gy, RUN.runSeed);
+// память о клетках не должна пухнуть без предела: дальние забываются
+function forgetFarCells() {
+  const lim = CELL * 9;
+  for (const key of RUN.cells.keys()) {
+    const c = key.indexOf(',');
+    const gx = +key.slice(0, c), gy = +key.slice(c + 1);
+    if (Math.abs((gx + 0.5) * CELL - cam.x) > lim || Math.abs((gy + 0.5) * CELL - cam.y) > lim)
+      RUN.cells.delete(key);
+  }
+}
+
+function populateCell(gx, gy, factor, visit) {
+  const seed = hash3(gx, gy, RUN.runSeed + visit * 7919);
   let _s = seed;
   function rnd(a=1, b) {
     _s = (_s * 16807) % 2147483647;
@@ -1125,8 +1151,8 @@ function populateCell(gx, gy) {
   }
   const cx = (gx + 0.5) * CELL, cy = (gy + 0.5) * CELL;
   
-  // Landmarks
-  if (rnd() < 0.12) {
+  // Landmarks — рождаются лишь однажды: второму маяку в той же клетке не быть
+  if (visit === 0 && rnd() < 0.12) {
     const types = ['lighthouse', 'graveyard', 'whale', 'lamplighter', 'starfall'];
     const type = types[Math.floor(rnd(0, types.length))];
     const lx = cx + rnd(-CELL/2.5, CELL/2.5), ly = cy + rnd(-CELL/2.5, CELL/2.5);
@@ -1149,7 +1175,7 @@ function populateCell(gx, gy) {
   }
 
   // Motes: budget per cell is proportional to difficulty or meadow.
-  let moteCount = Math.floor(rnd(6, 12));
+  let moteCount = Math.floor(rnd(6, 12) * factor);
   const z = zoneOfCell(gx, gy);
   if (z && z.type === 'meadow') moteCount = Math.floor(moteCount * 2.5);
   for (let i = 0; i < moteCount; i++) {
@@ -1160,14 +1186,17 @@ function populateCell(gx, gy) {
   }
   
   // Stars (rare)
-  if (rnd() < 0.08) {
+  if (rnd() < 0.08 * factor) {
     const mx = cx + rnd(-CELL/2, CELL/2), my = cy + rnd(-CELL/2, CELL/2);
     stars.push({ x: mx, y: my, t: 0, life: 100000, seed: rnd(TAU) });
   }
 
-  // Sleeping enemies
-  let eCount = Math.floor(rnd(1, 4));
-  if (z && z.type === 'rift') eCount = Math.floor(eCount * 2.5);
+  // Спящие кошмары. Клетка родит тем гуще, чем глубже ночь: на первых минутах
+  // почти пусто, к утру — тесно. Держать круг живым нам обходится дорого, оттого
+  // счёт вышел скупой.
+  const D0 = difficulty();
+  let eCount = Math.floor(rnd(0, 1.5 + D0 * 0.3));
+  if (z && z.type === 'rift') eCount = Math.floor(eCount * 2.2) + 1;
   for (let i = 0; i < eCount; i++) {
     const ex = cx + rnd(-CELL/2, CELL/2), ey = cy + rnd(-CELL/2, CELL/2);
     // types: shade, nm, dasher, siren, eater, eye, moth, weaver
@@ -1610,7 +1639,7 @@ const ICONS = {
 
 function newRun() {
   const r = {
-    runSeed: Math.random() * 1e9 | 0, visitedCells: new Set(),
+    runSeed: Math.random() * 1e9 | 0, cells: new Map(),
     night: 1, wake: 100, wakeMax: 100,
     level: 1, xp: 0, xpNext: 8,
     spirits: 3, orbitR: 52, spinMul: 1, pickupR: 48, speed: 1, dmgMul: 1,
@@ -2589,7 +2618,7 @@ function update(dt) {
       const f = 55 * RUN.gravity;
       m.x += dx / d * f * dt; m.y += dy / d * f * dt;
     }
-    if (m.born > m.life || hyp(m.x - cam.x, m.y - cam.y) > viewR() * 2.5) { freeMote(motes.splice(i, 1)[0]); continue; }
+    if (m.born > m.life || hyp(m.x - cam.x, m.y - cam.y) > keepR()) { freeMote(motes.splice(i, 1)[0]); continue; }
     if (playing && d < RUN.pickupR) {
       freeMote(motes.splice(i, 1)[0]);
       collectMote(m);
@@ -2600,7 +2629,7 @@ function update(dt) {
   for (let i = ships.length - 1; i >= 0; i--) {
     const sh = ships[i];
     sh.x += sh.vx * dt; sh.bob += dt * 0.9;
-    if (hyp(sh.x - cam.x, sh.y - cam.y) > viewR() * 2.4 && io.tether !== sh && sh.bh === undefined) { ships.splice(i, 1); continue; }
+    if (hyp(sh.x - cam.x, sh.y - cam.y) > keepR() && io.tether !== sh && sh.bh === undefined) { ships.splice(i, 1); continue; }
     if (playing) {
       sh.life -= dt;
       if (sh.life <= 10 && sh.bh === undefined) {
@@ -2634,7 +2663,7 @@ function update(dt) {
   // --- враги ---
   for (let i = enemies.length - 1; i >= 0; i--) {
     const e = enemies[i];
-    if (hyp(e.x - cam.x, e.y - cam.y) > viewR() * 2.6) { freeEnemy(enemies.splice(i, 1)[0]); continue; }
+    if (hyp(e.x - cam.x, e.y - cam.y) > keepR()) { freeEnemy(enemies.splice(i, 1)[0]); continue; }
     if (playing) updateEnemy(e, dt);
     e.x += e.vx * dt; e.y += e.vy * dt;
     if (!playing) continue;
@@ -2969,7 +2998,7 @@ function update(dt) {
 function updateEnemy(e, dt) {
   const dx = io.x - e.x, dy = io.y - e.y, d = hyp(dx, dy) || 1;
   if (e.sleeping) {
-    if (d < 1000) e.sleeping = false; // wakes up
+    if (d < viewR() * 0.95) e.sleeping = false; // просыпается, лишь войдя в поле зрения
     else return;
   }
   if (e.flashT > 0) e.flashT = Math.max(0, e.flashT - dt);
@@ -4612,6 +4641,7 @@ document.getElementById('setReset').addEventListener('click', e => {
 let last = performance.now();
 // замер кадра по частям: ?perf=1
 const PERF = { on: false, upd: 0, drw: 0, gl: 0, up: 0, frame: 0, n: 0 };
+const WLOG = { on: false, n: 0 };
 // адаптивное разрешение: скользящее среднее кадра с гистерезисом;
 // вниз — быстро, вверх — осторожно и не выше проверенного потолка
 let emaMs = 16.7, resPause = 2.5, maxScale = 1, lastUp = -99;
@@ -4645,6 +4675,11 @@ function frame(now) {
   }
   S.time += dt;
   if (endLive && !endLive.done) endStep(dt);
+  // отладка мира: не выедается ли ночь позади (считаем кадрами, а не часами)
+  if (WLOG.on && S.mode === 'play' && ++WLOG.n % 180 === 0)
+    console.log('МИР: мыслей ' + motes.length + ' · кошмаров ' + enemies.length +
+      ' · клеток ' + RUN.cells.size + ' · от начала ' + hyp(io.x, io.y).toFixed(0) +
+      ' · время ' + S.playT.toFixed(0));
   if (PERF.on) {
     const t0 = performance.now();
     update(dt);
@@ -4697,6 +4732,7 @@ requestAnimationFrame(frame);
     applyLang(); syncSetUI();
   }
   if (q.get('perf')) PERF.on = true;
+  if (q.get('wlog')) WLOG.on = true;
   if (q.get('tlog')) setInterval(() => {   // отладка нити: видно ли движение под нею
     if (!io.tether) { console.log('нити нет'); return; }
     const sh = io.tether;
