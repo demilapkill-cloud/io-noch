@@ -1194,7 +1194,14 @@ function populateCell(gx, gy, factor, visit) {
   }
 
   // Motes: budget per cell is proportional to difficulty or meadow.
-  let moteCount = Math.floor(rnd(6, 12) * factor);
+  // Щедрый горизонт правит здесь: прежний таймер мыслей упразднён вместе с
+  // прочими, и дар, на нём державшийся, не делал ровно ничего.
+  // Потолок непременен: мысли — единственное лекарство, и коли их число
+  // растёт вместе с облётанным простором, то быстрый полёт кормит без предела
+  // и бодрость перестаёт быть угрозою вовсе (замер: 94 из 100 через две ночи).
+  let moteCount = Math.floor(rnd(2, 5) * factor / RUN.moteRateMul);
+  const cap = 26 + Math.floor(RUN.moteRateMul < 1 ? 8 : 0);
+  moteCount = Math.max(0, Math.min(moteCount, cap - motes.length));
   const z = zoneOfCell(gx, gy);
   if (z && z.type === 'meadow') moteCount = Math.floor(moteCount * 2.5);
   for (let i = 0; i < moteCount; i++) {
@@ -1204,8 +1211,8 @@ function populateCell(gx, gy, factor, visit) {
     motes.push(m);
   }
   
-  // Stars (rare)
-  if (rnd() < 0.08 * factor) {
+  // Падучие звёзды — и звёздный час, что делает их чаще (тоже был впустую)
+  if (rnd() < 0.08 * factor / RUN.starRateMul) {
     const mx = cx + rnd(-CELL/2, CELL/2), my = cy + rnd(-CELL/2, CELL/2);
     stars.push({ x: mx, y: my, t: 0, life: 100000, seed: rnd(TAU) });
   }
@@ -1541,7 +1548,7 @@ const UPGRADES = [
   { id: 'calm',    name: 'тихое горение',    desc: 'бодрость тает пятою долей медленней', apply: r => r.drainMul *= 0.8 },
   { id: 'dawn',    name: 'тёплое зарево',       desc: 'всякая мысль целит на 2 сильнее', apply: r => r.healBonus += 2 },
   { id: 'thread',  name: 'нить за горизонт',      desc: 'к кораблю возможно привязаться издалече', apply: r => r.tetherR *= 1.45 },
-  { id: 'chain',   name: 'неразрывная связь',       desc: 'доколе держишься за корабль — бодрость не тает вовсе', once: true, apply: r => r.chain = true },
+  { id: 'chain',   name: 'неразрывная связь',       desc: 'доколе держишься за корабль — бодрость тает вчетверо медленней', once: true, apply: r => r.chain = true },
   { id: 'light',   name: 'попутный свет',          desc: 'свет летит пятою долей быстрее', apply: r => r.speed *= 1.2 },
   { id: 'breath',  name: 'зов мерцания',     desc: 'мерцание возвращается двумя секундами ранее', apply: r => r.relocCd = Math.max(3, r.relocCd - 2) },
   { id: 'echo',    name: 'эхо света',         desc: 'мерцание вспыхивает и разгоняет кошмаров окрест', once: true, apply: r => r.echo = true },
@@ -1575,7 +1582,7 @@ const UP_EN = {
   calm:    ['quiet burning', 'wakefulness drains a fifth slower'],
   dawn:    ['warm afterglow', 'every thought heals 2 more'],
   thread:  ['thread past the horizon', 'a ship may be bound from farther off'],
-  chain:   ['unbroken bond', 'while you hold to a ship, wakefulness does not drain at all'],
+  chain:   ['unbroken bond', 'while you hold to a ship, wakefulness drains four times slower'],
   light:   ['following light', 'the light flies a fifth faster'],
   breath:  ['call of the blink', 'the blink returns two seconds sooner'],
   echo:    ['echo of light', 'the blink flares and scatters the nightmares around'],
@@ -1665,7 +1672,9 @@ const S = {
   pal: palette(0), energy: 0.13,
 };
 function isStormNight() { return RUN.night % 3 === 0; }
-function difficulty() { return Math.min(9, S.playT / 70 + (RUN.night - 1) * 0.35); }
+// Потолок в девять достигался уже к десятой минуте, и дальше ночь не росла
+// вовсе — оттого поздние ночи выходили ровнее ранних. Ныне предел отодвинут.
+function difficulty() { return Math.min(13, S.playT / 70 + (RUN.night - 1) * 0.35); }
 
 // ---------- камера и живая изометрия ----------
 const cam = { x: 0, y: 0 };
@@ -2261,8 +2270,10 @@ function tryRelocate() {
   io.reloc.rx = io.x; io.reloc.ry = io.y;
   shakeOffMoths();
   burst(io.x, io.y, IO_COL, 16, 220);
-  const pw = pointerWorld();
-  io.x = pw.x; io.y = pw.y; io.vx = 0; io.vy = 0;
+  const pw = BOT.on ? BOT : pointerWorld();
+  io.x = pw.tx !== undefined ? pw.tx : pw.x;
+  io.y = pw.ty !== undefined ? pw.ty : pw.y;
+  io.vx = 0; io.vy = 0;
   io.trail = [];
   io.reloc.phase = 'out'; io.reloc.timer = 2.5; io.reloc.cd = RUN.relocCd;
   S.hurtT = Math.max(S.hurtT, relocGuard());
@@ -2390,8 +2401,10 @@ function update(dt) {
   // --- Ио ---
   if (playing) {
     // бодрость тает всегда
-    const drainOff = RUN.chain && io.tether;
-    if (!drainOff) RUN.wake -= (1.0 + 0.30 * Math.min(D, 8)) * RUN.drainMul * dt;
+    // неразрывная связь более не гасит таяние вовсе — с нынешней нитью это
+    // была бы вечная жизнь у борта; теперь она лишь вчетверо его замедляет
+    const chainMul = (RUN.chain && io.tether) ? 0.25 : 1;
+    RUN.wake -= (1.05 + 0.42 * Math.min(D, 11)) * RUN.drainMul * chainMul * dt;
 
     if (io.reloc.phase === 'out') {
       io.reloc.timer -= dt;
@@ -2411,7 +2424,10 @@ function update(dt) {
 
     let tx, ty, k = 7.5 * RUN.speed;
     // направление правки помним — по нему уходит швырок с нити
-    if (touchSteer) {
+    if (BOT.on) { // отладочный лётчик: замеряет выживаемость без живых рук
+      const t2 = botTarget();
+      tx = t2.x; ty = t2.y;
+    } else if (touchSteer) {
       // цель — впереди Ио по наклону стика; чем сильнее наклон, тем дальше
       // цель, а с нею и скорость. Палец замер — Ио гасит ход и висит.
       const lead = joy.on ? 410 * joy.mag : 0;
@@ -4366,6 +4382,11 @@ function levelUp() {
   }
   restScreen.classList.remove('hidden');
   updateHud();
+  if (BOT.on) { // лётчик берёт назначенный дар, а нет его в тройке — любой
+    const want = BOT.gift ? opts.findIndex(u => u.id === BOT.gift) : -1;
+    const pickI = want >= 0 ? want : (Math.random() * opts.length) | 0;
+    setTimeout(() => box.children[pickI] && box.children[pickI].click(), 120);
+  }
 }
 
 // ---------- лист итогов ----------
@@ -4484,6 +4505,9 @@ function endFinish() {
 }
 
 function die(cause) {
+  if (BOT.on) console.log('ИТОГ · ночей ' + RUN.night + ' · секунд ' + S.playT.toFixed(0) +
+    ' · мыслей ' + RUN.thoughts + ' · степень ' + RUN.level + ' · дары ' + RUN.taken.join(',') +
+    ' · смерть ' + (cause || 'бодрость'));
   S.mode = 'death';
   io.oc = false; ocBtn.classList.remove('held');
   document.body.classList.remove('playing');
@@ -4660,6 +4684,30 @@ let last = performance.now();
 // замер кадра по частям: ?perf=1
 const PERF = { on: false, upd: 0, drw: 0, gl: 0, up: 0, frame: 0, n: 0 };
 const WLOG = { on: false, n: 0 };
+// Отладочный лётчик для замеров баланса: держится подальше от кошмаров,
+// подбирает ближнюю мысль, мерцает, когда прижали. Играет он хуже человека,
+// оттого его смерть — нижняя граница живучести, не средняя.
+const BOT = { on: false, tx: 0, ty: 0 };
+function botTarget() {
+  let bx = io.x, by = io.y, fear = 0, fx = 0, fy = 0;
+  for (const e of enemies) {
+    if (e.sleeping) continue;
+    const dx = io.x - e.x, dy = io.y - e.y, d = hyp(dx, dy) || 1;
+    if (d < 300) { const w = (300 - d) / 300; fear += w; fx += dx / d * w; fy += dy / d * w; }
+  }
+  if (fear > 0.35) { // прижали — уходим прочь от гущи
+    const fd = hyp(fx, fy) || 1;
+    bx = io.x + fx / fd * 460; by = io.y + fy / fd * 460;
+    if (io.reloc.cd <= 0 && fear > 1.6) { BOT.tx = bx; BOT.ty = by; tryRelocate(); }
+    return { x: bx, y: by };
+  }
+  let best = null, bd = 1e9;
+  for (const m of motes) {
+    const d = hyp(m.x - io.x, m.y - io.y);
+    if (d < bd) { bd = d; best = m; }
+  }
+  return best ? { x: best.x, y: best.y } : { x: io.x + Math.cos(S.time * 0.4) * 400, y: io.y + Math.sin(S.time * 0.4) * 400 };
+}
 // адаптивное разрешение: скользящее среднее кадра с гистерезисом;
 // вниз — быстро, вверх — осторожно и не выше проверенного потолка
 let emaMs = 16.7, resPause = 2.5, maxScale = 1, lastUp = -99;
@@ -4696,8 +4744,8 @@ function frame(now) {
   // отладка мира: не выедается ли ночь позади (считаем кадрами, а не часами)
   if (WLOG.on && S.mode === 'play' && ++WLOG.n % 180 === 0)
     console.log('МИР: мыслей ' + motes.length + ' · кошмаров ' + enemies.length +
-      ' · клеток ' + RUN.cells.size + ' · от начала ' + hyp(io.x, io.y).toFixed(0) +
-      ' · время ' + S.playT.toFixed(0));
+      ' · клеток ' + RUN.cells.size + ' · бодрость ' + RUN.wake.toFixed(0) + '/' + RUN.wakeMax +
+      ' · ночь ' + RUN.night + ' · степень ' + RUN.level + ' · время ' + S.playT.toFixed(0));
   if (PERF.on) {
     const t0 = performance.now();
     update(dt);
@@ -4751,6 +4799,14 @@ requestAnimationFrame(frame);
   }
   if (q.get('perf')) PERF.on = true;
   if (q.get('wlog')) WLOG.on = true;
+  if (q.get('bot')) { // замер живучести: лётчик играет сам, исход пишется в консоль
+    BOT.on = true;
+    if (q.get('gift')) BOT.gift = q.get('gift');
+    setTimeout(() => {
+      startRun();
+      if (q.get('again')) setInterval(() => { if (S.mode === 'death') startRun(); }, 1500);
+    }, 400);
+  }
   if (q.get('look')) { // отладка обликов: ?look=storm_shell,tether_trail,ship_spirits
     for (const id of q.get('look').split(',')) {
       for (const k in C_THEMES) if (C_THEMES[k].rewardId === id) SET.visuals[C_THEMES[k].rewardType] = id;
