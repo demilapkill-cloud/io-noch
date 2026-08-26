@@ -82,7 +82,18 @@ const TXT = {
     twinDown: 'тёмный двойник угас',
     rod: 'громоотвод',
     nightText: (n, storm) => (storm ? 'буря · ночь ' : 'ночь ') + n,
+    // — ландмарки —
+    lm_lighthouse: 'Спящий маяк',
+    lm_graveyard: 'Кладбище кораблей',
+    lm_whale: 'Небесный кит',
+    lm_lamplighter: 'Фонарщик',
+    lm_starfall: 'Звездопад',
     // — HUD —
+    lm_lighthouse: 'Sleeping Lighthouse',
+    lm_graveyard: 'Ship Graveyard',
+    lm_whale: 'Sky Whale',
+    lm_lamplighter: 'Lamplighter',
+    lm_starfall: 'Starfall',
     thoughts: n => 'мыслей · ' + n,
     tierN: n => 'степень ' + n,
     chain: n => 'чреда ×' + n,
@@ -1094,6 +1105,29 @@ function populateCell(gx, gy) {
   }
   const cx = (gx + 0.5) * CELL, cy = (gy + 0.5) * CELL;
   
+  // Landmarks
+  if (rnd() < 0.12) {
+    const types = ['lighthouse', 'graveyard', 'whale', 'lamplighter', 'starfall'];
+    const type = types[Math.floor(rnd(0, types.length))];
+    const lx = cx + rnd(-CELL/2.5, CELL/2.5), ly = cy + rnd(-CELL/2.5, CELL/2.5);
+    
+    if (type === 'lighthouse') landmarks.push({ type, x: lx, y: ly, state: 'dark', t: 0 });
+    else if (type === 'graveyard') {
+      landmarks.push({ type, x: lx, y: ly, r: 250 });
+      // гнездятся ловцы снов
+      for(let i=0; i<2; i++) spawnEnemy('weaver', lx + rnd(-100, 100), ly + rnd(-100, 100), true);
+    }
+    else if (type === 'whale') {
+      const a = rnd(TAU);
+      landmarks.push({ type, x: lx, y: ly, vx: Math.cos(a)*25, vy: Math.sin(a)*25, t: 2 });
+    }
+    else if (type === 'lamplighter') {
+      const a = rnd(TAU);
+      landmarks.push({ type, x: lx, y: ly, vx: Math.cos(a)*40, vy: Math.sin(a)*40, t: 1 });
+    }
+    else if (type === 'starfall') landmarks.push({ type, x: lx, y: ly, state: 'wait', t: 0 });
+  }
+
   // Motes: budget per cell is proportional to difficulty or meadow.
   let moteCount = Math.floor(rnd(6, 12));
   const z = zoneOfCell(gx, gy);
@@ -1445,7 +1479,7 @@ const io = {
 const pointer = { x: 0, y: 0, active: false };
 let steerTX = 0, steerTY = 0; // куда правит игрок — по этому уходит швырок с нити
 const keys = {};
-let motes = [], ships = [], enemies = [], bolts = [], parts = [], texts = [], shots = [], clouds = [], stars = [], webs = [];
+let motes = [], ships = [], enemies = [], bolts = [], parts = [], texts = [], shots = [], clouds = [], stars = [], webs = [], landmarks = [];
 let moteTimer = 0, shipTimer = 4, shotTimer = 3, eTimer = 3, boltTimer = 8, starTimer = 18;
 // волны: ночь временами накатывает всей толпой, потом отпускает
 const WAVE = { n: 0, timer: 40, active: false, left: 0, spawnT: 0, theme: null };
@@ -1475,6 +1509,7 @@ function resetWorld(attract) {
   pointer.x = W * 0.5; pointer.y = H * 0.45;
   S.t = 0; S.playT = 0; S.combo = 0; S.hurtT = 0; S.shake = 0; S.glitch = 0; S.stormFired = false; S.dawnFired = false;
   webs = [];
+  landmarks = [];
   S.reachShip = null; S.tetherHinted = false;
   boss = null; anchors = []; S.bossDone = false;
   bossHud.classList.remove('on');
@@ -2515,6 +2550,78 @@ function update(dt) {
   }
   if (playing) checkDissolve();
 
+  // --- ландмарки ---
+  for (let i = landmarks.length - 1; i >= 0; i--) {
+    const lm = landmarks[i];
+    if (hyp(lm.x - cam.x, lm.y - cam.y) > viewR() * 3) { landmarks.splice(i, 1); continue; }
+    if (!playing) continue;
+    
+    if (lm.type === 'lighthouse') {
+      if (lm.state === 'dark' && hyp(io.x - lm.x, io.y - lm.y) < 120) {
+        lm.state = 'lit'; lm.t = 30;
+        spawnText(lm.x, lm.y - 120, tr('lm_lighthouse'), true);
+        burst(lm.x, lm.y, [1, 0.9, 0.6], 30, 400);
+      }
+      if (lm.state === 'lit') {
+        lm.t -= dt;
+        if (lm.t <= 0) lm.state = 'done';
+        else {
+          if (hyp(io.x - lm.x, io.y - lm.y) < 250) RUN.wake += (1.0 + 0.30 * Math.min(D, 8)) * RUN.drainMul * dt; // компенсирует таяние
+          // отпугивает врагов
+          for (const e of enemies) {
+            const d = hyp(e.x - lm.x, e.y - lm.y);
+            if (d < 250) { e.vx += (e.x - lm.x) / d * 180 * dt; e.vy += (e.y - lm.y) / d * 180 * dt; }
+          }
+        }
+      }
+    } else if (lm.type === 'graveyard') {
+      if (!lm.seen && hyp(io.x - lm.x, io.y - lm.y) < 260) {
+        lm.seen = true;
+        spawnText(lm.x, lm.y - 120, tr('lm_graveyard'), true);
+      }
+    } else if (lm.type === 'whale') {
+      if (!lm.seen && hyp(io.x - lm.x, io.y - lm.y) < 300) { lm.seen = true; spawnText(lm.x, lm.y - 120, tr('lm_whale'), true); }
+      lm.x += lm.vx * dt; lm.y += lm.vy * dt;
+      lm.t -= dt;
+      if (lm.t <= 0) {
+        lm.t = 4;
+        spawnMoteAt(lm.x, lm.y, 20); // дыхало
+      }
+      if (hyp(io.x - lm.x, io.y - lm.y) < 140) {
+        const d = hyp(io.x - lm.x, io.y - lm.y) || 1;
+        io.vx += (io.x - lm.x) / d * 300 * dt;
+        io.vy += (io.y - lm.y) / d * 300 * dt;
+        S.shake = Math.max(S.shake, 0.3);
+        // будит соседей
+        for (const e of enemies) if (hyp(e.x - lm.x, e.y - lm.y) < 600) e.sleeping = false;
+      }
+    } else if (lm.type === 'lamplighter') {
+      if (!lm.seen && hyp(io.x - lm.x, io.y - lm.y) < 300) { lm.seen = true; spawnText(lm.x, lm.y - 40, tr('lm_lamplighter'), true); }
+      lm.x += lm.vx * dt; lm.y += lm.vy * dt;
+      lm.t -= dt;
+      if (lm.t <= 0) {
+        lm.t = 2.5;
+        const m = allocMote();
+        Object.assign(m, { x: lm.x, y: lm.y, vx: 0, vy: 0, r: 7, seed: rand(TAU), life: 40, born: 0, lamplight: true });
+        motes.push(m);
+      }
+    } else if (lm.type === 'starfall') {
+      if (lm.state === 'wait' && hyp(io.x - lm.x, io.y - lm.y) < 300) {
+        lm.state = 'active'; lm.t = 8;
+        spawnText(lm.x, lm.y - 100, tr('lm_starfall'), true);
+      }
+      if (lm.state === 'active') {
+        lm.t -= dt;
+        if (Math.random() < dt * 0.4 && stars.length < 5) {
+          const p = spawnRing(100, 300);
+          stars.push({ x: p.x, y: p.y, t: 0, life: 14, seed: rand(TAU) });
+          burst(p.x, p.y, [1, 1, 1], 20, 300);
+        }
+        if (lm.t <= 0) lm.state = 'done';
+      }
+    }
+  }
+
   // --- паутины ловца снов ---
   for (let i = webs.length - 1; i >= 0; i--) {
     const wb = webs[i];
@@ -2730,7 +2837,10 @@ function collectMote(m) {
   RUN.thoughts++;
   // мысли у разломов ценнее: +1 опыта, а с даром — двойное лечение
   const nearRift = zoneAt(m.x, m.y, 'rift');
-  const heal = (4 + RUN.healBonus) * (nearRift && RUN.riftGift ? 2 : 1);
+  let heal = (4 + RUN.healBonus) * (nearRift && RUN.riftGift ? 2 : 1);
+  if (m.lamplight) heal *= 1.5;
+  const inGrave = landmarks.some(l => l.type === 'graveyard' && hyp(m.x - l.x, m.y - l.y) < 250);
+  if (inGrave) heal *= 2;
   RUN.wake = Math.min(RUN.wakeMax, RUN.wake + heal);
   S.combo++; S.comboT = 3 * RUN.comboMul;
   if (S.combo > RUN.comboBest) RUN.comboBest = S.combo;
@@ -2761,6 +2871,39 @@ function shakeOffMoths() { // мерцание сбрасывает прицеп
       e.vx = rand(-160, 160); e.vy = rand(-160, 160);
     }
   }
+}
+
+
+function drawLandmark(lm, p, pal, tm) {
+  sc.save(); sc.translate(p.x, p.y); sc.scale(p.k, p.k);
+  if (lm.type === 'lighthouse') {
+    sc.fillStyle = css3(pal.tint, 0.4);
+    sc.beginPath(); sc.moveTo(-20, 0); sc.lineTo(-10, -120); sc.lineTo(10, -120); sc.lineTo(20, 0); sc.fill();
+    sc.fillStyle = lm.state === 'lit' ? css3([1,0.9,0.5], 0.8) : css3([0.1,0.1,0.2], 0.8);
+    sc.beginPath(); sc.arc(0, -130, 15, 0, TAU); sc.fill();
+    if (lm.state === 'lit') {
+      sc.fillStyle = css3([1,0.9,0.5], 0.15 + 0.05 * Math.sin(tm * 4));
+      sc.beginPath(); sc.arc(0, -130, 250, 0, TAU); sc.fill();
+    }
+  } else if (lm.type === 'graveyard') {
+    sc.strokeStyle = css3(pal.tint, 0.3); sc.lineWidth = 4;
+    for (let i = 0; i < 5; i++) {
+      sc.beginPath(); sc.arc(0 + (i-2)*30, 0, 40, Math.PI, 0); sc.stroke();
+    }
+  } else if (lm.type === 'whale') {
+    sc.fillStyle = css3([0.3,0.4,0.6], 0.5);
+    sc.beginPath(); sc.ellipse(0, 0, 90, 40, 0, 0, TAU); sc.fill();
+    sc.fillStyle = css3(pal.tint, 0.6);
+    sc.beginPath(); sc.arc(-60, -10, 5, 0, TAU); sc.fill();
+  } else if (lm.type === 'lamplighter') {
+    sc.fillStyle = css3(pal.tint, 0.8);
+    sc.beginPath(); sc.arc(0, -10, 10, 0, TAU); sc.fill();
+    sc.fillStyle = css3([1,0.8,0.4], 0.9);
+    sc.beginPath(); sc.arc(12, -5, 4, 0, TAU); sc.fill();
+  } else if (lm.type === 'starfall') {
+    // only drawn via stars array when active
+  }
+  sc.restore();
 }
 
 // ---------- отрисовка ----------
@@ -2812,6 +2955,7 @@ function draw() {
   // мир: собрать, отсеять ушедшее за край, отсортировать по глубине, нарисовать
   itemN = 0;
   for (const sh of ships) addItem('ship', sh, sh.y + Math.sin(sh.bob) * 6 * sh.scl, 340);
+  for (const lm of landmarks) addItem('landmark', lm, lm.y, 350);
   if (boss) addItem('boss', boss, boss.y, 900);
   for (const an of anchors) addItem('anchor', an, an.y, 90);
   for (const e of enemies) addItem('enemy', e, e.y, FAR_FOE[e.type] ? 900 : 150);
@@ -2827,6 +2971,7 @@ function draw() {
     else if (it.z === 'enemy') drawEnemy(it.o, it.p, tm);
     else if (it.z === 'mote') drawMote(it.o, it.p, pal, tm);
     else if (it.z === 'star') drawStar(it.o, it.p, pal, tm);
+    else if (it.z === 'landmark') drawLandmark(it.o, it.p, pal, tm);
     else drawIo(it.p, pal, tm);
   }
 
