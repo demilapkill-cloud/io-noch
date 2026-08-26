@@ -1223,6 +1223,66 @@ const DEATH_QUOTES = {
   ],
 };
 
+
+const metaBtn = document.getElementById('metaBtn');
+const metaScreen = document.getElementById('metaScreen');
+const metaBackBtn = document.getElementById('metaBackBtn');
+const metaList = document.getElementById('metaList');
+const metaThoughts = document.getElementById('metaThoughts');
+
+metaBtn.addEventListener('pointerdown', (e) => {
+  e.stopPropagation(); e.preventDefault();
+  renderMeta();
+  metaScreen.classList.remove('hidden');
+});
+metaBackBtn.addEventListener('pointerdown', (e) => {
+  e.stopPropagation(); e.preventDefault();
+  metaScreen.classList.add('hidden');
+});
+
+function renderMeta() {
+  metaThoughts.textContent = tr('meta_thoughts', META.thoughts);
+  metaList.innerHTML = '';
+  META_UP.forEach(u => {
+    const lvl = META.up[u.id] || 0;
+    const isMax = lvl >= u.max;
+    const cost = metaCost(u.id, lvl);
+    const div = document.createElement('div');
+    div.style.cssText = 'background:rgba(255,255,255,0.05);padding:15px;border-radius:8px;display:flex;justify-content:space-between;align-items:center;';
+    
+    const info = document.createElement('div');
+    info.style.textAlign = 'left';
+    info.innerHTML = `<div style="color:#ffd9a0;font-size:20px;margin-bottom:6px">${tr('meta_' + u.id)} ${isMax ? '' : `<span style="color:#aaa;font-size:16px;">(${lvl}/${u.max})</span>` }</div>
+                      <div style="color:#9fb4c7;font-size:16px;">${tr('meta_' + u.id + '_desc')}</div>`;
+    div.appendChild(info);
+    
+    const btn = document.createElement('button');
+    btn.className = 'sky-link';
+    btn.style.margin = '0';
+    if (isMax) {
+      btn.textContent = 'MAX';
+      btn.disabled = true;
+      btn.style.opacity = '0.5';
+    } else {
+      btn.textContent = tr('meta_buy') + cost;
+      if (META.thoughts < cost) {
+        btn.disabled = true;
+        btn.style.opacity = '0.5';
+      } else {
+        btn.addEventListener('pointerdown', (e) => {
+          e.stopPropagation();
+          META.thoughts -= cost;
+          META.up[u.id] = lvl + 1;
+          saveMeta();
+          renderMeta();
+        });
+      }
+    }
+    div.appendChild(btn);
+    metaList.appendChild(div);
+  });
+}
+
 // ---------- созвездие пойманных фраз (память между бессонницами) ----------
 // всякая пойманная впервые фраза остаётся звездою на небе игрока навсегда;
 // чем полнее созвездие, тем с бо́льшим наследством начинается новая ночь.
@@ -1274,6 +1334,61 @@ function sparkNeed(s) { return s.n === 0 ? skyTotal() : s.n; }
 function applySparks(r) {
   const c = skyCaught();
   for (const s of SPARKS) if (c >= sparkNeed(s)) s.apply(r);
+}
+
+
+// ---------- Метапрогрессия (Шкатулка мыслей) ----------
+let META = loadMeta();
+function loadMeta() {
+  try { return JSON.parse(localStorage.getItem('io-noch-meta')) || { thoughts: 0, up: {} }; }
+  catch (_) { return { thoughts: 0, up: {} }; }
+}
+function saveMeta() {
+  localStorage.setItem('io-noch-meta', JSON.stringify(META));
+}
+function metaCost(id, lvl) {
+  const up = META_UP.find(u => u.id === id);
+  return Math.floor(up.baseCost * Math.pow(1.7, lvl));
+}
+const META_UP = [
+  { id: 'startWake', baseCost: 15, max: 10, apply: (r, lvl) => { r.wakeMax += lvl * 5; r.wake += lvl * 5; } },
+  { id: 'drain', baseCost: 20, max: 10, apply: (r, lvl) => { r.drainMul *= Math.pow(0.96, lvl); } },
+  { id: 'spirit', baseCost: 350, max: 1, apply: (r, lvl) => { r.spirits += lvl; } },
+  { id: 'blink', baseCost: 25, max: 5, apply: (r, lvl) => { r.relocCd = Math.max(3, r.relocCd - lvl * 0.4); } },
+  { id: 'speed', baseCost: 20, max: 8, apply: (r, lvl) => { r.speed *= Math.pow(1.03, lvl); } },
+  { id: 'tether', baseCost: 20, max: 5, apply: (r, lvl) => { r.tetherR += lvl * 25; } },
+  { id: 'xp', baseCost: 40, max: 5, apply: (r, lvl) => { r.metaXp = (r.metaXp || 0) + lvl * 0.2; } },
+  { id: 'revive', baseCost: 800, max: 1, apply: (r, lvl) => { if (lvl > 0) r.secondWind = true; } },
+];
+TXT.ru.meta_head = 'Шкатулка мыслей';
+TXT.ru.meta_thoughts = n => 'Мыслей в копилке: ' + n;
+TXT.ru.meta_startWake = 'Запас сил'; TXT.ru.meta_startWake_desc = 'Свет вмещает больше бодрости.';
+TXT.ru.meta_drain = 'Тлеющий уголь'; TXT.ru.meta_drain_desc = 'Бодрость тает медленнее.';
+TXT.ru.meta_spirit = 'Свита света'; TXT.ru.meta_spirit_desc = 'Лишний спирит с самого начала.';
+TXT.ru.meta_blink = 'Лёгкость бытия'; TXT.ru.meta_blink_desc = 'Мерцание возвращается скорее.';
+TXT.ru.meta_speed = 'Быстрый шаг'; TXT.ru.meta_speed_desc = 'Свет летит быстрее обычного.';
+TXT.ru.meta_tether = 'Крепкая нить'; TXT.ru.meta_tether_desc = 'Нить цепляет корабли издалече.';
+TXT.ru.meta_xp = 'Ясность ума'; TXT.ru.meta_xp_desc = 'Каждая мысль приносит больше опыта.';
+TXT.ru.meta_revive = 'Ещё одна ночь'; TXT.ru.meta_revive_desc = 'Единожды за забег смерть отступает.';
+TXT.ru.meta_buy = 'Взять за ';
+
+TXT.en.meta_head = 'Casket of Thoughts';
+TXT.en.meta_thoughts = n => 'Thoughts in stash: ' + n;
+TXT.en.meta_startWake = 'Reserve of Strength'; TXT.en.meta_startWake_desc = 'The light holds more wakefulness.';
+TXT.en.meta_drain = 'Smoldering Ember'; TXT.en.meta_drain_desc = 'Wakefulness drains slower.';
+TXT.en.meta_spirit = 'Retinue of Light'; TXT.en.meta_spirit_desc = 'An extra spirit from the start.';
+TXT.en.meta_blink = 'Lightness of Being'; TXT.en.meta_blink_desc = 'Blink returns sooner.';
+TXT.en.meta_speed = 'Swift Step'; TXT.en.meta_speed_desc = 'The light flies faster.';
+TXT.en.meta_tether = 'Sturdy Thread'; TXT.en.meta_tether_desc = 'The thread reaches ships from farther.';
+TXT.en.meta_xp = 'Clarity of Mind'; TXT.en.meta_xp_desc = 'Every thought grants more experience.';
+TXT.en.meta_revive = 'One More Night'; TXT.en.meta_revive_desc = 'Once a run, death steps aside.';
+TXT.en.meta_buy = 'Take for ';
+
+function applyMeta(r) {
+  for (const u of META_UP) {
+    const lvl = META.up[u.id] || 0;
+    if (lvl > 0) u.apply(r, lvl);
+  }
 }
 
 // ---------- дары бессонницы (прокачка по очкам) ----------
@@ -1416,7 +1531,7 @@ function newRun() {
     relocVeil: false, stormXp: false, maxSpd: 900, starRateMul: 1, dawnDew: 0,
     kills: 0, thoughts: 0, comboBest: 0, dist: 0, bosses: 0, newStars: 0, taken: [], offerHist: [],
   };
-  applySparks(r); // наследство созвездия
+  applyMeta(r); // прокачка за мысли
   return r;
 }
 let RUN = newRun();
@@ -4060,6 +4175,8 @@ function die(cause) {
   io.oc = false; ocBtn.classList.remove('held');
   document.body.classList.remove('playing');
   saveBest(RUN.night, RUN.thoughts);
+  META.thoughts += RUN.thoughts;
+  saveMeta();
   document.getElementById('deathNight').textContent = tr('deathNight', RUN.night, plural(RUN.night));
   document.getElementById('stNights').textContent = RUN.night;
   document.getElementById('stMoths').textContent = RUN.thoughts;
