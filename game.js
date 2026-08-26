@@ -1,6 +1,6 @@
 /* ============================================================
    третья ночь — игра про то, как не спать
-   killu × fable · 2026
+   killu · 2026
    Одна ночь = ~5.5 минут. Кровать летит по небу, ловит мысли,
    мимо ходят корабли. Чем дольше не спишь — тем громче мир.
    ============================================================ */
@@ -158,7 +158,7 @@ const TXT = {
     wd_lock_theme: n2 => 'созвездие «' + n2 + '» ещё не полно',
     wd_lock_themes: n2 => 'собери полных созвездий испытаний: ' + n2,
     wd_lock_phr: n2 => 'поймай фраз в созвездие: ' + n2,
-    titleVer: 'killu × fable · роглайк-ответвление «третьей ночи» · наушники надобны непременно',
+    titleVer: 'killu · роглайк-ответвление «третьей ночи» · наушники надобны непременно',
     bestLine: (n, t, p) => 'славнейшая бессонница · ' + n + ' ноч' + p + ' · ' + t + ' мыслей',
     restHead: (lvl, w, mx) => 'степень ' + lvl + ' · бодрости ' + w + ' из ' + mx,
     restBig: 'дар бессонницы',
@@ -305,7 +305,7 @@ const TXT = {
     wd_lock_theme: n2 => 'the "' + n2 + '" constellation is not yet full',
     wd_lock_themes: n2 => 'complete full trial constellations: ' + n2,
     wd_lock_phr: n2 => 'catch phrases for the sky: ' + n2,
-    titleVer: 'killu × fable · a roguelike offshoot of "the third night" · headphones are essential',
+    titleVer: 'killu · a roguelike offshoot of "the third night" · headphones are essential',
     bestLine: (n, t) => 'finest sleeplessness · ' + n + (n === 1 ? ' night · ' : ' nights · ') + t + ' thoughts',
     restHead: (lvl, w, mx) => 'tier ' + lvl + ' · wakefulness ' + w + ' of ' + mx,
     restBig: 'gift of sleeplessness',
@@ -454,7 +454,7 @@ const TXT = {
     wd_lock_theme: n2 => 'das sternbild „' + n2 + '“ ist noch nicht voll',
     wd_lock_themes: n2 => 'vollende so viele prüfungsbilder: ' + n2,
     wd_lock_phr: n2 => 'fange so viele sätze fürs sternbild: ' + n2,
-    titleVer: 'killu × fable · ein roguelike-seitenzweig der „dritten nacht“ · kopfhörer sind vonnöten',
+    titleVer: 'killu · ein roguelike-seitenzweig der „dritten nacht“ · kopfhörer sind vonnöten',
     bestLine: (n, t) => 'trefflichste schlaflosigkeit · ' + n + (n === 1 ? ' nacht · ' : ' nächte · ') + t + ' gedanken',
     restHead: (lvl, w, mx) => 'stufe ' + lvl + ' · wachheit ' + w + ' von ' + mx,
     restBig: 'gabe der schlaflosigkeit',
@@ -1093,13 +1093,23 @@ attribute vec2 p; varying vec2 vUv;
 void main(){ vUv = p*0.5+0.5; gl_Position = vec4(p,0.,1.); }`;
 
 // низкорезный проход: градиент + небула + авроры (мягкие — апсэмпл неотличим)
+//
+// Точность здесь непременно highp, а зерно шума вдобавок заворачивается по
+// клетке. Причина тому вот какая: авроры смещаются вслед за камерой, и довод
+// sin() в хеше растёт вместе с пройденным путём. В mediump (а это на живом
+// железе половинная точность, предел 65504) тысяч через сто пикселей довод
+// перерастал предел, обращался в бесконечность, а из неё — в NaN. Небо от
+// того чернело ровнёхонькой вертикальной чертою, что ползла вслед за камерой:
+// слева от черты довод ещё влезал, справа — уже нет. Заворот по 120 клеткам
+// держит довод в узде навсегда и швов не даёт вовсе: клетка 120-я хешируется
+// как нулевая, оттого стык сходится сам собою.
 const SKY_FSH = `
-precision mediump float;
+precision highp float;
 varying vec2 vUv;
 uniform vec2 uRes; uniform float uTime;
 uniform vec3 uSkyA, uSkyB, uAur, uTint;
 uniform float uAurI; uniform vec2 uCam;
-float hash(vec2 p){ return fract(sin(dot(p, vec2(127.1,311.7)))*43758.5453); }
+float hash(vec2 p){ p = mod(p, 120.0); return fract(sin(dot(p, vec2(127.1,311.7)))*43758.5453); }
 float noise(vec2 p){
   vec2 i=floor(p), f=fract(p); f=f*f*(3.-2.*f);
   return mix(mix(hash(i),hash(i+vec2(1.,0.)),f.x),
