@@ -91,6 +91,18 @@ const TXT = {
     lm_whale: 'небесный кит',
     lm_lamplighter: 'фонарщик',
     lm_starfall: 'звездопад',
+    lm_star: 'уснувшая звезда',
+    lm_star_hint: 'побудь рядом — разбуди её, коли отважишься',
+    lm_star_wake: 'звезда пробудилась — и ночь глядит на вас',
+    lm_pedlar: 'сонный меняла',
+    lm_pedlar_amber: n => n + ' мыслей — за глоток бодрости',
+    lm_pedlar_violet: n => n + ' бодрости — за горсть мыслей',
+    lm_pedlar_done: 'меняла кланяется и правит прочь',
+    lm_pedlar_poor: 'меняла качает головой — вам нечем платить',
+    lm_nest: 'гнездо кошмаров',
+    lm_nest_hint: 'задержись подле — и выжги его',
+    lm_nest_cry: 'гнездо кричит',
+    lm_nest_done: 'гнездо погасло',
     // — HUD —
     thoughts: n => 'мыслей · ' + n,
     tierN: n => 'степень ' + n,
@@ -202,6 +214,18 @@ const TXT = {
     lm_whale: 'the sky whale',
     lm_lamplighter: 'the lamplighter',
     lm_starfall: 'starfall',
+    lm_star: 'a sleeping star',
+    lm_star_hint: 'linger close — wake her, if you dare',
+    lm_star_wake: 'the star awakens — and the night is watching',
+    lm_pedlar: 'the drowsy pedlar',
+    lm_pedlar_amber: n => n + ' thoughts — for a sip of wakefulness',
+    lm_pedlar_violet: n => n + ' wakefulness — for a handful of thoughts',
+    lm_pedlar_done: 'the pedlar bows and steers away',
+    lm_pedlar_poor: 'the pedlar shakes his head — you have nothing to pay',
+    lm_nest: 'a nightmare nest',
+    lm_nest_hint: 'linger close — and burn it out',
+    lm_nest_cry: 'the nest cries out',
+    lm_nest_done: 'the nest is put out',
     thoughts: n => 'thoughts · ' + n,
     tierN: n => 'tier ' + n,
     chain: n => 'chain ×' + n,
@@ -1176,12 +1200,18 @@ function populateCell(gx, gy, factor, visit) {
   
   // Жители ночи — редкие гости: не чаще одного на два десятка клеток,
   // и не больше двух живых разом, иначе чудо делается обыденностью
-  if (visit === 0 && rnd() < 0.05 && landmarks.length < 2) {
-    const types = ['lighthouse', 'graveyard', 'whale', 'lamplighter', 'starfall'];
+  if (visit === 0 && rnd() < 0.065 && landmarks.length < 3) {
+    const types = ['lighthouse', 'graveyard', 'whale', 'lamplighter', 'starfall', 'star', 'pedlar', 'nest'];
     const type = types[Math.floor(rnd(0, types.length))];
     const lx = cx + rnd(-CELL/2.5, CELL/2.5), ly = cy + rnd(-CELL/2.5, CELL/2.5);
-    
+
     if (type === 'lighthouse') landmarks.push({ type, x: lx, y: ly, state: 'dark', t: 0 });
+    else if (type === 'star') landmarks.push({ type, x: lx, y: ly, state: 'asleep', prog: 0, t: 0, seed: rnd(TAU) });
+    else if (type === 'pedlar') {
+      const a = rnd(TAU);
+      landmarks.push({ type, x: lx, y: ly, vx: Math.cos(a)*14, vy: Math.sin(a)*14, state: 'trade', cd: 0, t: 0 });
+    }
+    else if (type === 'nest') landmarks.push({ type, x: lx, y: ly, state: 'alive', prog: 0, t: rnd(3, 6), cried: false });
     else if (type === 'graveyard') {
       landmarks.push({ type, x: lx, y: ly, r: 250 });
       // гнездятся ловцы снов
@@ -2943,6 +2973,135 @@ function update(dt) {
         }
         if (lm.t <= 0) lm.state = 'done';
       }
+    } else if (lm.type === 'star') {
+      // уснувшая звезда: разбудишь — одаришь себя и ночь разом
+      if (lm.state === 'done') { landmarks.splice(i, 1); continue; }
+      const d = hyp(io.x - lm.x, io.y - lm.y);
+      if (!lm.seen && lm.state === 'asleep' && d < 320) {
+        lm.seen = true;
+        spawnText(lm.x, lm.y - 110, tr('lm_star'), true);
+        spawnText(lm.x, lm.y - 60, tr('lm_star_hint'));
+      }
+      if (lm.state === 'asleep') {
+        if (d < 95) {
+          lm.prog += dt;
+          if (Math.random() < dt * 6) sfxTick(Math.floor(lm.prog * 2));
+          S.shake = Math.max(S.shake, Math.min(0.25, lm.prog * 0.1));
+          if (lm.prog >= 2.5) {
+            lm.state = 'awake'; lm.t = 0;
+            spawnText(lm.x, lm.y - 120, tr('lm_star_wake'), true);
+            burst(lm.x, lm.y, [1, 0.95, 0.7], 40, 500);
+            sfxZap(lm.x);
+            S.glitch = Math.max(S.glitch, 0.4);
+            // дар: кольцо мыслей и две падучие звезды
+            for (let k = 0; k < 10; k++) {
+              const a = k / 10 * TAU;
+              spawnMoteAt(lm.x + Math.cos(a) * 120, lm.y + Math.sin(a) * 120, 30);
+            }
+            for (let k = 0; k < 2; k++)
+              stars.push({ x: lm.x + rand(-260, 260), y: lm.y + rand(-260, 260), t: 0, life: 20, seed: rand(TAU) });
+            // расплата: ночь просыпается вместе с нею
+            for (const e of enemies) if (hyp(e.x - lm.x, e.y - lm.y) < 1100) e.sleeping = false;
+            for (let k = 0; k < 3; k++) {
+              const a = rand(TAU);
+              spawnEnemy(pickEnemyType(), lm.x + Math.cos(a) * rand(420, 620), lm.y + Math.sin(a) * rand(420, 620), false);
+            }
+          }
+        } else lm.prog = Math.max(0, lm.prog - dt * 1.5);
+      } else if (lm.state === 'awake') {
+        lm.t += dt; lm.y -= 140 * dt; // восходит на небо
+        if (lm.t > 2.5) lm.state = 'done';
+      }
+    } else if (lm.type === 'pedlar') {
+      // сонный меняла: два фонаря — два торга, без единого слова лишку
+      lm.cd = Math.max(0, lm.cd - dt);
+      if (lm.state === 'leaving') { lm.x += lm.vx * dt; lm.y += lm.vy * dt; }
+      else {
+        lm.x += lm.vx * dt; lm.y += lm.vy * dt;
+        const dir = lm.vx < 0 ? -1 : 1;
+        const ax = lm.x + 80 * dir, vy2 = lm.y - 34; // янтарный на носу
+        const vx2 = lm.x - 80 * dir;                 // лиловый на корме
+        if (!lm.seen && hyp(io.x - lm.x, io.y - lm.y) < 320) {
+          lm.seen = true;
+          spawnText(lm.x, lm.y - 165, tr('lm_pedlar'), true);
+          spawnText(lm.x, lm.y - 115, tr('lm_pedlar_amber', 12));
+          spawnText(lm.x, lm.y - 70, tr('lm_pedlar_violet', 25));
+        }
+        if (lm.cd <= 0) {
+          if (hyp(io.x - ax, io.y - vy2) < 60) {
+            if (RUN.thoughts >= 12) {
+              RUN.thoughts -= 12;
+              RUN.wake = Math.min(RUN.wakeMax, RUN.wake + 30);
+              lm.state = 'leaving';
+              const dd = hyp(lm.x - io.x, lm.y - io.y) || 1;
+              lm.vx = (lm.x - io.x) / dd * 70; lm.vy = (lm.y - io.y) / dd * 70;
+              spawnText(lm.x, lm.y - 110, tr('lm_pedlar_done'), true);
+              burst(ax, vy2, [1, 0.8, 0.45], 16, 200);
+              sfxChoice();
+            } else { lm.cd = 3; spawnText(lm.x, lm.y - 110, tr('lm_pedlar_poor')); }
+          } else if (hyp(io.x - vx2, io.y - vy2) < 60) {
+            if (RUN.wake > 40) {
+              RUN.wake -= 25;
+              RUN.thoughts += 10;
+              lm.state = 'leaving';
+              const dd = hyp(lm.x - io.x, lm.y - io.y) || 1;
+              lm.vx = (lm.x - io.x) / dd * 70; lm.vy = (lm.y - io.y) / dd * 70;
+              spawnText(lm.x, lm.y - 110, tr('lm_pedlar_done'), true);
+              burst(vx2, vy2, [0.7, 0.55, 1], 16, 200);
+              sfxChoice();
+            } else { lm.cd = 3; spawnText(lm.x, lm.y - 110, tr('lm_pedlar_poor')); }
+          }
+        }
+      }
+    } else if (lm.type === 'nest') {
+      // гнездо кошмаров: родит тени, покуда не выжжено
+      if (lm.state === 'done') { landmarks.splice(i, 1); continue; }
+      const d = hyp(io.x - lm.x, io.y - lm.y);
+      if (!lm.seen && d < 320) {
+        lm.seen = true;
+        spawnText(lm.x, lm.y - 110, tr('lm_nest'), true);
+        spawnText(lm.x, lm.y - 60, tr('lm_nest_hint'));
+      }
+      lm.t -= dt;
+      if (lm.t <= 0) {
+        lm.t = 7;
+        if (enemies.length < 20) {
+          const e = allocEnemy();
+          Object.assign(e, {
+            x: lm.x + rand(-40, 40), y: lm.y + rand(-40, 40), vx: 0, vy: rand(10, 40),
+            r: rand(6, 9), sp: 110 + D * 12, dmg: 10, seed: rand(TAU),
+            type: 'shade', sleeping: false, threadT: 0, dead: false,
+          });
+          enemies.push(e);
+        }
+      }
+      if (d < 90) {
+        lm.prog += dt;
+        if (Math.random() < dt * 6) sfxTick(Math.floor(lm.prog * 3));
+        if (!lm.cried && lm.prog > 0.15) {
+          lm.cried = true;
+          spawnText(lm.x, lm.y - 110, tr('lm_nest_cry'), true);
+          for (let k = 0; k < 2; k++) {
+            const e = allocEnemy();
+            Object.assign(e, {
+              x: lm.x + rand(-60, 60), y: lm.y + rand(-60, 60), vx: 0, vy: 0,
+              r: rand(6, 9), sp: 115 + D * 12, dmg: 10, seed: rand(TAU),
+              type: 'shade', sleeping: false, threadT: 0, dead: false,
+            });
+            enemies.push(e);
+          }
+        }
+        if (lm.prog >= 2) {
+          lm.state = 'done';
+          spawnText(lm.x, lm.y - 110, tr('lm_nest_done'), true);
+          burst(lm.x, lm.y, [1, 0.5, 0.6], 30, 350);
+          sfxKill(lm.x);
+          for (let k = 0; k < 8; k++) {
+            const a = k / 8 * TAU;
+            spawnMoteAt(lm.x + Math.cos(a) * 90, lm.y + Math.sin(a) * 90, 25);
+          }
+        }
+      } else lm.prog = Math.max(0, lm.prog - dt * 1.5);
     }
   }
 
@@ -3289,6 +3448,72 @@ function drawLandmark(lm, p, pal, tm) {
     sc.fillStyle = 'rgba(255,244,220,.95)';
     sc.beginPath(); sc.arc(14, -30 + sway * 0.4, 2.2, 0, TAU); sc.fill();
     tintGlow(-8, 0, 30, pal.tint, 0.12); // само дыхание странника — едва видное
+  } else if (lm.type === 'star') {
+    // уснувшая звезда: восьмилучевой штрих в колыбели из двух дуг
+    const wakeK = lm.state === 'awake' ? 1 : Math.min(1, lm.prog / 2.5);
+    const breath = 0.5 + 0.5 * Math.sin(tm * (1 + wakeK * 5) + lm.seed * 7);
+    const fade = lm.state === 'awake' ? Math.max(0, 1 - lm.t / 2.5) : 1;
+    const warm = [1, 0.94, 0.68];
+    sc.globalAlpha = fade;
+    sc.strokeStyle = css3(warm, 0.35 + wakeK * 0.45);
+    sc.lineWidth = 1.2;
+    for (let i = 0; i < 8; i++) {
+      const a = i / 8 * TAU + tm * 0.05;
+      const len = (i % 2 ? 14 : 26) * (1 + wakeK * 0.4);
+      sc.beginPath(); sc.moveTo(Math.cos(a) * 4, Math.sin(a) * 4);
+      sc.lineTo(Math.cos(a) * len, Math.sin(a) * len); sc.stroke();
+    }
+    // колыбель — две дуги под нею, как гамак меж невидимых снастей
+    sc.strokeStyle = css3(pal.tint, 0.3 * fade);
+    sc.beginPath(); sc.ellipse(0, 16, 42, 20, 0, Math.PI * 0.15, Math.PI * 0.85); sc.stroke();
+    sc.beginPath(); sc.ellipse(0, 22, 58, 26, 0, Math.PI * 0.2, Math.PI * 0.8); sc.stroke();
+    tintGlow(0, 0, 26 + wakeK * 60, warm, (0.2 + breath * 0.12 + wakeK * 0.5) * fade);
+    sc.globalAlpha = 1;
+  } else if (lm.type === 'pedlar') {
+    // сонный меняла: чёлн с двумя фонарями — янтарным и лиловым
+    const dir = (lm.vx < 0 ? -1 : 1);
+    const bob = Math.sin(tm * 1.4 + lm.x * 0.01) * 3;
+    sc.strokeStyle = css3(pal.tint, 0.45);
+    sc.lineWidth = 1.3;
+    // корпус — одна дуга, как долька луны
+    sc.beginPath(); sc.moveTo(-58, bob); sc.quadraticCurveTo(0, bob + 26, 58, bob); sc.stroke();
+    sc.beginPath(); sc.moveTo(-58, bob); sc.lineTo(58, bob); sc.stroke();
+    // коромысла к фонарям
+    sc.lineWidth = 1;
+    sc.beginPath(); sc.moveTo(46 * dir, bob); sc.lineTo(80 * dir, bob - 34); sc.stroke();
+    sc.beginPath(); sc.moveTo(-46 * dir, bob); sc.lineTo(-80 * dir, bob - 34); sc.stroke();
+    const amber = [1, 0.8, 0.45], viol = [0.7, 0.55, 1];
+    tintGlow(80 * dir, bob - 34, 18, amber, 0.6);
+    tintGlow(-80 * dir, bob - 34, 18, viol, 0.6);
+    sc.fillStyle = 'rgba(255,244,220,.95)';
+    sc.beginPath(); sc.arc(80 * dir, bob - 34, 2, 0, TAU); sc.fill();
+    sc.fillStyle = 'rgba(228,220,255,.95)';
+    sc.beginPath(); sc.arc(-80 * dir, bob - 34, 2, 0, TAU); sc.fill();
+    if (lm.state !== 'leaving') {
+      // круги торга — той же чертой, что круг нити
+      sc.setLineDash([3, 12]);
+      sc.strokeStyle = css3(amber, 0.3);
+      sc.beginPath(); sc.arc(80 * dir, bob - 34, 60, tm * 0.3, tm * 0.3 + TAU); sc.stroke();
+      sc.strokeStyle = css3(viol, 0.3);
+      sc.beginPath(); sc.arc(-80 * dir, bob - 34, 60, -tm * 0.3, -tm * 0.3 + TAU); sc.stroke();
+      sc.setLineDash([]);
+    }
+  } else if (lm.type === 'nest') {
+    // гнездо кошмаров: тёмный ком, оплетённый дугами, с тлеющим сердцем
+    sc.globalCompositeOperation = 'source-over';
+    sc.fillStyle = 'rgba(5,6,10,.55)';
+    sc.beginPath(); sc.ellipse(0, 0, 46, 34, 0, 0, TAU); sc.fill();
+    sc.globalCompositeOperation = 'lighter';
+    const burnK = Math.min(1, lm.prog / 2);
+    const ember = [1, 0.45 + burnK * 0.3, 0.55];
+    sc.strokeStyle = css3([0.75, 0.5, 0.85], 0.35);
+    sc.lineWidth = 1.2;
+    for (let i = 0; i < 5; i++) {
+      const tilt = Math.sin(lm.x * 0.01 + i * 2.1) * 1.4 + tm * 0.03 * (i % 2 ? 1 : -1);
+      sc.beginPath(); sc.ellipse(0, 0, 44 - i * 4, 30 - i * 3, tilt, 0, TAU); sc.stroke();
+    }
+    const pulse = 0.5 + 0.5 * Math.sin(tm * (2 + burnK * 6));
+    tintGlow(0, 0, 16 + burnK * 30, ember, 0.25 + pulse * 0.15 + burnK * 0.5);
   }
   sc.globalCompositeOperation = 'source-over';
   sc.restore();
@@ -4902,7 +5127,10 @@ requestAnimationFrame(frame);
     const t2 = q.get('lm');
     if (t2 === 'whale' || t2 === 'lamplighter') {
       landmarks.push({ type: t2, x: io.x + 200, y: io.y - 60, vx: t2 === 'whale' ? 25 : 40, vy: 0, t: 1 });
-    } else landmarks.push({ type: t2, x: io.x + 230, y: io.y + 40, state: 'dark', t: 0, r: 250 });
+    } else if (t2 === 'star') landmarks.push({ type: t2, x: io.x + 230, y: io.y + 40, state: 'asleep', prog: 0, t: 0, seed: rand(TAU) });
+    else if (t2 === 'pedlar') landmarks.push({ type: t2, x: io.x + 230, y: io.y + 40, vx: 14, vy: 0, state: 'trade', cd: 0, t: 0 });
+    else if (t2 === 'nest') landmarks.push({ type: t2, x: io.x + 230, y: io.y + 40, state: 'alive', prog: 0, t: 3, cried: false });
+    else landmarks.push({ type: t2, x: io.x + 230, y: io.y + 40, state: 'dark', t: 0, r: 250 });
   }, 900);
   if (q.get('look')) { // отладка обликов: ?look=storm_shell,tether_trail,ship_spirits
     for (const id of q.get('look').split(',')) {
