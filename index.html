@@ -348,18 +348,29 @@
   <div class="dreams" id="dreams"></div>
 </div>
 
-<div id="deathScreen" class="veil hidden">
+<div id="deathScreen" class="veil hidden" style="background:rgba(5,6,10,.95);">
   <div class="death-big" data-i18n="deathBig"></div>
-  <div class="death-sub" id="deathNight">бессонница твоя длилась 3 ночи</div>
+  <div class="death-sub" id="deathNight"></div>
+
   <div class="end-stats">
     <div class="end-stat"><b id="stNights">0</b><span data-i18n="stNights"></span></div>
-    <div class="end-stat"><b id="stMoths">0</b><span data-i18n="stThoughts"></span></div>
     <div class="end-stat"><b id="stKills">0</b><span data-i18n="stKills"></span></div>
     <div class="end-stat"><b id="stDist">0</b><span data-i18n="stDist"></span></div>
   </div>
-  <div class="sky-gain hidden" id="skyGain"></div>
-  <div class="death-quote" id="deathQuote">и свету случается моргнуть.</div>
-  <button class="end-btn" id="againBtn" data-i18n="againBtn"></button>
+
+  <div style="margin: 30px auto; text-align: center;">
+    <div style="font-size: 14px; color: var(--ink-3); text-transform: uppercase; font-family: var(--font-mono); letter-spacing: 0.1em;" data-i18n="stThoughts"></div>
+    <div style="font-size: 32px; color: var(--ink); margin-top: 5px;">
+      <span id="animRunThoughts">0</span> <span style="color: var(--ink-4);">→</span> <span id="animMetaThoughts" style="color: var(--ember);">0</span>
+    </div>
+  </div>
+
+  <div class="death-quote" id="deathQuote"></div>
+
+  <div id="deathBtns" style="opacity: 0; pointer-events: none; transition: opacity 0.5s ease; display: flex; flex-direction: column; align-items: center; gap: 10px; margin-top: 20px;">
+    <button class="end-btn" id="againBtn" data-i18n="againBtn"></button>
+    <button class="end-btn" id="titleBtn2" data-i18n="titleBtn"></button>
+  </div>
 </div>
 
 
