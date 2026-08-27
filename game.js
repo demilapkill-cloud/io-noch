@@ -2690,10 +2690,7 @@ function spawnBolt() {
   bolts.push({ x, t: 0, warn: 1.35, strike: 0.22, hitDone: false });
 }
 const TEXT_SS = 2; // спрайт фразы в 2× — чёткость при глубинном масштабе
-const GAME_FONT = '"SAO UI", "Trebuchet MS", sans-serif'; // узорный: летучие фразы мира
-// Таблички сада — не украшение, а учебник: их читают внимательно и целиком,
-// оттого набраны они тем же обычным шрифтом, что и весь интерфейс.
-const UI_FONT = 'system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif';
+const GAME_FONT = '"SAO UI", "Trebuchet MS", sans-serif'; // единый шрифт игры
 const _measC = document.createElement('canvas');
 const _measG = _measC.getContext('2d');
 function spawnText(x, y, str, big) {
@@ -6110,7 +6107,7 @@ function tutorLines(st) {
   const maxW = Math.min(430, W - 64); // на телефоне табличка ужимается по экрану
   if (st.lines && st.lang === LANG && st.wrap === maxW) return st.lines;
   st.wrap = maxW;
-  _measG.font = '500 17px ' + UI_FONT;
+  _measG.font = '500 17px ' + GAME_FONT;
   const out = [];
   let line = '';
   for (const word of nm(stopDesc(st)).split(' ')) {
@@ -6119,9 +6116,9 @@ function tutorLines(st) {
     else line = probe;
   }
   if (line) out.push(line);
-  _measG.font = '600 21px ' + UI_FONT;
+  _measG.font = '600 21px ' + GAME_FONT;
   let w = _measG.measureText(nm(st.def.t)).width;
-  _measG.font = '500 17px ' + UI_FONT;
+  _measG.font = '500 17px ' + GAME_FONT;
   for (const l of out) w = Math.max(w, _measG.measureText(l).width);
   st.lines = out; st.lang = LANG; st.lw = w;
   return out;
@@ -6176,9 +6173,9 @@ function drawTutor() {
     sc.stroke();
     sc.textAlign = 'left'; sc.textBaseline = 'top';
     sc.fillStyle = css3(IO_COL, st.on ? 1 : 0.6);
-    sc.font = '600 21px ' + UI_FONT;
+    sc.font = '600 21px ' + GAME_FONT;
     sc.fillText(nm(st.def.t), bx + padX, by + padY);
-    sc.font = '500 17px ' + UI_FONT;
+    sc.font = '500 17px ' + GAME_FONT;
     sc.fillStyle = 'rgba(238,242,248,' + (st.on ? 0.97 : 0.58) + ')';
     for (let l = 0; l < lines.length; l++)
       sc.fillText(lines[l], bx + padX, by + padY + 30 + l * lh);

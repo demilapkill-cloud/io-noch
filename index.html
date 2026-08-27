@@ -25,12 +25,12 @@
     --line:rgba(235,232,225,.12);
     --ember:#e8a54a; --frost:#9fb4c7; --hyper:#ff4fd8; --io:#8fd0ff;
     --danger:#d8695a;
-    /* Два шрифта, и это нарочно. SAO UI узорен и хорош в заголовке, но для
-       связного текста негоден: в мелком кегле, капсом да с разрядкой его
-       приходилось разбирать по буквам. Оттого интерфейс переведён на обычный
-       системный шрифт — тот, которым на этой машине читают всё остальное. */
+    /* Один шрифт на всю игру — SAO UI, и подменять его нечем: он и есть лицо
+       ночи. Читаемость чинится не сменой начертания, а кеглем, разрядкой и
+       контрастом — они и подняты: мелкие 9–12 стали 13–15, капс с широкой
+       разрядкой снят, чернила ярче. */
     --font-display:'SAO UI','Trebuchet MS',system-ui,sans-serif;
-    --font-mono:system-ui,-apple-system,'Segoe UI',Roboto,'Helvetica Neue',Arial,sans-serif;
+    --font-mono:'SAO UI','Trebuchet MS',system-ui,sans-serif;
     --ease:cubic-bezier(.2,.7,.2,1);
   }
   *,*::before,*::after{box-sizing:border-box}
@@ -707,7 +707,7 @@
   <button class="end-btn" id="setClose" data-i18n="sClose"></button>
 </div>
 
-<script src="game.js?v=113"></script>
+<script src="game.js?v=114"></script>
 <script>
 // Служебный работник нужен лишь странице в сети: настольная обёртка и так
 // держит игру при себе, а на file:// он и вовсе не заводится.
