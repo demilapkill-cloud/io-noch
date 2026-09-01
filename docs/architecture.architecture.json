@@ -1,0 +1,244 @@
+{
+  "schema_version": 1,
+  "diagram_type": "architecture",
+  "meta": {
+    "title": "Endless Night",
+    "subtitle": "One file, one loop, and a night that is written rather than stored",
+    "output": "architecture.architecture.html",
+    "quality_profile": "showcase",
+    "repository": {
+      "url": "https://github.com/demilapkill-cloud/io-noch",
+      "revision": "b36b1e44fd77a1934d957d97c4d3df71e4adf3ac"
+    },
+    "views": [
+      {
+        "id": "a-frame",
+        "label": "What one frame costs",
+        "focus": ["input", "world", "draw", "sky", "screen"],
+        "note": "The shader paints the sky, the 2D pass paints everything in it, and the sense of depth is tilt and parallax over honest flat play."
+      },
+      {
+        "id": "the-hour",
+        "label": "The hour drives everything",
+        "focus": ["night", "sky", "world", "audio"],
+        "note": "One clock decides the palette, the difficulty, the storm and the music, so dawn arrives in the light and the sound at the same moment."
+      },
+      {
+        "id": "what-is-kept",
+        "label": "What survives a death",
+        "focus": ["saved", "world", "board"],
+        "note": "Abilities, keys and caught phrases live in the browser; only a finished run is offered to the chronicle, and only its best is kept."
+      }
+    ]
+  },
+  "components": [
+    {
+      "id": "player",
+      "type": "external",
+      "label": "Keys or a finger",
+      "sublabel": "all rebindable",
+      "pos": [40, 320],
+      "size": [145, 64],
+      "sources": [
+        { "path": "game.js", "line": 2832, "label": "input, and the aim" }
+      ]
+    },
+    {
+      "id": "night",
+      "type": "backend",
+      "label": "The timeline",
+      "sublabel": "night, storm, dawn",
+      "pos": [300, 130],
+      "size": [145, 60],
+      "sources": [
+        { "path": "game.js", "line": 631, "end_line": 668, "label": "one clock for all of it" }
+      ]
+    },
+    {
+      "id": "input",
+      "type": "backend",
+      "label": "Input",
+      "sublabel": "will, and aim",
+      "pos": [300, 320],
+      "size": [145, 64],
+      "sources": [
+        { "path": "game.js", "line": 2832, "label": "a taken key is swapped, not lost" }
+      ]
+    },
+    {
+      "id": "saved",
+      "type": "database",
+      "label": "What is kept",
+      "sublabel": "keys and the box",
+      "pos": [300, 520],
+      "size": [145, 60],
+      "sources": [
+        { "path": "game.js", "line": 1993, "end_line": 2153, "label": "the thought box, and abilities" }
+      ]
+    },
+    {
+      "id": "world",
+      "type": "backend",
+      "label": "The world",
+      "sublabel": "endless, and flat",
+      "pos": [560, 320],
+      "size": [165, 64],
+      "sources": [
+        { "path": "game.js", "line": 1521, "label": "meadows, rifts, currents" },
+        { "path": "game.js", "line": 2495, "label": "the ship, and the leviathan" }
+      ]
+    },
+    {
+      "id": "audio",
+      "type": "backend",
+      "label": "Sound",
+      "sublabel": "written, not recorded",
+      "pos": [560, 520],
+      "size": [165, 60],
+      "sources": [
+        { "path": "game.js", "line": 836, "end_line": 1185, "label": "chords, drums, a lead line" }
+      ]
+    },
+    {
+      "id": "sky",
+      "type": "backend",
+      "label": "The sky",
+      "sublabel": "one fragment shader",
+      "pos": [840, 130],
+      "size": [165, 60],
+      "sources": [
+        { "path": "game.js", "line": 1206, "label": "clouds, stars, rings" }
+      ]
+    },
+    {
+      "id": "draw",
+      "type": "backend",
+      "label": "The frame",
+      "sublabel": "canvas, tilted",
+      "pos": [840, 320],
+      "size": [165, 64],
+      "sources": [
+        { "path": "game.js", "line": 4368, "label": "everything above the sky" },
+        { "path": "game.js", "line": 2325, "label": "camera and false isometry" }
+      ]
+    },
+    {
+      "id": "board",
+      "type": "external",
+      "label": "The chronicle",
+      "sublabel": "a worker, and KV",
+      "pos": [840, 520],
+      "size": [165, 60],
+      "sources": [
+        { "path": "server/worker.js", "label": "the same contract as the node one" },
+        { "path": "server/leaderboard.js", "label": "one file, no dependencies" }
+      ]
+    },
+    {
+      "id": "screen",
+      "type": "frontend",
+      "label": "The screen",
+      "sublabel": "a page, or Tauri",
+      "pos": [1120, 320],
+      "size": [145, 64],
+      "sources": [
+        { "path": "index.html" },
+        { "path": "src-tauri/src/main.rs", "label": "the same page, in a window" }
+      ]
+    }
+  ],
+  "connections": [
+    {
+      "id": "played",
+      "from": "player",
+      "to": "input",
+      "variant": "emphasis"
+    },
+    {
+      "id": "palette",
+      "from": "night",
+      "to": "sky",
+      "label": "the palette of the hour"
+    },
+    {
+      "id": "hour",
+      "from": "night",
+      "to": "world",
+      "label": "the hour, and the storm",
+      "toSide": "top"
+    },
+    {
+      "id": "steered",
+      "from": "input",
+      "to": "world",
+      "variant": "emphasis"
+    },
+    {
+      "id": "learned",
+      "from": "saved",
+      "to": "world",
+      "label": "what was learned"
+    },
+    {
+      "id": "sounded",
+      "from": "world",
+      "to": "audio",
+      "label": "chords, never files",
+      "labelDy": 24
+    },
+    {
+      "id": "painted",
+      "from": "world",
+      "to": "draw",
+      "variant": "emphasis"
+    },
+    {
+      "id": "posted",
+      "from": "world",
+      "to": "board",
+      "label": "at the end of a run"
+    },
+    {
+      "id": "behind",
+      "from": "sky",
+      "to": "screen",
+      "label": "behind everything",
+      "toSide": "top"
+    },
+    {
+      "id": "shown",
+      "from": "draw",
+      "to": "screen",
+      "variant": "emphasis"
+    }
+  ],
+  "cards": [
+    {
+      "dot": "violet",
+      "title": "One clock",
+      "items": [
+        "A night lasts about ninety seconds, and every third one is a storm",
+        "The same clock sets the palette, the difficulty and the music, so dawn arrives at once",
+        "Dawn is a transition, not a cut: the sky drains back into dusk rather than going black"
+      ]
+    },
+    {
+      "dot": "cyan",
+      "title": "Made, not loaded",
+      "items": [
+        "The sky is a fragment shader; there is no sky image anywhere",
+        "The music is generated — chords, drums and a lead over a pentatonic scale",
+        "The map has no tiles: meadows, rifts and currents are functions of where you are"
+      ]
+    },
+    {
+      "dot": "amber",
+      "title": "Kept and shared",
+      "items": [
+        "Keys, learned abilities and caught phrases live in the browser and survive a death",
+        "The chronicle is a Cloudflare worker over KV, with a plain node twin for a box of one's own",
+        "Only a run's best is recorded, and a password is stored salted and hashed, never itself"
+      ]
+    }
+  ]
+}
