@@ -1,0 +1,43 @@
+name: deploy-vps
+
+# Пуш в master уезжает на сервер сам. Ключ в секретах репозитория шелла не
+# даёт: на той стороне он прибит к одной команде, которая умеет только
+# разложить этот сайт (vps-infra, scripts/ci-deploy.sh). Ключ у каждого сайта
+# свой — отзыв одного не должен ронять выкатку остальных.
+
+on:
+  push:
+    branches: [master]
+  workflow_dispatch:
+
+concurrency:
+  group: deploy-vps-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - run: npm ci
+      - name: Собрать веб-версию
+        run: node build-dist.mjs
+
+      - name: Ключ и отпечаток сервера
+        run: |
+          install -d -m 700 ~/.ssh
+          printf '%s\n' "${{ secrets.VPS_SSH_KEY }}" > ~/.ssh/id_deploy
+          chmod 600 ~/.ssh/id_deploy
+          printf '%s\n' "${{ secrets.VPS_HOST_KEY }}" > ~/.ssh/known_hosts
+
+      - name: Отправить на сервер
+        run: |
+          tar czf - -C dist . \
+            | ssh -i ~/.ssh/id_deploy -o IdentitiesOnly=yes \
+                  "root@${{ secrets.VPS_HOST }}" "site io-noch ${{ github.sha }}"
